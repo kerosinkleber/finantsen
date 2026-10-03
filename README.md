@@ -8,6 +8,18 @@ Selbst gehostete Web-App zum Teilen von Ausgaben (Splitwise-Alternative). Propri
 
 **Funktionen (Phase 3):** Ausgaben in allen Währungen, für die der Kursanbieter Kurse liefert (Standard: über 150), mit automatischer Umrechnung in die Gruppenwährung; Belegscan per Foto (optional, immer vom Nutzer zu bestätigen); Aufteilung nach Einzelposten mit anteiliger Steuer und Trinkgeld.
 
+## Lokal mit Docker testen
+Voraussetzung: Docker Desktop (oder Docker Engine + Compose) läuft. Keine Domain, kein HTTPS, keine `.env` nötig:
+```bash
+git clone <dieses-repo> finantsen && cd finantsen
+docker compose -f docker-compose.local.yml up --build
+```
+Der erste Build dauert einige Minuten. Wenn im Log `migrations applied` und `Ready` erscheinen, öffne http://localhost:3000 und registriere dich (der erste Nutzer wird Admin). Zum Testen mit mehreren Personen einen zweiten Browser bzw. ein privates Fenster nehmen und über einen Einladungslink registrieren. Vom Handy im selben WLAN: `http://<IP-deines-Rechners>:3000` (PWA-Installation und Push brauchen HTTPS und gehen nur auf dem echten Server oder über `localhost`).
+
+Nützlich: `docker compose -f docker-compose.local.yml logs -f app` (Logs), `... down` (stoppen, Daten bleiben), `... down -v` (stoppen und Daten löschen), anderer Port: `LOCAL_PORT=3001 docker compose -f docker-compose.local.yml up --build`. Optionale Funktionen: `ANTHROPIC_API_KEY=sk-... docker compose -f docker-compose.local.yml up --build` aktiviert den Belegscan.
+
+Den produktiven Stack (mit Caddy/HTTPS) kannst du lokal mit `DOMAIN=localhost` in `.env` und `docker compose up -d` testen; der Browser warnt dann wegen des selbstsignierten Zertifikats.
+
 ## Server-Setup (Schritt für Schritt)
 
 Voraussetzungen: ein Linux-Server mit Docker + Docker Compose, eine Domain, deren DNS-Eintrag (A/AAAA) auf den Server zeigt, offene Ports 80 und 443.

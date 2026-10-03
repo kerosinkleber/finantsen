@@ -1,0 +1,40 @@
+# Lokaler Test ohne Domain/HTTPS/.env:
+#   docker compose -f docker-compose.local.yml up --build
+# Danach: http://localhost:3000 (Port änderbar: LOCAL_PORT=3001 docker compose -f ... up --build)
+# Aufräumen inkl. Daten: docker compose -f docker-compose.local.yml down -v
+name: finantsen-local
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: finantsen
+      POSTGRES_PASSWORD: local-dev-only
+      POSTGRES_DB: finantsen
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finantsen -d finantsen"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${LOCAL_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://finantsen:local-dev-only@db:5432/finantsen
+      APP_URL: http://localhost:${LOCAL_PORT:-3000}
+      REGISTRATION_ENABLED: "true"
+      DEFAULT_LOCALE: de
+      # Optional: aus der Shell durchreichen, z. B. ANTHROPIC_API_KEY=sk-... docker compose -f ... up
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EXCHANGE_RATE_PROVIDER: ${EXCHANGE_RATE_PROVIDER:-fawazahmed0}
+      EXCHANGE_RATES_STATIC: ${EXCHANGE_RATES_STATIC:-}
+
+volumes:
+  db-data:
