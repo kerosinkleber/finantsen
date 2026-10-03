@@ -20,9 +20,10 @@ export async function groupBalances(groupId: string): Promise<GroupBalances> {
   const [g] = await getDb().select({ simplify: groups.simplifyDebts }).from(groups).where(eq(groups.id, groupId));
   const [exps, pays] = await Promise.all([loadExpenses(groupId), loadPayments(groupId)]);
   const expLike = exps.map((e) => ({
-    currency: e.currency,
-    payers: e.payers.map((p) => ({ userId: p.userId, amount: p.amountMinor })),
-    shares: e.shares.map((s) => ({ userId: s.userId, amount: s.amountMinor })),
+    // Salden werden in der Abrechnungswährung der Ausgabe geführt (umgerechnet beim Buchen)
+    currency: e.baseCurrency,
+    payers: e.payers.map((p) => ({ userId: p.userId, amount: p.baseAmountMinor })),
+    shares: e.shares.map((s) => ({ userId: s.userId, amount: s.baseAmountMinor })),
   }));
   const payLike = pays.map((p) => ({ currency: p.currency, fromUser: p.fromUser, toUser: p.toUser, amount: p.amountMinor }));
   const net = computeBalances(expLike, payLike);

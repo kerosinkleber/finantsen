@@ -104,6 +104,15 @@ export const expenses = pgTable(
     date: date("date", { mode: "string" }).notNull(),
     category: varchar("category", { length: 30 }).notNull().default("other"),
     splitType: varchar("split_type", { length: 10 }).notNull(),
+    /** Abrechnungswährung (Gruppenwährung zum Buchungszeitpunkt) und umgerechneter Betrag */
+    baseCurrency: varchar("base_currency", { length: 3 }).notNull(),
+    baseAmountMinor: money("base_amount_minor").notNull(),
+    /** Kurs: 1 Einheit `currency` = rate Einheiten `baseCurrency` (Dezimalstring), zum Buchungszeitpunkt gespeichert */
+    rate: text("rate").notNull().default("1"),
+    /** same | provider | manual */
+    rateSource: varchar("rate_source", { length: 10 }).notNull().default("same"),
+    /** Einzelposten bei splitType "items": { items: [{ name, amountMinor, participants }], taxMinor, tipMinor } */
+    items: jsonb("items"),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),
@@ -124,6 +133,7 @@ export const expensePayers = pgTable(
       .notNull()
       .references(() => users.id),
     amountMinor: money("amount_minor").notNull(),
+    baseAmountMinor: money("base_amount_minor").notNull(),
   },
   (t) => [primaryKey({ columns: [t.expenseId, t.userId] })],
 );
@@ -139,6 +149,7 @@ export const expenseShares = pgTable(
       .references(() => users.id),
     /** berechneter Anteil in Minor-Units */
     amountMinor: money("amount_minor").notNull(),
+    baseAmountMinor: money("base_amount_minor").notNull(),
     /** Roheingabe je Aufteilungsart: Basispunkte, Shares oder fester Betrag; null bei equal/full */
     input: bigint("input", { mode: "number" }),
   },
@@ -252,4 +263,17 @@ export const pushSubscriptions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("push_endpoint_idx").on(t.endpoint)],
+);
+
+/** Cache für Wechselkurse: Kurse von `base` zu allen anderen Währungen an einem Datum. */
+export const exchangeRates = pgTable(
+  "exchange_rates",
+  {
+    provider: varchar("provider", { length: 30 }).notNull(),
+    base: varchar("base", { length: 3 }).notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    rates: jsonb("rates").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.base, t.date] })],
 );

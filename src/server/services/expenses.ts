@@ -2,7 +2,8 @@ import { and, desc, eq, exists, gte, ilike, inArray, isNull, lte, or, type SQL }
 import { getDb, type Tx } from "../db";
 import { expenseHistory, expensePayers, expenseShares, expenses, users } from "../schema";
 import { ApiError, notFound } from "../http";
-import { computeShares, validatePayers, type SplitInput } from "@/lib/money";
+import { computeShares, convertMinor, normalizeRate, rescale, validatePayers, type SplitInput } from "@/lib/money";
+import { getRate } from "../rates";
 import type { ExpenseBody } from "@/lib/schemas";
 import { memberIds, requireMember } from "./access";
 import { notifyGroup } from "./notifications";
@@ -20,8 +21,20 @@ export type ExpenseDetail = {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
-  payers: { userId: string; amountMinor: number }[];
-  shares: { userId: string; amountMinor: number; input: number | null }[];
+  baseCurrency: string;
+  baseAmountMinor: number;
+  /** 1 Einheit `currency` = rate Einheiten `baseCurrency` */
+  rate: string;
+  rateSource: string;
+  items: ItemsData | null;
+  payers: { userId: string; amountMinor: number; baseAmountMinor: number }[];
+  shares: { userId: string; amountMinor: number; baseAmountMinor: number; input: number | null }[];
+};
+
+export type ItemsData = {
+  items: { name: string; amountMinor: number; participants: string[] }[];
+  taxMinor: number;
+  tipMinor: number;
 };
 
 function toSplitInput(split: ExpenseBody["split"]): SplitInput {
@@ -36,6 +49,13 @@ function toSplitInput(split: ExpenseBody["split"]): SplitInput {
       return { type: "shares", entries: split.entries.map((e) => ({ id: e.userId, shares: e.shares })) };
     case "full":
       return { type: "full", owner: split.owner };
+    case "items":
+      return {
+        type: "items",
+        items: split.items.map((i) => ({ name: i.name, amount: i.amountMinor, participants: i.participants })),
+        tax: split.taxMinor,
+        tip: split.tipMinor,
+      };
   }
 }
 
@@ -68,10 +88,17 @@ async function hydrate(rows: (typeof expenses.$inferSelect)[]): Promise<ExpenseD
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     deletedAt: r.deletedAt,
-    payers: payers.filter((p) => p.expenseId === r.id).map((p) => ({ userId: p.userId, amountMinor: p.amountMinor })),
+    baseCurrency: r.baseCurrency,
+    baseAmountMinor: r.baseAmountMinor,
+    rate: r.rate,
+    rateSource: r.rateSource,
+    items: (r.items as ItemsData | null) ?? null,
+    payers: payers
+      .filter((p) => p.expenseId === r.id)
+      .map((p) => ({ userId: p.userId, amountMinor: p.amountMinor, baseAmountMinor: p.baseAmountMinor })),
     shares: shares
       .filter((s) => s.expenseId === r.id)
-      .map((s) => ({ userId: s.userId, amountMinor: s.amountMinor, input: s.input })),
+      .map((s) => ({ userId: s.userId, amountMinor: s.amountMinor, baseAmountMinor: s.baseAmountMinor, input: s.input })),
   }));
 }
 
@@ -100,8 +127,8 @@ export async function loadExpenses(groupId: string, opts: { includeDeleted?: boo
   const conds: (SQL | undefined)[] = [eq(expenses.groupId, groupId)];
   if (!opts.includeDeleted) conds.push(isNull(expenses.deletedAt));
   if (f.q) conds.push(ilike(expenses.title, `%${f.q.replace(/[\\%_]/g, (c) => "\\" + c)}%`));
-  if (f.minMinor !== undefined) conds.push(gte(expenses.amountMinor, f.minMinor));
-  if (f.maxMinor !== undefined) conds.push(lte(expenses.amountMinor, f.maxMinor));
+  if (f.minMinor !== undefined) conds.push(gte(expenses.baseAmountMinor, f.minMinor));
+  if (f.maxMinor !== undefined) conds.push(lte(expenses.baseAmountMinor, f.maxMinor));
   if (f.from) conds.push(gte(expenses.date, f.from));
   if (f.to) conds.push(lte(expenses.date, f.to));
   if (f.category) conds.push(eq(expenses.category, f.category));
@@ -134,21 +161,60 @@ export async function getExpense(userId: string, groupId: string, expenseId: str
   return (await hydrate(rows))[0];
 }
 
-/** Validiert Teilnehmer/Zahler gegen die Mitglieder und berechnet die Anteile. */
-async function prepare(groupId: string, body: ExpenseBody) {
+/** Bestimmt Kurs und Quelle: gleiche Währung = 1, manueller Kurs, wiederverwendeter gespeicherter Kurs oder Anbieter. */
+async function resolveRate(
+  body: ExpenseBody,
+  baseCurrency: string,
+  reuse?: { rate: string; rateSource: string; currency: string; date: string; baseCurrency: string },
+): Promise<{ rate: string; source: "same" | "provider" | "manual" }> {
+  if (body.currency === baseCurrency) return { rate: "1.000000000000000", source: "same" };
+  if (body.rate) {
+    const r = normalizeRate(body.rate);
+    if (!r) throw new ApiError(400, "invalid_rate");
+    return { rate: r, source: "manual" };
+  }
+  if (reuse && reuse.currency === body.currency && reuse.date === body.date && reuse.baseCurrency === baseCurrency && reuse.rateSource !== "same") {
+    return { rate: reuse.rate, source: reuse.rateSource === "manual" ? "manual" : "provider" };
+  }
+  const r = await getRate(body.currency, baseCurrency, body.date);
+  return { rate: r.rate, source: "provider" };
+}
+
+/** Validiert Teilnehmer/Zahler, berechnet Anteile und rechnet alles in die Abrechnungswährung um. */
+async function prepare(groupId: string, body: ExpenseBody, baseCurrency: string, reuse?: Parameters<typeof resolveRate>[2]) {
   const members = new Set(await memberIds(groupId));
-  const payerList = body.payers.map((p) => ({ id: p.userId, amount: p.amountMinor }));
+  const payerList = body.payers.map((p) => ({ id: p.userId, amount: p.amountMinor })).sort((a, b) => (a.id < b.id ? -1 : 1));
   validatePayers(body.amountMinor, payerList);
   const shares = computeShares(body.amountMinor, toSplitInput(body.split));
   const involved = [...payerList.map((p) => p.id), ...shares.map((s) => s.id)];
   if (involved.some((u) => !members.has(u))) throw new ApiError(400, "not_a_member");
-  return { payerList, shares, raw: rawInput(body.split) };
+  const { rate, source } = await resolveRate(body, baseCurrency, reuse);
+  const baseAmount = convertMinor(body.amountMinor, body.currency, baseCurrency, rate);
+  // Anteile und Zahler proportional neu verteilen, damit die Summen exakt dem umgerechneten Betrag entsprechen.
+  const basePayers = rescale(baseAmount, payerList.map((x) => x.amount));
+  const baseShares = rescale(baseAmount, shares.map((x) => x.amount));
+  const itemsData: ItemsData | null =
+    body.split.type === "items"
+      ? { items: body.split.items, taxMinor: body.split.taxMinor, tipMinor: body.split.tipMinor }
+      : null;
+  return {
+    payerList: payerList.map((x, i) => ({ ...x, base: basePayers[i] })),
+    shares: shares.map((x, i) => ({ ...x, base: baseShares[i] })),
+    raw: rawInput(body.split),
+    rate,
+    source,
+    baseCurrency,
+    baseAmount,
+    itemsData,
+  };
 }
 
 async function writeParts(tx: Tx, expenseId: string, p: Awaited<ReturnType<typeof prepare>>) {
-  await tx.insert(expensePayers).values(p.payerList.filter((x) => x.amount > 0).map((x) => ({ expenseId, userId: x.id, amountMinor: x.amount })));
+  await tx
+    .insert(expensePayers)
+    .values(p.payerList.filter((x) => x.amount > 0).map((x) => ({ expenseId, userId: x.id, amountMinor: x.amount, baseAmountMinor: x.base })));
   await tx.insert(expenseShares).values(
-    p.shares.map((s) => ({ expenseId, userId: s.id, amountMinor: s.amount, input: p.raw.get(s.id) ?? null })),
+    p.shares.map((s) => ({ expenseId, userId: s.id, amountMinor: s.amount, baseAmountMinor: s.base, input: p.raw.get(s.id) ?? null })),
   );
 }
 
@@ -160,6 +226,10 @@ function snapshot(e: ExpenseDetail) {
     date: e.date,
     category: e.category,
     splitType: e.splitType,
+    baseCurrency: e.baseCurrency,
+    baseAmountMinor: e.baseAmountMinor,
+    rate: e.rate,
+    items: e.items,
     payers: e.payers,
     shares: e.shares,
     deleted: e.deletedAt !== null,
@@ -167,8 +237,8 @@ function snapshot(e: ExpenseDetail) {
 }
 
 export async function createExpense(userId: string, groupId: string, body: ExpenseBody) {
-  await requireMember(userId, groupId);
-  const p = await prepare(groupId, body);
+  const { group } = await requireMember(userId, groupId);
+  const p = await prepare(groupId, body, group.defaultCurrency);
   const id = await getDb().transaction(async (tx) => {
     const [row] = await tx
       .insert(expenses)
@@ -180,6 +250,11 @@ export async function createExpense(userId: string, groupId: string, body: Expen
         date: body.date,
         category: body.category,
         splitType: body.split.type,
+        baseCurrency: p.baseCurrency,
+        baseAmountMinor: p.baseAmount,
+        rate: p.rate,
+        rateSource: p.source,
+        items: p.itemsData,
         createdBy: userId,
       })
       .returning();
@@ -203,7 +278,8 @@ export async function createExpense(userId: string, groupId: string, body: Expen
 export async function updateExpense(userId: string, groupId: string, expenseId: string, body: ExpenseBody) {
   const existing = await getExpense(userId, groupId, expenseId);
   if (existing.deletedAt) throw new ApiError(409, "expense_deleted");
-  const p = await prepare(groupId, body);
+  // Abrechnungswährung bleibt die der Ausgabe, auch wenn die Gruppenwährung inzwischen geändert wurde.
+  const p = await prepare(groupId, body, existing.baseCurrency, existing);
   await getDb().transaction(async (tx) => {
     await tx
       .update(expenses)
@@ -214,6 +290,10 @@ export async function updateExpense(userId: string, groupId: string, expenseId: 
         date: body.date,
         category: body.category,
         splitType: body.split.type,
+        baseAmountMinor: p.baseAmount,
+        rate: p.rate,
+        rateSource: p.source,
+        items: p.itemsData,
         updatedAt: new Date(),
       })
       .where(eq(expenses.id, expenseId));

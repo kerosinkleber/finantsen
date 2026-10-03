@@ -58,6 +58,21 @@ export const splitSchema = z.discriminatedUnion("type", [
     entries: z.array(z.object({ userId: id, shares: safeInt.min(0).max(1_000_000) })).min(1).max(100),
   }),
   z.object({ type: z.literal("full"), owner: id }),
+  z.object({
+    type: z.literal("items"),
+    items: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1).max(200),
+          amountMinor: safeInt.min(0),
+          participants: z.array(id).min(1).max(100),
+        }),
+      )
+      .min(1)
+      .max(200),
+    taxMinor: safeInt.min(0).default(0),
+    tipMinor: safeInt.min(0).default(0),
+  }),
 ]);
 export type SplitBody = z.infer<typeof splitSchema>;
 
@@ -69,6 +84,8 @@ export const expenseSchema = z.object({
   category: z.enum(CATEGORIES).default("other"),
   payers: z.array(z.object({ userId: id, amountMinor: safeInt.min(0) })).min(1).max(100),
   split: splitSchema,
+  /** Optionaler manueller Kurs (1 Einheit `currency` = rate Einheiten der Gruppenwährung); ersetzt den automatischen */
+  rate: z.string().trim().max(40).optional(),
 });
 export type ExpenseBody = z.infer<typeof expenseSchema>;
 

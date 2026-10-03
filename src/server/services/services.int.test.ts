@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.REGISTRATION_ENABLED = "false";
-    const [{ getDb, closeDb }, { runMigrations }, users, groups, expenses, balances, payments, { sql }, comments, notifications, stats] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./users"),
@@ -23,8 +23,9 @@ d("services (PostgreSQL)", () => {
       import("./comments"),
       import("./notifications"),
       import("./stats"),
+      import("../rates"),
     ]);
-    return { getDb, closeDb, runMigrations, users, groups, expenses, balances, payments, sql, comments, notifications, stats };
+    return { getDb, closeDb, runMigrations, users, groups, expenses, balances, payments, sql, comments, notifications, stats, rates };
   }
 
   beforeAll(async () => {
@@ -33,7 +34,7 @@ d("services (PostgreSQL)", () => {
   });
   afterAll(async () => svc?.closeDb());
   beforeEach(async () => {
-    await svc.getDb().execute(svc.sql`truncate users, groups, settings cascade`);
+    await svc.getDb().execute(svc.sql`truncate users, groups, settings, exchange_rates cascade`);
   });
 
   async function setup() {
@@ -134,18 +135,6 @@ d("services (PostgreSQL)", () => {
     await expect(svc.expenses.updateExpense(a.id, g.id, e.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id] } }))).rejects.toMatchObject({ code: "expense_deleted" });
   });
 
-  it("Währungen getrennt, JPY ohne Nachkommastellen", async () => {
-    const { a, b, g } = await setup();
-    await svc.expenses.createExpense(a.id, g.id, base({ currency: "JPY", amountMinor: 1001, payers: [{ userId: a.id, amountMinor: 1001 }], split: { type: "equal", participants: [a.id, b.id] } }));
-    await svc.expenses.createExpense(b.id, g.id, base({ amountMinor: 500, payers: [{ userId: b.id, amountMinor: 500 }], split: { type: "equal", participants: [a.id, b.id] } }));
-    const bal = await svc.balances.getGroupBalances(a.id, g.id);
-    // 1001 JPY auf zwei: 501/500, der Restyen geht deterministisch an die kleinere ID
-    const lo = [a.id, b.id].sort()[0];
-    const aShare = a.id === lo ? 501 : 500;
-    expect(bal.net.JPY).toEqual({ [a.id]: 1001 - aShare, [b.id]: -(1001 - aShare) });
-    expect(bal.net.EUR).toEqual({ [b.id]: 250, [a.id]: -250 });
-  });
-
   it("Freunde: Direktgruppe mit genau 2 Personen", async () => {
     const { a, b, c } = await setup();
     const dg = await svc.groups.createGroup(a.id, { name: "direct", defaultCurrency: "EUR", kind: "direct" });
@@ -234,6 +223,116 @@ d("services (PostgreSQL)", () => {
       await svc.expenses.deleteExpense(a.id, g.id, e1.id);
       st = await svc.stats.getGroupStats(b.id, g.id, { from: "2026-01-01" });
       expect(st.EUR.total).toBe(1000);
+    });
+  });
+
+  describe("Phase 3: Währungen und Itemisierung", () => {
+    const calls: string[] = [];
+    const table: Record<string, number> = { EUR: 1, JPY: 160, USD: 1.1, KWD: 0.33 };
+    const fake = {
+      name: "fake",
+      historical: true,
+      async fetchRates(base: string, date: string) {
+        calls.push(`${base}@${date}`);
+        const out: Record<string, number> = {};
+        for (const [k, v] of Object.entries(table)) if (k !== base) out[k] = v / table[base];
+        return out;
+      },
+    };
+    beforeEach(() => {
+      calls.length = 0;
+      svc.rates.setRateProvider(fake);
+    });
+    afterAll(() => svc.rates.setRateProvider(null));
+
+    it("rechnet Fremdwährung um, speichert Kurs und Basiswerte; Salden in Gruppenwährung", async () => {
+      const { a, b, g } = await setup();
+      const e1 = await svc.expenses.createExpense(a.id, g.id, base({ currency: "JPY", amountMinor: 1001, payers: [{ userId: a.id, amountMinor: 1001 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      expect(e1.baseCurrency).toBe("EUR");
+      expect(e1.rateSource).toBe("provider");
+      expect(Number(e1.rate)).toBeCloseTo(1 / 160, 12);
+      expect(e1.baseAmountMinor).toBe(626); // 1001 ¥ × 0,00625 = 6,25625 € -> 6,26 €
+      expect(e1.payers.reduce((x, y) => x + y.baseAmountMinor, 0)).toBe(626);
+      expect(e1.shares.reduce((x, y) => x + y.baseAmountMinor, 0)).toBe(626);
+      await svc.expenses.createExpense(b.id, g.id, base({ amountMinor: 500, payers: [{ userId: b.id, amountMinor: 500 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      const bal = await svc.balances.getGroupBalances(a.id, g.id);
+      expect(Object.keys(bal.net)).toEqual(["EUR"]);
+      expect(bal.net.EUR).toEqual({ [a.id]: 63, [b.id]: -63 });
+      const st = await svc.stats.getGroupStats(a.id, g.id);
+      expect(Object.keys(st)).toEqual(["EUR"]);
+      expect(st.EUR.total).toBe(1126);
+    });
+
+    it("gleiche Währung: Kurs 1, kein Anbieteraufruf; Kurse werden gecacht", async () => {
+      const { a, b, g } = await setup();
+      const mk = (cur: string) => svc.expenses.createExpense(a.id, g.id, base({ currency: cur, date: "2026-01-02", payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      const same = await mk("EUR");
+      expect(same.rateSource).toBe("same");
+      expect(calls).toEqual([]);
+      await mk("USD");
+      await mk("USD");
+      await mk("JPY"); // gleicher Tag, gleiche Basis? nein: Basis USD vs JPY -> je eine Anfrage
+      expect(calls).toEqual(["USD@2026-01-02", "JPY@2026-01-02"]);
+    });
+
+    it("manueller Kurs hat Vorrang; Bearbeiten behält den gespeicherten Kurs, solange Währung/Datum gleich bleiben", async () => {
+      const { a, b, g } = await setup();
+      const e = await svc.expenses.createExpense(a.id, g.id, base({ currency: "USD", amountMinor: 1000, rate: "0,9", payers: [{ userId: a.id, amountMinor: 1000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      expect(e.rateSource).toBe("manual");
+      expect(e.baseAmountMinor).toBe(900);
+      expect(calls).toEqual([]);
+      const u = await svc.expenses.updateExpense(a.id, g.id, e.id, base({ currency: "USD", amountMinor: 2000, payers: [{ userId: a.id, amountMinor: 2000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      expect(u.rateSource).toBe("manual");
+      expect(u.baseAmountMinor).toBe(1800);
+      expect(calls).toEqual([]);
+      const changed = await svc.expenses.updateExpense(a.id, g.id, e.id, base({ currency: "USD", date: "2026-02-02", amountMinor: 2000, payers: [{ userId: a.id, amountMinor: 2000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      expect(changed.rateSource).toBe("provider"); // Datum geändert -> neuer Kurs
+      expect(calls).toEqual(["USD@2026-02-02"]);
+      await expect(svc.expenses.createExpense(a.id, g.id, base({ currency: "USD", rate: "abc", payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id] } }))).rejects.toMatchObject({ code: "invalid_rate" });
+    });
+
+    it("Anbieter nicht erreichbar -> 503 rate_unavailable (nichts wird gespeichert); manueller Kurs geht trotzdem", async () => {
+      const { a, g } = await setup();
+      svc.rates.setRateProvider({ name: "down", historical: true, fetchRates: async () => { throw new Error("offline"); } });
+      await expect(svc.expenses.createExpense(a.id, g.id, base({ currency: "USD", payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id] } }))).rejects.toMatchObject({ status: 503, code: "rate_unavailable" });
+      expect(await svc.expenses.listExpenses(a.id, g.id)).toHaveLength(0);
+      const ok = await svc.expenses.createExpense(a.id, g.id, base({ currency: "USD", rate: "1", payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id] } }));
+      expect(ok.baseAmountMinor).toBe(3000);
+    });
+
+    it("nicht unterstützte Währung -> 422", async () => {
+      const { a, g } = await setup();
+      await expect(svc.expenses.createExpense(a.id, g.id, base({ currency: "CHF", payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id] } }))).rejects.toMatchObject({ status: 422, code: "currency_unsupported" });
+    });
+
+    it("Itemisierung: Positionen, Steuer, Trinkgeld; Verlauf enthält Positionen", async () => {
+      const { a, b, c, g } = await setup();
+      const e = await svc.expenses.createExpense(a.id, g.id, base({
+        amountMinor: 1500 + 500 + 200 + 100,
+        payers: [{ userId: a.id, amountMinor: 2300 }],
+        split: { type: "items", items: [{ name: "Pizza", amountMinor: 1500, participants: [b.id] }, { name: "Wein", amountMinor: 500, participants: [b.id, c.id] }], taxMinor: 200, tipMinor: 100 },
+      }));
+      expect(e.splitType).toBe("items");
+      expect(e.items?.items).toHaveLength(2);
+      expect(e.shares.map((x) => x.userId).sort()).toEqual([b.id, c.id].sort());
+      expect(e.shares.reduce((x, y) => x + y.amountMinor, 0)).toBe(2300);
+      const bal = await svc.balances.getGroupBalances(a.id, g.id);
+      expect(bal.net.EUR[a.id]).toBe(2300);
+      const h = await svc.expenses.expenseHistoryFor(a.id, g.id, e.id);
+      expect((h[0].snapshot as { items: unknown }).items).not.toBeNull();
+      await expect(svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 999, payers: [{ userId: a.id, amountMinor: 999 }], split: { type: "items", items: [{ name: "x", amountMinor: 1000, participants: [a.id] }], taxMinor: 0, tipMinor: 0 } }))).rejects.toMatchObject({ code: "items_sum" });
+    });
+
+    it("Itemisierung in Fremdwährung wird umgerechnet", async () => {
+      const { a, b, g } = await setup();
+      const e = await svc.expenses.createExpense(a.id, g.id, base({
+        currency: "USD",
+        amountMinor: 1100,
+        payers: [{ userId: a.id, amountMinor: 1100 }],
+        split: { type: "items", items: [{ name: "A", amountMinor: 600, participants: [a.id] }, { name: "B", amountMinor: 500, participants: [b.id] }], taxMinor: 0, tipMinor: 0 },
+      }));
+      expect(e.baseAmountMinor).toBe(1000);
+      expect(e.shares.reduce((x, y) => x + y.baseAmountMinor, 0)).toBe(1000);
     });
   });
 });
