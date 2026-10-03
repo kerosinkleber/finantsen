@@ -54,6 +54,8 @@ export const groups = pgTable("groups", {
   defaultCurrency: varchar("default_currency", { length: 3 }).notNull().default("EUR"),
   /** Schuldenvereinfachung für die Anzeige der Salden */
   simplifyDebts: boolean("simplify_debts").notNull().default(true),
+  /** Standard-Aufteilung für neue Ausgaben: { type: "equal"|"percent"|"shares", entries: [{ userId, value }] } */
+  defaultSplit: jsonb("default_split"),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id),
@@ -198,3 +200,56 @@ export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
   group: one(groups, { fields: [groupMembers.groupId], references: [groups.id] }),
   user: one(users, { fields: [groupMembers.userId], references: [users.id] }),
 }));
+
+export const expenseComments = pgTable(
+  "expense_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    body: varchar("body", { length: 2000 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("ec_expense_idx").on(t.expenseId, t.createdAt)],
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** expense_created | comment */
+    type: varchar("type", { length: 20 }).notNull(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    expenseId: uuid("expense_id").references(() => expenses.id, { onDelete: "cascade" }),
+    /** { actorName, title, amountMinor?, currency?, groupName, excerpt? } */
+    data: jsonb("data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [index("notif_user_idx").on(t.userId, t.createdAt)],
+);
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("push_endpoint_idx").on(t.endpoint)],
+);

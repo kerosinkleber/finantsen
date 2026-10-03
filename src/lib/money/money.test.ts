@@ -328,3 +328,22 @@ describe("pairwiseDebts", () => {
     });
   });
 });
+
+import { computeStats } from "./index";
+describe("computeStats", () => {
+  it("aggregiert nach Kategorie, Monat und Person je Währung", () => {
+    const s = computeStats([
+      { currency: "EUR", amountMinor: 3000, date: "2026-01-15", category: "restaurant", payers: [{ userId: "a", amountMinor: 3000 }], shares: [{ userId: "a", amountMinor: 1500 }, { userId: "b", amountMinor: 1500 }] },
+      { currency: "EUR", amountMinor: 1000, date: "2026-02-01", category: "restaurant", payers: [{ userId: "b", amountMinor: 1000 }], shares: [{ userId: "a", amountMinor: 500 }, { userId: "b", amountMinor: 500 }] },
+      { currency: "EUR", amountMinor: 500, date: "2026-01-20", category: "transport", payers: [{ userId: "a", amountMinor: 500 }], shares: [{ userId: "b", amountMinor: 500 }] },
+      { currency: "JPY", amountMinor: 900, date: "2026-01-02", category: "other", payers: [{ userId: "a", amountMinor: 900 }], shares: [{ userId: "a", amountMinor: 900 }] },
+    ]);
+    expect(s.EUR.total).toBe(4500);
+    expect(s.EUR.count).toBe(3);
+    expect(s.EUR.byCategory).toEqual([{ category: "restaurant", total: 4000 }, { category: "transport", total: 500 }]);
+    expect(s.EUR.byMonth).toEqual([{ month: "2026-01", total: 3500 }, { month: "2026-02", total: 1000 }]);
+    expect(s.EUR.byPerson).toEqual([{ userId: "a", paid: 3500, share: 2000 }, { userId: "b", paid: 1000, share: 2500 }]);
+    expect(s.JPY.total).toBe(900);
+  });
+  it("leer", () => expect(computeStats([])).toEqual({}));
+});

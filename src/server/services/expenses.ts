@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, exists, gte, ilike, inArray, isNull, lte, or, type SQL } from "drizzle-orm";
 import { getDb, type Tx } from "../db";
 import { expenseHistory, expensePayers, expenseShares, expenses, users } from "../schema";
 import { ApiError, notFound } from "../http";
 import { computeShares, validatePayers, type SplitInput } from "@/lib/money";
 import type { ExpenseBody } from "@/lib/schemas";
 import { memberIds, requireMember } from "./access";
+import { notifyGroup } from "./notifications";
 
 export type ExpenseDetail = {
   id: string;
@@ -74,16 +75,49 @@ async function hydrate(rows: (typeof expenses.$inferSelect)[]): Promise<ExpenseD
   }));
 }
 
-export async function listExpenses(userId: string, groupId: string, opts: { includeDeleted?: boolean } = {}) {
+export type ExpenseFilter = {
+  q?: string;
+  minMinor?: number;
+  maxMinor?: number;
+  from?: string;
+  to?: string;
+  category?: string;
+  /** Nutzer, der Zahler oder Anteilsträger sein muss */
+  person?: string;
+};
+
+export async function listExpenses(
+  userId: string,
+  groupId: string,
+  opts: { includeDeleted?: boolean; filter?: ExpenseFilter } = {},
+) {
   await requireMember(userId, groupId);
   return loadExpenses(groupId, opts);
 }
 
-export async function loadExpenses(groupId: string, opts: { includeDeleted?: boolean } = {}) {
+export async function loadExpenses(groupId: string, opts: { includeDeleted?: boolean; filter?: ExpenseFilter } = {}) {
+  const f = opts.filter ?? {};
+  const conds: (SQL | undefined)[] = [eq(expenses.groupId, groupId)];
+  if (!opts.includeDeleted) conds.push(isNull(expenses.deletedAt));
+  if (f.q) conds.push(ilike(expenses.title, `%${f.q.replace(/[\\%_]/g, (c) => "\\" + c)}%`));
+  if (f.minMinor !== undefined) conds.push(gte(expenses.amountMinor, f.minMinor));
+  if (f.maxMinor !== undefined) conds.push(lte(expenses.amountMinor, f.maxMinor));
+  if (f.from) conds.push(gte(expenses.date, f.from));
+  if (f.to) conds.push(lte(expenses.date, f.to));
+  if (f.category) conds.push(eq(expenses.category, f.category));
+  if (f.person) {
+    const db = getDb();
+    conds.push(
+      or(
+        exists(db.select({ x: expensePayers.userId }).from(expensePayers).where(and(eq(expensePayers.expenseId, expenses.id), eq(expensePayers.userId, f.person)))),
+        exists(db.select({ x: expenseShares.userId }).from(expenseShares).where(and(eq(expenseShares.expenseId, expenses.id), eq(expenseShares.userId, f.person)))),
+      ),
+    );
+  }
   const rows = await getDb()
     .select()
     .from(expenses)
-    .where(opts.includeDeleted ? eq(expenses.groupId, groupId) : and(eq(expenses.groupId, groupId), isNull(expenses.deletedAt)))
+    .where(and(...conds))
     .orderBy(desc(expenses.date), desc(expenses.createdAt));
   return hydrate(rows);
 }
@@ -154,6 +188,15 @@ export async function createExpense(userId: string, groupId: string, body: Expen
   });
   const detail = await getExpense(userId, groupId, id);
   await getDb().insert(expenseHistory).values({ expenseId: id, userId, action: "create", snapshot: snapshot(detail) });
+  await notifyGroup({
+    type: "expense_created",
+    groupId,
+    expenseId: id,
+    actorId: userId,
+    title: detail.title,
+    amountMinor: detail.amountMinor,
+    currency: detail.currency,
+  });
   return detail;
 }
 

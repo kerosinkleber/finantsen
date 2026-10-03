@@ -29,7 +29,15 @@ export const groupCreateSchema = z.object({
   name: z.string().trim().min(1).max(100),
   defaultCurrency: currencySchema.default("EUR"),
 });
+export const defaultSplitSchema = z.object({
+  type: z.enum(["equal", "percent", "shares"]),
+  /** value: Basispunkte (percent), Anteile (shares), bei equal ignoriert */
+  entries: z.array(z.object({ userId: id, value: safeInt.min(0).max(1_000_000) })).min(1).max(100),
+});
+export type DefaultSplit = z.infer<typeof defaultSplitSchema>;
+
 export const groupUpdateSchema = z.object({
+  defaultSplit: defaultSplitSchema.nullable().optional(),
   name: z.string().trim().min(1).max(100).optional(),
   defaultCurrency: currencySchema.optional(),
   simplifyDebts: z.boolean().optional(),

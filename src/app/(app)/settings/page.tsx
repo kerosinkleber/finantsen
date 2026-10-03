@@ -1,5 +1,6 @@
 import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
+import { PushToggle } from "@/components/PushToggle";
 import { SettingsPanel } from "@/components/SettingsPanel";
 
 export default async function SettingsPage() {
@@ -13,6 +14,7 @@ export default async function SettingsPage() {
         <p className="muted">{user.email}</p>
         {user.isAdmin && <p className="muted mt-2">{t("settings.admin")}</p>}
       </div>
+      <PushToggle />
       <SettingsPanel />
       <p className="muted">{t("settings.install")}</p>
     </>

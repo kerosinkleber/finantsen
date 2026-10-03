@@ -3,7 +3,8 @@ import { randomBytes } from "node:crypto";
 import { getDb } from "../db";
 import { groupMembers, groups, invites, users } from "../schema";
 import { ApiError, forbidden, notFound } from "../http";
-import { requireMember } from "./access";
+import { memberIds, requireMember } from "./access";
+import type { DefaultSplit } from "@/lib/schemas";
 import { groupBalances } from "./balances";
 
 export type GroupSummary = {
@@ -47,12 +48,15 @@ export async function listGroups(userId: string): Promise<GroupSummary[]> {
   });
 }
 
-export async function getGroup(userId: string, groupId: string): Promise<GroupSummary & { simplifyDebts: boolean }> {
+export async function getGroup(
+  userId: string,
+  groupId: string,
+): Promise<GroupSummary & { simplifyDebts: boolean; defaultSplit: DefaultSplit | null }> {
   const { group } = await requireMember(userId, groupId);
   const all = await listGroups(userId);
   const g = all.find((x) => x.id === group.id);
   if (!g) throw notFound();
-  return { ...g, simplifyDebts: group.simplifyDebts };
+  return { ...g, simplifyDebts: group.simplifyDebts, defaultSplit: (group.defaultSplit as DefaultSplit | null) ?? null };
 }
 
 export async function createGroup(
@@ -72,10 +76,18 @@ export async function createGroup(
 export async function updateGroup(
   userId: string,
   groupId: string,
-  data: { name?: string; defaultCurrency?: string; simplifyDebts?: boolean },
+  data: { name?: string; defaultCurrency?: string; simplifyDebts?: boolean; defaultSplit?: DefaultSplit | null },
 ) {
   const { role, group } = await requireMember(userId, groupId);
   if (role !== "owner" && group.kind === "group") throw forbidden();
+  if (data.defaultSplit) {
+    const members = new Set(await memberIds(groupId));
+    const d = data.defaultSplit;
+    if (d.entries.some((e) => !members.has(e.userId)) || new Set(d.entries.map((e) => e.userId)).size !== d.entries.length)
+      throw new ApiError(400, "not_a_member");
+    if (d.type === "percent" && d.entries.reduce((a, e) => a + e.value, 0) !== 10000) throw new ApiError(400, "percent_sum");
+    if (d.type === "shares" && d.entries.reduce((a, e) => a + e.value, 0) <= 0) throw new ApiError(400, "invalid_weight");
+  }
   const [g] = await getDb().update(groups).set(data).where(eq(groups.id, groupId)).returning();
   return g;
 }

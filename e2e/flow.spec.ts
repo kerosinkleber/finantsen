@@ -140,3 +140,82 @@ test("non-members cannot access a group via API", async ({ browser, baseURL }) =
   expect(res.status()).toBe(401);
   await ctx.close();
 });
+
+async function login(page: Page, email: string) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL("/");
+}
+
+test("notifications: new expense and comment reach the other member", async ({ page, browser, baseURL }) => {
+  await login(page, "ben@example.com");
+  await expect(page.getByTestId("unread")).toBeVisible();
+  await page.getByTestId("bell").click();
+  await expect(page.getByTestId("notification").first()).toContainText("Anna added");
+  await page.getByRole("button", { name: "Mark all as read" }).click();
+  await expect(page.getByTestId("unread")).toHaveCount(0);
+
+  await page.goto(groupUrl);
+  await page.getByTestId("expense-item").filter({ hasText: "Dinner" }).click();
+  await page.getByLabel("Write a comment …").fill("Tasty!");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByTestId("comment")).toContainText("Tasty!");
+
+  const anna = await browser.newContext({ baseURL, locale: "en-US" });
+  const ap = await anna.newPage();
+  await login(ap, "anna@example.com");
+  await expect(ap.getByTestId("unread")).toHaveText("1");
+  await ap.getByTestId("bell").click();
+  await expect(ap.getByTestId("notification").first()).toContainText("commented on “Dinner”: Tasty!");
+  await anna.close();
+});
+
+test("search and filter expenses", async ({ page }) => {
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}/expenses/new`);
+  await page.getByLabel("Title").fill("Taxi home");
+  await page.getByLabel("Amount").fill("12,50");
+  await page.getByLabel("Category").selectOption("transport");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("expense-item")).toHaveCount(2);
+
+  await page.goto(`${groupUrl}?tab=expenses&q=taxi`);
+  await expect(page.getByTestId("expense-item")).toHaveCount(1);
+  await expect(page.getByTestId("expense-item")).toContainText("Taxi home");
+  await page.goto(`${groupUrl}?tab=expenses&min=20`);
+  await expect(page.getByTestId("expense-item")).toHaveCount(1);
+  await expect(page.getByTestId("expense-item")).toContainText("Dinner");
+  await page.goto(`${groupUrl}?tab=expenses&category=transport&q=nothing`);
+  await expect(page.getByTestId("no-results")).toBeVisible();
+});
+
+test("default split pre-fills new expenses", async ({ page }) => {
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}?tab=members`);
+  const box = page.getByTestId("default-split");
+  await box.getByLabel("Default split").selectOption("percent");
+  await box.getByLabel("Percent Anna").fill("70");
+  await box.getByLabel("Percent Ben").fill("30");
+  await box.getByRole("button", { name: "Save default" }).click();
+  await expect(box.getByRole("button", { name: "Saved" })).toBeVisible();
+  await page.goto(`${groupUrl}/expenses/new`);
+  await expect(page.getByRole("radio", { name: "Percent" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByLabel("Percent Anna")).toHaveValue("70");
+  await expect(page.getByLabel("Percent Ben")).toHaveValue("30");
+});
+
+test("statistics page and push is cleanly disabled without VAPID keys", async ({ page }) => {
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}?tab=stats`);
+  await expect(page.getByTestId("stats-total")).toContainText("42.50");
+  await expect(page.getByTestId("stats-category")).toContainText("Transport");
+  await expect(page.getByTestId("stats-month")).toBeVisible();
+  await expect(page.getByTestId("stats-person")).toContainText("Ben");
+
+  await page.goto("/settings");
+  await expect(page.getByTestId("push")).toContainText("not set up");
+  const cfg = await page.request.get("/api/push");
+  expect(await cfg.json()).toEqual({ enabled: false, publicKey: null });
+});

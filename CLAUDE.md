@@ -21,6 +21,12 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - `src/components/` – Client-Komponenten (Formulare). `src/i18n/` – eigenes Wörterbuch de/en (`de.ts` ist die Schlüssel-Quelle, `en.ts` ist typgleich).
 - `public/sw.js` – Service Worker (Navigationen network-first mit Offline-Fallback aus Cache; Static cache-first; API nie gecacht). Cache wird beim Logout geleert.
 
+## Phase-2-Bausteine
+- Kommentare: `services/comments.ts`, UI `components/Comments.tsx`. Benachrichtigungen: `services/notifications.ts` (`notifyGroup` legt In-App-Einträge an und sendet Push; Text wird beim Rendern/Senden in der Sprache des Empfängers erzeugt, in der DB liegen nur strukturierte Daten). Web Push: `services/push.ts` (aktiv nur mit `VAPID_*`, sonst No-Op), `public/sw.js` (push/notificationclick), `npm run vapid`.
+- Filter: `server/filter.ts` parst Query-Parameter (Betragsfilter in der Gruppenwährung), `expenses.ts#loadExpenses` baut die SQL-Bedingungen; UI `components/FilterForm.tsx` ist ein reines GET-Formular.
+- Standard-Aufteilung: `groups.default_split` (jsonb, nur equal/percent/shares), wird in `ExpenseForm` vorbelegt, sofern alle Beteiligten noch Mitglieder sind.
+- Auswertung: `lib/money/stats.ts` (rein, je Währung), `services/stats.ts`, UI `components/StatsTab.tsx` (CSS-Balken, kein Chart-Paket).
+
 ## Konventionen / Regeln
 - Geld IMMER als Ganzzahl in Minor-Units (`bigint` mode number), Währung je Ausgabe/Zahlung. Nie Float.
 - Summe der Anteile == Gesamtbetrag (Rundung deterministisch: Rest nach größtem Nachkommarest, Gleichstand nach `id`-Reihenfolge).
@@ -32,4 +38,4 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Jeder sinnvolle Schritt = eigener Commit.
 
 ## Roadmap
-Phase 0/1 fertig. Phase 2 (Kommentare, Suche/Filter, Standard-Aufteilungen, Push, Diagramme) und 3 (Währungsumrechnung, Belegscan, Itemisierung) offen.
+Phase 0/1/2 fertig. Phase 3 (Währungsumrechnung, Belegscan, Itemisierung) offen.

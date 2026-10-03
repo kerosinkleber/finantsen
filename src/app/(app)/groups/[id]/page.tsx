@@ -10,16 +10,21 @@ import { ApiError } from "@/server/http";
 import { Money } from "@/components/Money";
 import { InviteBox } from "@/components/InviteBox";
 import { GroupSettings } from "@/components/GroupSettings";
+import { DefaultSplitForm } from "@/components/DefaultSplitForm";
+import { FilterForm } from "@/components/FilterForm";
+import { StatsTab } from "@/components/StatsTab";
+import { parseExpenseFilter } from "@/server/filter";
 import type { MessageKey } from "@/i18n";
 import { formatMoney } from "@/lib/money";
 
-type Tab = "expenses" | "balances" | "members";
+type Tab = "expenses" | "balances" | "stats" | "members";
 
-export default async function GroupPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+export default async function GroupPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
   const { id } = await params;
-  const tabParam = (await searchParams).tab;
-  const tab: Tab = tabParam === "balances" || tabParam === "members" ? tabParam : "expenses";
+  const sp = await searchParams;
+  const tabParam = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
+  const tab: Tab = tabParam === "balances" || tabParam === "members" || tabParam === "stats" ? tabParam : "expenses";
   const { t, locale } = await getT();
   let group;
   try {
@@ -39,7 +44,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
         <Link href={`/groups/${id}/expenses/new`} className="btn">{t("group.addExpense")}</Link>
       </div>
       <div role="tablist" className="flex gap-1 rounded-lg bg-slate-200 p-1 dark:bg-slate-800">
-        {(["expenses", "balances", "members"] as Tab[]).map((k) => (
+        {(["expenses", "balances", "stats", "members"] as Tab[]).map((k) => (
           <Link
             key={k}
             role="tab"
@@ -54,8 +59,9 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
       </div>
 
       {tab === "expenses" && (
-        <ExpensesTab groupId={id} userId={user.id} names={names} locale={locale} t={t} />
+        <ExpensesTab groupId={id} userId={user.id} names={names} locale={locale} t={t} group={group} sp={sp} />
       )}
+      {tab === "stats" && <StatsTab groupId={id} userId={user.id} names={names} locale={locale} t={t} sp={sp} />}
       {tab === "balances" && <BalancesTab groupId={id} userId={user.id} names={names} locale={locale} t={t} />}
       {tab === "members" && (
         <>
@@ -75,6 +81,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
             members={group.members}
             meId={user.id}
           />
+          <DefaultSplitForm groupId={id} members={group.members} initial={group.defaultSplit} />
         </>
       )}
     </>
@@ -83,15 +90,28 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
 
 type TFn = (key: MessageKey, params?: Record<string, string | number>) => string;
 
-async function ExpensesTab({ groupId, userId, names, locale, t }: { groupId: string; userId: string; names: Map<string, string>; locale: string; t: TFn }) {
-  const [expenses, payments] = await Promise.all([listExpenses(userId, groupId), listPayments(userId, groupId)]);
+async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
+  groupId: string;
+  userId: string;
+  names: Map<string, string>;
+  locale: string;
+  t: TFn;
+  group: Awaited<ReturnType<typeof getGroup>>;
+  sp: Record<string, string | string[] | undefined>;
+}) {
+  const { filter, active } = parseExpenseFilter(sp, group.defaultCurrency);
+  const [expenses, allPayments] = await Promise.all([listExpenses(userId, groupId, { filter }), listPayments(userId, groupId)]);
+  const payments = active ? [] : allPayments; // Zahlungen gehören nicht zu Ausgaben-Filtern
+  const form = <FilterForm groupId={groupId} members={group.members.map((m) => ({ id: m.id, name: m.id === userId ? t("common.you") : m.name }))} currency={group.defaultCurrency} values={sp} active={active} t={t} />;
   type Item = { kind: "e"; date: string; at: number; e: (typeof expenses)[number] } | { kind: "p"; date: string; at: number; p: (typeof payments)[number] };
   const items: Item[] = [
     ...expenses.map((e) => ({ kind: "e" as const, date: e.date, at: +e.createdAt, e })),
     ...payments.map((p) => ({ kind: "p" as const, date: p.date, at: +p.createdAt, p })),
   ].sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1));
-  if (items.length === 0) return <p className="muted">{t("group.noExpenses")}</p>;
+  if (items.length === 0) return <>{form}<p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p></>;
   return (
+    <>
+    {form}
     <ul className="flex flex-col gap-2">
       {items.map((it) => {
         if (it.kind === "p") {
@@ -139,6 +159,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t }: { groupId: str
         );
       })}
     </ul>
+    </>
   );
 }
 

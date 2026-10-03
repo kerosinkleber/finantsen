@@ -3,6 +3,8 @@ import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
 import { getGroup } from "@/server/services/groups";
 import { expenseHistoryFor, getExpense } from "@/server/services/expenses";
+import { listComments } from "@/server/services/comments";
+import { Comments } from "@/components/Comments";
 import { ExpenseForm, type ExpenseInitial } from "@/components/ExpenseForm";
 import { ApiError } from "@/server/http";
 import { formatMoney } from "@/lib/money";
@@ -17,13 +19,14 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       const group = await getGroup(user.id, id);
       const expense = await getExpense(user.id, id, eid);
       const history = await expenseHistoryFor(user.id, id, eid);
-      return { group, expense, history };
+      const comments = await listComments(user.id, id, eid);
+      return { group, expense, history, comments };
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) notFound();
       throw e;
     }
   };
-  const { group, expense, history } = await load();
+  const { group, expense, history, comments } = await load();
   const initial: ExpenseInitial = {
     id: expense.id,
     title: expense.title,
@@ -48,6 +51,12 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       ) : (
         <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} initial={initial} />
       )}
+      <Comments
+        groupId={id}
+        expenseId={eid}
+        meId={user.id}
+        comments={comments.map((c) => ({ id: c.id, userId: c.userId, userName: c.userName, body: c.body, createdAt: c.createdAt.toISOString() }))}
+      />
       <section className="card" data-testid="history">
         <h2 className="mb-2 font-semibold">{t("expense.history")}</h2>
         <ol className="flex flex-col gap-3">

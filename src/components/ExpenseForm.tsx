@@ -8,6 +8,7 @@ import { CurrencySelect } from "./CurrencySelect";
 import { CATEGORIES } from "@/lib/categories";
 import { formatMoney, parseAmount, toDecimalString } from "@/lib/money";
 import type { MessageKey } from "@/i18n";
+import type { DefaultSplit } from "@/lib/schemas";
 
 type Member = { id: string; name: string };
 type SplitType = "equal" | "percent" | "exact" | "shares" | "full";
@@ -26,12 +27,13 @@ export type ExpenseInitial = {
 
 const SPLITS: SplitType[] = ["equal", "percent", "exact", "shares", "full"];
 
-export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial }: {
+export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, defaultSplit }: {
   groupId: string;
   members: Member[];
   meId: string;
   defaultCurrency: string;
   initial?: ExpenseInitial;
+  defaultSplit?: DefaultSplit | null;
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -43,7 +45,9 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial }
   const [amount, setAmount] = useState(initial ? toDecimalString(initial.amountMinor, initial.currency) : "");
   const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState(initial?.category ?? "other");
-  const [splitType, setSplitType] = useState<SplitType>(initial?.splitType ?? "equal");
+  const usableDefault =
+    !initial && defaultSplit && defaultSplit.entries.every((e) => members.some((m) => m.id === e.userId)) ? defaultSplit : null;
+  const [splitType, setSplitType] = useState<SplitType>(initial?.splitType ?? usableDefault?.type ?? "equal");
 
   // Zahler
   const [multi, setMulti] = useState((initial?.payers.length ?? 1) > 1);
@@ -54,11 +58,15 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial }
 
   // Aufteilung
   const [included, setIncluded] = useState<Set<string>>(
-    new Set(initial ? initial.shares.map((s) => s.userId) : members.map((m) => m.id)),
+    new Set(initial ? initial.shares.map((s) => s.userId) : usableDefault ? usableDefault.entries.map((e) => e.userId) : members.map((m) => m.id)),
   );
   const [values, setValues] = useState<Record<string, string>>(() => {
     const v: Record<string, string> = {};
-    if (!initial) return v;
+    if (!initial) {
+      if (usableDefault?.type === "percent") usableDefault.entries.forEach((e) => (v[e.userId] = String(e.value / 100)));
+      if (usableDefault?.type === "shares") usableDefault.entries.forEach((e) => (v[e.userId] = String(e.value)));
+      return v;
+    }
     for (const s of initial.shares) {
       if (initial.splitType === "percent" && s.input !== null) v[s.userId] = (s.input / 100).toString();
       if (initial.splitType === "exact") v[s.userId] = toDecimalString(s.amountMinor, initial.currency);

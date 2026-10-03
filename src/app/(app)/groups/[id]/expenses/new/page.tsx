@@ -16,7 +16,7 @@ export default async function NewExpensePage({ params }: { params: Promise<{ id:
   return (
     <>
       <h1 className="text-xl font-semibold">{t("expense.new")}</h1>
-      <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} />
+      <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} defaultSplit={group.defaultSplit} />
     </>
   );
 }
