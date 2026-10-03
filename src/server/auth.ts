@@ -63,3 +63,10 @@ export function rateLimit(key: string, max = 10, windowMs = 15 * 60_000): boolea
 export function clearRateLimit(key: string) {
   attempts.delete(key);
 }
+
+export async function requireUser(): Promise<SessionUser> {
+  const { redirect } = await import("next/navigation");
+  const u = await getCurrentUser();
+  if (!u) redirect("/login");
+  return u as SessionUser;
+}

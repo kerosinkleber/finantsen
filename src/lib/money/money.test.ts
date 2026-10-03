@@ -65,7 +65,7 @@ describe("allocate", () => {
     for (let i = 0; i < 2000; i++) {
       const n = 1 + Math.floor(rnd() * 8);
       const w: number[] = Array.from({ length: n }, () => Math.floor(rnd() * 1000));
-      if (w.every((x) => x === 0)) w[0] = 1;
+      if (w.reduce((a, b) => a + b, 0) === 0) w[0] = 1;
       const total = Math.floor(rnd() * 10_000_000) - 100_000;
       const r = allocate(total, w);
       expect(r.reduce((a, b) => a + b, 0)).toBe(total);
