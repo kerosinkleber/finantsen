@@ -127,8 +127,8 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
           );
         }
         const e = it.e;
-        const paid = e.payers.find((x) => x.userId === userId)?.amountMinor ?? 0;
-        const share = e.shares.find((x) => x.userId === userId)?.amountMinor ?? 0;
+        const paid = e.payers.find((x) => x.userId === userId)?.baseAmountMinor ?? 0;
+        const share = e.shares.find((x) => x.userId === userId)?.baseAmountMinor ?? 0;
         const net = paid - share;
         const involved = paid > 0 || share > 0;
         return (
@@ -142,13 +142,16 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
                     name: e.payers.length > 1 ? e.payers.map((p) => names.get(p.userId) ?? "?").join(", ") : (names.get(e.payers[0]?.userId ?? "") ?? "?"),
                     amount: formatMoney(e.amountMinor, e.currency, locale),
                   })}
+                  {e.currency !== e.baseCurrency && (
+                    <span data-testid="converted"> · ≈ {formatMoney(e.baseAmountMinor, e.baseCurrency, locale)}</span>
+                  )}
                 </span>
               </span>
               <span className="shrink-0 text-right text-sm">
                 {involved ? (
                   <>
                     <span className="muted block">{net >= 0 ? t("group.lent") : t("group.borrowed")}</span>
-                    <Money minor={net} currency={e.currency} locale={locale} />
+                    <Money minor={net} currency={e.baseCurrency} locale={locale} />
                   </>
                 ) : (
                   <span className="muted">{t("group.notInvolved")}</span>

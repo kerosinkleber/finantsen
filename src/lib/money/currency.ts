@@ -6,14 +6,13 @@
 
 const cache = new Map<string, number>();
 
+let known: Set<string> | null = null;
+
+/** Gültiger ISO-4217-Code laut ICU (Intl akzeptiert sonst jedes Dreibuchstaben-Kürzel, z. B. "XXZ"). */
 export function isValidCurrency(code: string): boolean {
   if (!/^[A-Z]{3}$/.test(code)) return false;
-  try {
-    new Intl.NumberFormat("en", { style: "currency", currency: code });
-    return true;
-  } catch {
-    return false;
-  }
+  known ??= new Set(Intl.supportedValuesOf("currency"));
+  return known.has(code);
 }
 
 export function minorUnits(currency: string): number {

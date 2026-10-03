@@ -6,6 +6,8 @@ Selbst gehostete Web-App zum Teilen von Ausgaben (Splitwise-Alternative). Mobile
 
 **Funktionen (Phase 2):** Kommentare zu Ausgaben, Suche und Filter (Text, Betrag, Datum, Kategorie, Person), Standard-Aufteilung pro Gruppe, Benachrichtigungen (In-App und optional Web Push), Auswertungen nach Kategorie, Monat und Person.
 
+**Funktionen (Phase 3):** Ausgaben in allen Währungen, für die der Kursanbieter Kurse liefert (Standard: über 150), mit automatischer Umrechnung in die Gruppenwährung; Belegscan per Foto (optional, immer vom Nutzer zu bestätigen); Aufteilung nach Einzelposten mit anteiliger Steuer und Trinkgeld.
+
 ## Server-Setup (Schritt für Schritt)
 
 Voraussetzungen: ein Linux-Server mit Docker + Docker Compose, eine Domain, deren DNS-Eintrag (A/AAAA) auf den Server zeigt, offene Ports 80 und 443.
@@ -32,6 +34,14 @@ Ohne Konfiguration sind Push-Nachrichten sauber deaktiviert (In-App-Benachrichti
 npm install && npm run vapid     # gibt VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT aus
 ```
 Die Zeilen in `.env` eintragen, `docker compose up -d`, danach unter *Konto → Push aktivieren*. Auf iOS funktioniert Push nur, wenn die App zum Home-Bildschirm hinzugefügt wurde. Die Schlüssel nach dem ersten Einsatz nicht mehr ändern, sonst müssen alle Geräte Push neu aktivieren.
+
+### Währungen und Wechselkurse
+Jede Ausgabe wird in ihrer Originalwährung gespeichert und beim Buchen in die **Gruppenwährung** umgerechnet; Salden, Schuldenvereinfachung und Auswertungen laufen in der Gruppenwährung. Der Kurs zum Buchungsdatum wird an der Ausgabe gespeichert und ändert sich später nicht mehr (auch nicht beim Bearbeiten, solange Währung und Datum gleich bleiben). Im Formular kann der Kurs manuell überschrieben werden (z. B. der echte Kurs der Kreditkarte). Ändert man die Gruppenwährung, gilt das nur für neue Ausgaben, alte behalten ihre Abrechnungswährung.
+
+Der Anbieter ist per `EXCHANGE_RATE_PROVIDER` wählbar: `fawazahmed0` (Standard, kostenlos, ohne API-Key, 200+ Codes, historische Tageskurse), `open-er-api` (~160 Währungen, nur aktuelle Kurse), `frankfurter` (EZB, ca. 30 Währungen) oder `static` (feste Tabelle aus `EXCHANGE_RATES_STATIC`, z. B. für Server ohne Internetzugang). Kurse werden in der Datenbank gecacht (vergangene Tage unbegrenzt, heutige 6 Stunden). Ist der Anbieter nicht erreichbar, nutzt die App veraltete Cache-Kurse oder verlangt einen manuellen Kurs.
+
+### Belegscan (optional)
+Mit `ANTHROPIC_API_KEY` in `.env` erscheint beim Anlegen einer Ausgabe der Button „Beleg scannen“: Foto aufnehmen oder hochladen, das Vision-Modell liest Positionen, Steuer, Trinkgeld und Total aus und füllt das Formular für die Einzelposten vor. **Es wird nie automatisch gespeichert**, alle Werte sind vor dem Speichern editierbar, bei abweichender Summe erscheint ein Hinweis. Das Foto wird im Browser verkleinert, an die Anthropic-API gesendet und **nicht gespeichert**. Das Modell lässt sich mit `RECEIPT_SCAN_MODEL` ändern (Standard `claude-opus-5-5`; ein günstigeres Modell reicht für Belege oft). Pro Nutzer sind 30 Scans pro Stunde erlaubt.
 
 ### Als App installieren
 iOS (Safari): Teilen → „Zum Home-Bildschirm“. Android (Chrome): Menü → „App installieren“. Voraussetzung ist HTTPS.

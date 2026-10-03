@@ -37,6 +37,10 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     splitType: expense.splitType as ExpenseInitial["splitType"],
     payers: expense.payers,
     shares: expense.shares,
+    baseCurrency: expense.baseCurrency,
+    rate: expense.rate,
+    rateSource: expense.rateSource,
+    items: expense.items,
   };
   const name = (uid: string) => group.members.find((m) => m.id === uid)?.name ?? "?";
   type Snap = { title: string; amountMinor: number; currency: string; deleted: boolean; payers: { userId: string; amountMinor: number }[]; shares: { userId: string; amountMinor: number }[] };
@@ -49,7 +53,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
           <p className="muted">{t("expense.deleted")}</p>
         </section>
       ) : (
-        <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} initial={initial} />
+        <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} baseCurrency={expense.baseCurrency} initial={initial} />
       )}
       <Comments
         groupId={id}

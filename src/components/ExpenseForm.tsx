@@ -5,13 +5,16 @@ import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { CurrencySelect } from "./CurrencySelect";
+import { RateSection } from "./RateSection";
+import { ItemsEditor, newRow, type ItemRow } from "./ItemsEditor";
+import { ReceiptScan, type ScanResult } from "./ReceiptScan";
 import { CATEGORIES } from "@/lib/categories";
-import { formatMoney, parseAmount, toDecimalString } from "@/lib/money";
+import { formatMoney, normalizeRate, parseAmount, toDecimalString } from "@/lib/money";
 import type { MessageKey } from "@/i18n";
 import type { DefaultSplit } from "@/lib/schemas";
 
 type Member = { id: string; name: string };
-type SplitType = "equal" | "percent" | "exact" | "shares" | "full";
+type SplitType = "equal" | "percent" | "exact" | "shares" | "items" | "full";
 
 export type ExpenseInitial = {
   id: string;
@@ -23,15 +26,21 @@ export type ExpenseInitial = {
   splitType: SplitType;
   payers: { userId: string; amountMinor: number }[];
   shares: { userId: string; amountMinor: number; input: number | null }[];
+  baseCurrency: string;
+  rate: string;
+  rateSource: string;
+  items: { items: { name: string; amountMinor: number; participants: string[] }[]; taxMinor: number; tipMinor: number } | null;
 };
 
-const SPLITS: SplitType[] = ["equal", "percent", "exact", "shares", "full"];
+const SPLITS: SplitType[] = ["equal", "percent", "exact", "shares", "items", "full"];
 
-export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, defaultSplit }: {
+export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurrency, initial, defaultSplit }: {
   groupId: string;
   members: Member[];
   meId: string;
   defaultCurrency: string;
+  /** Abrechnungswährung: Gruppenwährung (neu) bzw. die der bearbeiteten Ausgabe */
+  baseCurrency: string;
   initial?: ExpenseInitial;
   defaultSplit?: DefaultSplit | null;
 }) {
@@ -76,7 +85,32 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, 
   });
   const [owner, setOwner] = useState(initial?.splitType === "full" ? (initial.shares[0]?.userId ?? meId) : members.find((m) => m.id !== meId)?.id ?? meId);
 
-  const total = useMemo(() => parseAmount(amount, currency), [amount, currency]);
+  // Einzelposten
+  const allIds = members.map((m) => m.id);
+  const [rows, setRows] = useState<ItemRow[]>(() =>
+    initial?.items
+      ? initial.items.items.map((i) => newRow(i.participants, i.name, toDecimalString(i.amountMinor, initial.currency)))
+      : [newRow(allIds)],
+  );
+  const [tax, setTax] = useState(initial?.items?.taxMinor ? toDecimalString(initial.items.taxMinor, initial.currency) : "");
+  const [tip, setTip] = useState(initial?.items?.tipMinor ? toDecimalString(initial.items.tipMinor, initial.currency) : "");
+  const [manualRate, setManualRate] = useState<string | null>(null);
+
+  const itemsTotal =
+    rows.reduce((a, r) => a + (parseAmount(r.price, currency) ?? 0), 0) + (parseAmount(tax, currency) ?? 0) + (parseAmount(tip, currency) ?? 0);
+  const amountText = splitType === "items" ? toDecimalString(itemsTotal, currency) : amount;
+  const total = useMemo(() => parseAmount(amountText, currency), [amountText, currency]);
+
+  function applyScan(r: ScanResult) {
+    if (r.merchant) setTitle(r.merchant);
+    if (r.date) setDate(r.date);
+    setCurrency(r.currency);
+    setRows(r.items.length ? r.items.map((i) => newRow(allIds, i.name, toDecimalString(i.amountMinor, r.currency))) : [newRow(allIds)]);
+    setTax(r.taxMinor ? toDecimalString(r.taxMinor, r.currency) : "");
+    setTip(r.tipMinor ? toDecimalString(r.tipMinor, r.currency) : "");
+    setManualRate(null);
+    setSplitType("items");
+  }
   const fmt = (n: number) => formatMoney(Math.abs(n), currency, locale);
 
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -124,8 +158,22 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, 
       case "shares":
         split = { type: "shares", entries: ids.map((userId) => ({ userId, shares: Math.max(0, parseInt(values[userId] ?? "1", 10) || 0) })) };
         break;
+      case "items":
+        if (rows.some((r) => r.who.length === 0)) throw new ApiClientError(400, "no_participants");
+        split = {
+          type: "items",
+          items: rows.map((r) => ({ name: r.name, amountMinor: parseAmount(r.price, currency) ?? 0, participants: r.who })),
+          taxMinor: parseAmount(tax, currency) ?? 0,
+          tipMinor: parseAmount(tip, currency) ?? 0,
+        };
+        break;
     }
-    return { title, amountMinor: total, currency, date, category, payers, split };
+    let rate: string | undefined;
+    if (manualRate !== null && currency !== baseCurrency) {
+      if (!normalizeRate(manualRate)) throw new ApiClientError(400, "invalid_rate");
+      rate = manualRate;
+    }
+    return { title, amountMinor: total, currency, date, category, payers, split, rate };
   }
 
   async function submit(e: React.FormEvent) {
@@ -159,6 +207,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, 
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      {!initial && <ReceiptScan fallbackCurrency={defaultCurrency} onResult={applyScan} />}
       <div className="card flex flex-col gap-4">
         <div>
           <label className="label" htmlFor="title">{t("expense.title")}</label>
@@ -167,7 +216,18 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="amount">{t("expense.amount")}</label>
-            <input id="amount" className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0,00" />
+            <input
+              id="amount"
+              className="input"
+              inputMode="decimal"
+              value={amountText}
+              onChange={(e) => setAmount(e.target.value)}
+              required
+              placeholder="0,00"
+              readOnly={splitType === "items"}
+              aria-describedby={splitType === "items" ? "amount-auto" : undefined}
+            />
+            {splitType === "items" && <span id="amount-auto" className="muted block">{t("items.totalAuto")}</span>}
           </div>
           <div>
             <label className="label" htmlFor="currency">{t("expense.currency")}</label>
@@ -189,6 +249,16 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, 
           </div>
         </div>
       </div>
+
+      <RateSection
+        from={currency}
+        to={baseCurrency}
+        date={date}
+        amountMinor={total}
+        stored={initial ? { rate: initial.rate, source: initial.rateSource, currency: initial.currency, date: initial.date } : null}
+        manual={manualRate}
+        setManual={setManualRate}
+      />
 
       <fieldset className="card flex flex-col gap-3">
         <legend className="sr-only">{t("expense.paidBy")}</legend>
@@ -243,7 +313,9 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial, 
           ))}
         </div>
 
-        {splitType === "full" ? (
+        {splitType === "items" ? (
+          <ItemsEditor members={members} currency={currency} rows={rows} setRows={setRows} tax={tax} setTax={setTax} tip={tip} setTip={setTip} totalMinor={itemsTotal} />
+        ) : splitType === "full" ? (
           <div>
             <label className="label" htmlFor="owner">{t("expense.owner")}</label>
             <select id="owner" className="input" value={owner} onChange={(e) => setOwner(e.target.value)}>

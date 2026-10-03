@@ -27,6 +27,13 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Standard-Aufteilung: `groups.default_split` (jsonb, nur equal/percent/shares), wird in `ExpenseForm` vorbelegt, sofern alle Beteiligten noch Mitglieder sind.
 - Auswertung: `lib/money/stats.ts` (rein, je Währung), `services/stats.ts`, UI `components/StatsTab.tsx` (CSS-Balken, kein Chart-Paket).
 
+## Phase-3-Bausteine
+- Währungen: `lib/money/convert.ts` (BigInt-Umrechnung, Kurse als Dezimalstring mit 15 Stellen, kaufmännisch gerundet, `rescale` verteilt Zahler/Anteile neu, damit Summe == umgerechneter Betrag). Ausgaben haben `currency/amount_minor` (Original) und `base_currency/base_amount_minor/rate/rate_source` (Abrechnungswährung = Gruppenwährung beim Buchen); Zahler/Anteile tragen `base_amount_minor`. **Salden, Statistik und Betragsfilter rechnen mit den Basiswerten.** `isValidCurrency` prüft gegen ICU (Intl akzeptiert sonst jeden 3-Buchstaben-Code).
+- Kurse: `server/rates/providers.ts` (Interface `RateProvider` + fawazahmed0, open-er-api, frankfurter, static), `server/rates/index.ts` (DB-Cache `exchange_rates`, `getRate`, `getSupportedCurrencies`, Test-Hook `setRateProvider`). Anbieterformate sind nach Dokumentation implementiert und in Tests gemockt, nicht live geprüft.
+- Itemisierung: `computeItemized` in `lib/money/split.ts` (Rest-Cent rotiert je Position; Steuer/Trinkgeld getrennt proportional); Positionen liegen als jsonb in `expenses.items`, berechnete Anteile wie immer in `expense_shares`. Im Formular ist der Betrag bei „Einzelposten“ abgeleitet.
+- Belegscan: `server/receipts/` (`scanner.ts` Interface + Anthropic-Implementierung mit `messages.parse` und Zod-Schema, `normalize.ts` wandelt Modell-Strings in Minor-Units, `image.ts` Magic-Byte-Prüfung), Route `api/receipts/scan`, UI `components/ReceiptScan.tsx`. Aktiv nur mit `ANTHROPIC_API_KEY`; Ergebnis ist nur ein Vorschlag. Bilder werden nie gespeichert.
+- Migration `0002` füllt Basiswerte für Altdaten (= Originalwerte).
+
 ## Konventionen / Regeln
 - Geld IMMER als Ganzzahl in Minor-Units (`bigint` mode number), Währung je Ausgabe/Zahlung. Nie Float.
 - Summe der Anteile == Gesamtbetrag (Rundung deterministisch: Rest nach größtem Nachkommarest, Gleichstand nach `id`-Reihenfolge).
@@ -38,4 +45,4 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Jeder sinnvolle Schritt = eigener Commit.
 
 ## Roadmap
-Phase 0/1/2 fertig. Phase 3 (Währungsumrechnung, Belegscan, Itemisierung) offen.
+Phase 0–3 fertig. Ideen für später: Mitglieder ohne Konto, Wiederherstellen gelöschter Ausgaben, Wiederkehrende Ausgaben, weitere Belegscan-Anbieter.

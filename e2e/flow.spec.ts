@@ -219,3 +219,123 @@ test("statistics page and push is cleanly disabled without VAPID keys", async ({
   const cfg = await page.request.get("/api/push");
   expect(await cfg.json()).toEqual({ enabled: false, publicKey: null });
 });
+
+test("foreign currency: automatic rate, conversion preview, manual override", async ({ page }) => {
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}/expenses/new`);
+  await page.getByLabel("Title").fill("Souvenirs");
+  await page.getByLabel("Amount").fill("25");
+  await page.getByLabel("Currency").selectOption("USD");
+  await expect(page.getByTestId("rate-auto")).toContainText("1 USD = 0.8 EUR");
+  await expect(page.getByTestId("rate-converted")).toContainText("€20.00");
+  await page.getByLabel("Set rate manually").check();
+  await page.getByLabel("1 USD = ? EUR").fill("0,9");
+  await expect(page.getByTestId("rate-converted")).toContainText("€22.50");
+  await page.getByRole("button", { name: "Save" }).click();
+  const item = page.getByTestId("expense-item").filter({ hasText: "Souvenirs" });
+  await expect(item).toContainText("$25.00");
+  await expect(item.getByTestId("converted")).toContainText("€22.50");
+
+  // gespeicherter Kurs bleibt beim Öffnen erhalten (kein Neuabruf)
+  await item.click();
+  await expect(page.getByTestId("rate-auto")).toContainText("(manual)");
+  await expect(page.getByTestId("rate-converted")).toContainText("€22.50");
+});
+
+test("itemized split with tax and tip persists and reloads", async ({ page }) => {
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}/expenses/new`);
+  await page.getByLabel("Title").fill("Dinner out");
+  await page.getByRole("radio", { name: "Itemized" }).click();
+  await page.getByLabel("Description 1").fill("Pizza");
+  await page.getByLabel("Price 1").fill("15");
+  await page.getByRole("button", { name: "Ben 1" }).click(); // nur Anna
+  await page.getByRole("button", { name: "Add item" }).click();
+  await page.getByLabel("Description 2").fill("Wine");
+  await page.getByLabel("Price 2").fill("5");
+  await page.getByRole("textbox", { name: "Tax" }).fill("2");
+  await page.getByRole("textbox", { name: "Tip" }).fill("1");
+  await expect(page.getByTestId("items-total")).toContainText("€23.00");
+  await expect(page.getByLabel("Amount")).toHaveValue("23.00");
+  await page.getByRole("button", { name: "Save" }).click();
+  const item = page.getByTestId("expense-item").filter({ hasText: "Dinner out" });
+  await expect(item).toContainText("€23.00");
+  await item.click();
+  await expect(page.getByTestId("item-row")).toHaveCount(2);
+  await expect(page.getByLabel("Description 1")).toHaveValue("Pizza");
+  await expect(page.getByTestId("items-total")).toContainText("€23.00");
+});
+
+test("itemized split: item without a person is rejected client-side", async ({ page }) => {
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}/expenses/new`);
+  await page.getByLabel("Title").fill("Broken");
+  await page.getByRole("radio", { name: "Itemized" }).click();
+  await page.getByLabel("Price 1").fill("5");
+  await page.getByLabel("Description 1").fill("x");
+  await page.getByRole("button", { name: "Anna 1" }).click();
+  await page.getByRole("button", { name: "Ben 1" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("error")).toContainText("At least one person");
+});
+
+test("receipt scan is hidden without an API key; endpoint reports disabled", async ({ page }) => {
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}/expenses/new`);
+  await expect(page.getByLabel("Title")).toBeVisible();
+  await expect(page.getByTestId("scan")).toHaveCount(0);
+  expect(await (await page.request.get("/api/receipts/scan")).json()).toEqual({ enabled: false });
+  const res = await page.request.post("/api/receipts/scan", { data: { image: "AAAA" } });
+  expect(res.status()).toBe(503);
+});
+
+test("currency list offers more than the common currencies and rejects unknown codes", async ({ page }) => {
+  await login(page, "anna@example.com");
+  const list = await (await page.request.get("/api/currencies")).json();
+  expect(list.currencies).toEqual(expect.arrayContaining(["EUR", "USD", "JPY"]));
+  const bad = await page.request.post(`/api${groupUrl}/expenses`, {
+    data: { title: "x", amountMinor: 100, currency: "XXZ", date: "2026-01-01", category: "other", payers: [{ userId: crypto.randomUUID(), amountMinor: 100 }], split: { type: "full", owner: crypto.randomUUID() } },
+  });
+  expect(bad.status()).toBe(400);
+});
+
+test("receipt scan (mocked API): photo is uploaded downscaled and pre-fills an editable itemized form", async ({ page }) => {
+  let uploaded: { image: string; fallbackCurrency: string } | null = null;
+  await page.route("**/api/receipts/scan", async (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { enabled: true } });
+    uploaded = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        receipt: {
+          merchant: "Trattoria Roma",
+          date: "2026-02-03",
+          currency: "EUR",
+          items: [{ name: "Pasta", amountMinor: 1200 }, { name: "Vino", amountMinor: 800 }],
+          taxMinor: 0,
+          tipMinor: 200,
+          totalMinor: 2300, // absichtlich falsch: erzeugt den Abweichungshinweis
+          mismatch: true,
+          dropped: 0,
+        },
+      },
+    });
+  });
+  await login(page, "anna@example.com");
+  await page.goto(`${groupUrl}/expenses/new`);
+  await expect(page.getByTestId("scan")).toBeVisible();
+  await page.getByTestId("scan-input").setInputFiles("public/icons/icon-512.png");
+  await expect(page.getByTestId("scan-info")).toContainText("Trattoria Roma");
+  await expect(page.getByTestId("scan-info")).toContainText("do not add up");
+  expect(uploaded!.image.startsWith("/9j/")).toBe(true); // JPEG nach dem Verkleinern
+  expect(uploaded!.fallbackCurrency).toBe("EUR");
+  // Formular ist vorbelegt, aber noch nichts gespeichert und alles editierbar
+  await expect(page.getByLabel("Title")).toHaveValue("Trattoria Roma");
+  await expect(page.getByLabel("Date")).toHaveValue("2026-02-03");
+  await expect(page.getByRole("radio", { name: "Itemized" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("item-row")).toHaveCount(2);
+  await expect(page.getByTestId("items-total")).toContainText("€22.00");
+  await page.getByLabel("Price 2").fill("9");
+  await expect(page.getByTestId("items-total")).toContainText("€23.00");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Trattoria Roma" })).toContainText("€23.00");
+});

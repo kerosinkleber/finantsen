@@ -4,6 +4,7 @@ import {
   computeBalances,
   computeShares,
   formatMoney,
+  isValidCurrency,
   mergeBalances,
   pairwiseDebts,
   minorUnits,
@@ -18,6 +19,10 @@ import {
 const sum = (xs: { amount: number }[]) => xs.reduce((a, x) => a + x.amount, 0);
 
 describe("currency", () => {
+  it("validiert Währungscodes gegen ISO 4217", () => {
+    for (const c of ["EUR", "USD", "JPY", "KWD", "CHF", "BRL"]) expect(isValidCurrency(c)).toBe(true);
+    for (const c of ["XXZ", "ABC", "eur", "EU", "EURO", "", "123"]) expect(isValidCurrency(c)).toBe(false);
+  });
   it("kennt Nachkommastellen", () => {
     expect(minorUnits("EUR")).toBe(2);
     expect(minorUnits("JPY")).toBe(0);

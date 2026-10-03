@@ -22,6 +22,14 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 60_000,
-    env: { DATABASE_URL, APP_URL: `http://localhost:${PORT}`, REGISTRATION_ENABLED: "false" },
+    env: {
+      DATABASE_URL,
+      APP_URL: `http://localhost:${PORT}`,
+      REGISTRATION_ENABLED: "false",
+      // Feste Kurse statt Netzwerk (Kurse pro 1 EUR); ohne ANTHROPIC_API_KEY ist der Belegscan ausgeblendet
+      EXCHANGE_RATE_PROVIDER: "static",
+      EXCHANGE_RATES_STATIC: '{"USD":1.25,"JPY":160}',
+      ANTHROPIC_API_KEY: "",
+    },
   },
 });
