@@ -1,0 +1,6 @@
+# Caddy holt und erneuert das TLS-Zertifikat (Let's Encrypt) automatisch,
+# sobald DOMAIN auf deinen Server zeigt und Port 80/443 erreichbar sind.
+{$DOMAIN:localhost} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
