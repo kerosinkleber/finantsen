@@ -156,7 +156,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, initial }
           <label className="label" htmlFor="title">{t("expense.title")}</label>
           <input id="title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
         </div>
-        <div className="grid grid-cols-[1fr_auto] gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="amount">{t("expense.amount")}</label>
             <input id="amount" className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0,00" />

@@ -64,7 +64,7 @@ export function SettleForm({ groupId, members, meId, initial }: {
         <label className="label" htmlFor="to">{t("settle.to")}</label>
         {select("to", to, setTo)}
       </div>
-      <div className="grid grid-cols-[1fr_auto] gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label" htmlFor="amount">{t("expense.amount")}</label>
           <input id="amount" className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />

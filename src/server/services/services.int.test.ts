@@ -1,4 +1,5 @@
 // Integrationstests gegen eine echte PostgreSQL-DB. Werden nur ausgeführt, wenn TEST_DATABASE_URL gesetzt ist.
+import type { ExpenseBody } from "@/lib/schemas";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -41,7 +42,7 @@ d("services (PostgreSQL)", () => {
     const c = await svc.users.registerUser({ email: "c@x.de", name: "Cleo", password: "password1", inviteCode: inv2.code });
     return { a, b, c, g };
   }
-  const base = (over: object = {}) => ({
+  const base = (over: Pick<ExpenseBody, "payers" | "split"> & Partial<ExpenseBody>): ExpenseBody => ({
     title: "Pizza",
     amountMinor: 3000,
     currency: "EUR",
