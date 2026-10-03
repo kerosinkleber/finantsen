@@ -12,6 +12,7 @@ export class SplitError extends Error {
       | "percent_sum"
       | "exact_sum"
       | "payer_sum"
+      | "items_sum"
       | "invalid_amount",
     message?: string,
   ) {
@@ -25,7 +26,10 @@ export type SplitInput =
   | { type: "percent"; entries: { id: string; bp: number }[] } // bp = Basispunkte, 10000 = 100 %
   | { type: "exact"; entries: { id: string; amount: number }[] }
   | { type: "shares"; entries: { id: string; shares: number }[] }
-  | { type: "full"; owner: string }; // eine Person trägt alles
+  | { type: "full"; owner: string } // eine Person trägt alles
+  | { type: "items"; items: ItemInput[]; tax: number; tip: number }; // Einzelposten + Steuer/Trinkgeld
+
+export type ItemInput = { name: string; amount: number; participants: string[] };
 
 export type Allocation = { id: string; amount: number };
 
@@ -81,6 +85,10 @@ export function computeShares(total: number, input: SplitInput): Allocation[] {
       out = [{ id: input.owner, amount: total }];
       break;
     }
+    case "items": {
+      out = computeItemized(total, input.items, input.tax, input.tip);
+      break;
+    }
     case "equal": {
       assertUnique(input.participants);
       const ids = [...input.participants].sort();
@@ -126,4 +134,38 @@ export function validatePayers(total: number, payers: { id: string; amount: numb
   }
   const sum = payers.reduce((a, p) => a + p.amount, 0);
   if (sum !== total) throw new SplitError("payer_sum", `sum=${sum} total=${total}`);
+}
+
+/**
+ * Itemisierte Aufteilung: Jede Position wird gleichmäßig auf ihre Personen verteilt (Rest-Cent
+ * rotiert je Position deterministisch, damit nicht immer dieselbe Person ihn trägt). Steuer und
+ * Trinkgeld werden getrennt proportional zu den Positionssummen der Personen verteilt.
+ * Die Summe aus Positionen + Steuer + Trinkgeld muss dem Gesamtbetrag entsprechen.
+ */
+export function computeItemized(total: number, items: ItemInput[], tax: number, tip: number): Allocation[] {
+  if (items.length === 0) throw new SplitError("no_participants");
+  for (const v of [tax, tip]) if (!Number.isSafeInteger(v) || v < 0) throw new SplitError("invalid_amount");
+  let itemSum = 0;
+  const sub = new Map<string, number>();
+  items.forEach((it, idx) => {
+    if (!Number.isSafeInteger(it.amount) || it.amount < 0) throw new SplitError("invalid_amount");
+    assertUnique(it.participants);
+    itemSum += it.amount;
+    const ids = [...it.participants].sort();
+    const r = idx % ids.length;
+    const rotated = [...ids.slice(r), ...ids.slice(0, r)];
+    const parts = allocate(it.amount, rotated.map(() => 1));
+    rotated.forEach((id, i) => sub.set(id, (sub.get(id) ?? 0) + parts[i]));
+  });
+  if (itemSum + tax + tip !== total)
+    throw new SplitError("items_sum", `sum=${itemSum + tax + tip} total=${total}`);
+  const ids = [...sub.keys()].sort();
+  const weights = ids.map((id) => sub.get(id)!);
+  const result = new Map(ids.map((id, i) => [id, weights[i]]));
+  for (const extra of [tax, tip]) {
+    if (extra === 0) continue;
+    const parts = allocate(extra, weights); // wirft invalid_weight, wenn alle Positionen 0 sind
+    ids.forEach((id, i) => result.set(id, result.get(id)! + parts[i]));
+  }
+  return ids.map((id) => ({ id, amount: result.get(id)! }));
 }

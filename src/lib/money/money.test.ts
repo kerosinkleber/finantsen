@@ -347,3 +347,99 @@ describe("computeStats", () => {
   });
   it("leer", () => expect(computeStats([])).toEqual({}));
 });
+
+import { computeItemized, convertMinor, invertRate, normalizeRate, rescale } from "./index";
+describe("convert", () => {
+  it("normalisiert Kurse", () => {
+    expect(normalizeRate("1,0873")).toBe("1.087300000000000");
+    expect(normalizeRate(0.5)).toBe("0.500000000000000");
+    expect(normalizeRate("0")).toBeNull();
+    expect(normalizeRate("-1")).toBeNull();
+    expect(normalizeRate("abc")).toBeNull();
+    expect(normalizeRate(NaN)).toBeNull();
+  });
+  it("rechnet zwischen Währungen mit unterschiedlichen Nachkommastellen um", () => {
+    expect(convertMinor(1000, "EUR", "USD", "1.1")).toBe(1100);
+    expect(convertMinor(1000, "EUR", "JPY", "160")).toBe(1600); // 10,00 € = 1600 ¥
+    expect(convertMinor(1600, "JPY", "EUR", "0.00625")).toBe(1000);
+    expect(convertMinor(1000, "EUR", "KWD", "0.33")).toBe(3300); // 3,300 KWD
+    expect(convertMinor(3300, "KWD", "EUR", "3.0303030303")).toBe(1000);
+  });
+  it("rundet kaufmännisch und behandelt gleiche Währung", () => {
+    expect(convertMinor(1, "EUR", "USD", "1.5")).toBe(2);
+    expect(convertMinor(1, "EUR", "USD", "1.4")).toBe(1);
+    expect(convertMinor(-1, "EUR", "USD", "1.5")).toBe(-2);
+    expect(convertMinor(123, "EUR", "EUR", "9")).toBe(123);
+    expect(convertMinor(0, "EUR", "USD", "1.1")).toBe(0);
+  });
+  it("große Beträge ohne Überlauf", () => {
+    expect(convertMinor(9_000_000_000_000, "EUR", "USD", "1.000000000000001")).toBe(9_000_000_000_000 + 0);
+  });
+  it("Kehrwert", () => {
+    expect(invertRate("2")).toBe("0.500000000000000");
+    expect(invertRate("0.5")).toBe("2.000000000000000");
+  });
+  it("rescale: Summe der umgerechneten Anteile == umgerechneter Gesamtbetrag", () => {
+    const total = convertMinor(1001, "EUR", "USD", "1.0873");
+    const parts = rescale(total, [334, 334, 333]);
+    expect(parts.reduce((a, b) => a + b, 0)).toBe(total);
+    expect(rescale(0, [0, 0])).toEqual([0, 0]);
+  });
+});
+
+describe("computeItemized", () => {
+  it("verteilt Positionen und Steuer/Trinkgeld anteilig", () => {
+    const r = computeItemized(
+      1500 + 500 + 200 + 100,
+      [
+        { name: "Pizza", amount: 1500, participants: ["a"] },
+        { name: "Wein", amount: 500, participants: ["a", "b"] },
+      ],
+      200,
+      100,
+    );
+    // a: 1500+250 = 1750, b: 250 ; Steuer 200 -> a 1750/2000*200=175, b 25 ; Trinkgeld 100 -> a 87.5, b 12.5
+    const sum = r.reduce((x, y) => x + y.amount, 0);
+    expect(sum).toBe(2300);
+    const a = r.find((x) => x.id === "a")!.amount;
+    const b = r.find((x) => x.id === "b")!.amount;
+    expect(a + b).toBe(2300);
+    expect(a).toBeGreaterThanOrEqual(2012);
+    expect(a).toBeLessThanOrEqual(2013);
+  });
+  it("Rest-Cent rotiert über Positionen (nicht immer dieselbe Person)", () => {
+    const items = [1, 2, 3, 4].map((i) => ({ name: "x" + i, amount: 1, participants: ["a", "b"] }));
+    const r = computeItemized(4, items, 0, 0);
+    expect(r).toEqual([{ id: "a", amount: 2 }, { id: "b", amount: 2 }]);
+  });
+  it("prüft Summe, Teilnehmer und Beträge", () => {
+    expect(() => computeItemized(100, [{ name: "x", amount: 50, participants: ["a"] }], 0, 0)).toThrow(/items_sum/);
+    expect(() => computeItemized(0, [], 0, 0)).toThrow(SplitError);
+    expect(() => computeItemized(10, [{ name: "x", amount: 10, participants: [] }], 0, 0)).toThrow(SplitError);
+    expect(() => computeItemized(10, [{ name: "x", amount: 10, participants: ["a", "a"] }], 0, 0)).toThrow(SplitError);
+    expect(() => computeItemized(10, [{ name: "x", amount: 0, participants: ["a"] }], 10, 0)).toThrow(/invalid_weight/);
+  });
+  it("Summe stimmt immer (Fuzz) und ist reihenfolgeunabhängig bei Teilnehmern", () => {
+    let seed = 5;
+    const rnd = () => (seed = (seed * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
+    const people = ["a", "b", "c", "d"];
+    for (let t = 0; t < 300; t++) {
+      const items = Array.from({ length: 1 + Math.floor(rnd() * 6) }, (_, i) => ({
+        name: "i" + i,
+        amount: 1 + Math.floor(rnd() * 5000),
+        participants: people.filter(() => rnd() < 0.5).concat(people[Math.floor(rnd() * 4)]).filter((v, i, a) => a.indexOf(v) === i),
+      }));
+      const tax = Math.floor(rnd() * 500);
+      const tip = Math.floor(rnd() * 500);
+      const total = items.reduce((a, b) => a + b.amount, 0) + tax + tip;
+      const r = computeItemized(total, items, tax, tip);
+      expect(r.reduce((x, y) => x + y.amount, 0)).toBe(total);
+      const shuffled = items.map((i) => ({ ...i, participants: [...i.participants].reverse() }));
+      expect(computeItemized(total, shuffled, tax, tip)).toEqual(r);
+    }
+  });
+  it("computeShares unterstützt items", () => {
+    const r = computeShares(300, { type: "items", items: [{ name: "x", amount: 300, participants: ["a", "b", "c"] }], tax: 0, tip: 0 });
+    expect(r.map((x) => x.amount)).toEqual([100, 100, 100]);
+  });
+});
