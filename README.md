@@ -1,6 +1,6 @@
 # Finantsen
 
-Selbst gehostete Web-App zum Teilen von Ausgaben (Splitwise-Alternative). Mobile-first, als PWA auf iOS/Android installierbar, Deutsch/Englisch.
+Selbst gehostete Web-App zum Teilen von Ausgaben (Splitwise-Alternative). Proprietäre Software, siehe Abschnitt Lizenz. Mobile-first, als PWA auf iOS/Android installierbar, Deutsch/Englisch.
 
 **Funktionen (Phase 1):** unbegrenzt viele Gruppen und Freunde, Einladung per Link, Ausgaben mit mehreren Zahlern, Aufteilung gleichmäßig / Prozent / feste Beträge / Anteile / eine Person trägt alles, Salden pro Gruppe und gesamt, Schuldenvereinfachung (minimale Überweisungen), Zahlungen verbuchen, Bearbeiten/Löschen (Soft Delete) mit Änderungsverlauf.
 
@@ -68,4 +68,4 @@ npm run ci        # lint, typecheck, Tests (mit TEST_DATABASE_URL auch Integrati
 Details zu Architektur und Konventionen: [CLAUDE.md](CLAUDE.md).
 
 ## Lizenz
-Noch nicht festgelegt – bitte vor Veröffentlichung eine Open-Source-Lizenz (z. B. AGPL-3.0 oder MIT) ergänzen.
+Proprietär, alle Rechte vorbehalten (siehe [LICENSE](LICENSE)). Nur der Rechteinhaber darf die Software nutzen, verkaufen, hosten und Lizenzen an Dritte vergeben. Der Code ist kein Open Source; jede Nutzung durch andere braucht einen gesonderten schriftlichen Lizenzvertrag. Abhängigkeiten stehen unter ihren eigenen Open-Source-Lizenzen (MIT, Apache-2.0, MPL-2.0, Unlicense).
