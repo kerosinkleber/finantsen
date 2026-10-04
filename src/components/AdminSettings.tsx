@@ -4,7 +4,7 @@ import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 
-type Settings = { registrationEnabled: boolean; allowDuplicateEmails: boolean; linkValidityHours: number };
+type Settings = { registrationEnabled: boolean; allowDuplicateEmails: boolean; linkValidityHours: number; testFeaturesEnabled: boolean };
 
 /** Instanz-Einstellungen, nur für Admins (der Server prüft die Berechtigung zusätzlich). */
 export function AdminSettings({ initial }: { initial: Settings }) {
@@ -43,6 +43,13 @@ export function AdminSettings({ initial }: { initial: Settings }) {
         <span>
           <span className="font-medium">{t("admin.allowDuplicateEmails")}</span>
           <span className="muted block">{t("admin.allowDuplicateEmailsHelp")}</span>
+        </span>
+      </label>
+      <label className="flex items-start gap-3">
+        <input type="checkbox" className="mt-1 h-5 w-5" checked={s.testFeaturesEnabled} onChange={(e) => save({ testFeaturesEnabled: e.target.checked })} />
+        <span>
+          <span className="font-medium">{t("test.enableSetting")}</span>
+          <span className="muted block">{t("test.enableHelp")}</span>
         </span>
       </label>
       <div>

@@ -1,4 +1,5 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../db";
 import { expenseComments, users } from "../schema";
 import { forbidden, notFound } from "../http";
@@ -7,23 +8,26 @@ import { notifyGroup } from "./notifications";
 
 export async function listComments(userId: string, groupId: string, expenseId: string) {
   await getExpense(userId, groupId, expenseId);
+  const actor = alias(users, "actor");
   return getDb()
     .select({
+      actedByName: actor.name,
       id: expenseComments.id,
       userId: expenseComments.userId,
-      userName: users.name,
+      userName: sql<string>`case when ${users.kind} = 'test' then ${users.name} || ' (Test)' else ${users.name} end`,
       body: expenseComments.body,
       createdAt: expenseComments.createdAt,
     })
     .from(expenseComments)
     .innerJoin(users, eq(users.id, expenseComments.userId))
+    .leftJoin(actor, eq(actor.id, expenseComments.actedBy))
     .where(and(eq(expenseComments.expenseId, expenseId), isNull(expenseComments.deletedAt)))
     .orderBy(asc(expenseComments.createdAt));
 }
 
-export async function addComment(userId: string, groupId: string, expenseId: string, body: string) {
+export async function addComment(userId: string, groupId: string, expenseId: string, body: string, actedBy: string | null = null) {
   const e = await getExpense(userId, groupId, expenseId);
-  const [row] = await getDb().insert(expenseComments).values({ expenseId, userId, body }).returning();
+  const [row] = await getDb().insert(expenseComments).values({ expenseId, userId, actedBy, body }).returning();
   await notifyGroup({
     type: "comment",
     groupId,

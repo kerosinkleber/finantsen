@@ -45,11 +45,19 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Gruppeneinladungen (`/join/[code]`) nimmt nur ein angemeldetes Konto an.
 - Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. Offen: Etappe B (TOTP) und C (QR), Passkeys zuletzt.
 
+## Admin-Testfunktionen
+- Testnutzer: `users.kind = 'test'` (kein Passwort, `status active`, nie Admin). **Jede** Login-/Link-/Passwort-Funktion filtert auf `kind = 'user'` (`authenticate`, `loadValidToken`, `target` in `adminAction`, `changePassword`, `resolveSession`). Neue Konto-Funktionen müssen das beachten.
+- „Handeln als“: `sessions.acting_as_user_id`. `resolveSession` (cookie-frei, testbar) liefert die **effektive** Identität (`SessionUser.id/isAdmin` = Testnutzer, `isAdmin` dann false) und die echte unter `user.real`; es greift nur, wenn das echte Konto Admin ist, das Ziel `kind='test'` ist **und** Testfunktionen an sind. Admin-Seiten/-APIs prüfen die effektive Identität, sind also beim Handeln als Testnutzer gesperrt; `/api/admin/act` DELETE beendet es.
+- Nachvollziehbarkeit: `acted_by` (echter Admin) in `expense_history`, `expense_comments`, `payments`; Services `createExpense/updateExpense/deleteExpense/addComment/createPayment` nehmen `actedBy` (Routen: `actedBy(user)` aus `http.ts`).
+- `services/testUsers.ts`: anlegen (`test-N` fortlaufend oder einzeln), bearbeiten, `addToGroup` (Warnung `needs_confirmation`; Auswahl nur Gruppen mit dem Admin oder nur Testnutzern), `setGroupRole` (Besitzerschutz), `removeFromGroup` (offener Saldo nur mit `confirmed`; Besitzer wird weitergereicht), `addFriend` (Direktgruppe), `deleteTestUser` (blockiert bei Daten in Gruppen mit echten Nutzern; Ersteller-Verweis und Besitzer werden umgehängt), `startActingAs/stopActingAs`.
+- Schalter: `settings.testFeaturesEnabled()`; Default aus `TEST_FEATURES_DEFAULT` (nur `"true"`), DB-Wert hat Vorrang. Nur `docker-compose.local.yml`, Playwright und `.env.example` (auskommentiert) setzen ihn. Testnutzer erhalten nie Push (In-App-Benachrichtigungen ja). In `listGroups` tragen Testnutzer „(Test)“ im Namen, ebenso Verlauf/Kommentare/Benachrichtigungen.
+- Release: `docs/release-checkliste.md`.
+
 ## Lizenz
 Proprietär (`LICENSE`, `package.json` → `UNLICENSED`). Keine Open-Source-Lizenz, keine Copyleft-Abhängigkeiten hinzufügen (aktuell nur MIT/Apache/Unlicense/MPL-2.0). Neue Dateien brauchen keinen Lizenzkopf.
 
 ## Zusammenarbeit
-Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs/fragen/NN-thema.md` bereitgestellt (Checkboxen, Empfehlung markiert, Abschnitt „Schon entschieden“ und „Meine Annahmen“), nicht als lange Chat-Liste. Kein PDF/Formular-Tool.
+Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs/fragen/NN-thema.md` bereitgestellt (Checkboxen, Empfehlung markiert, Abschnitt „Schon entschieden“ und „Meine Annahmen“), nicht als lange Chat-Liste. Kein PDF/Formular-Tool. Den Fragebogen **immer sofort** per `SendUserFile` als Download an den Auftraggeber schicken (er öffnet ihn selbst im Editor); Antworten danach ins Repo übernehmen und eine Abschnitt „Umsetzung“ mit meiner Auslegung anhängen.
 
 ## Konventionen / Regeln
 - Geld IMMER als Ganzzahl in Minor-Units (`bigint` mode number), Währung je Ausgabe/Zahlung. Nie Float.

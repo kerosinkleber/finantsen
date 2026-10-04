@@ -5,7 +5,7 @@ import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 
-export type CommentView = { id: string; userId: string; userName: string; body: string; createdAt: string };
+export type CommentView = { id: string; userId: string; userName: string; actedByName: string | null; body: string; createdAt: string };
 
 export function Comments({ groupId, expenseId, meId, comments }: { groupId: string; expenseId: string; meId: string; comments: CommentView[] }) {
   const { t, locale } = useI18n();
@@ -47,7 +47,7 @@ export function Comments({ groupId, expenseId, meId, comments }: { groupId: stri
           <li key={c.id} className="text-sm" data-testid="comment">
             <p className="flex items-center justify-between gap-2">
               <span>
-                <span className="font-medium">{c.userName}</span>{" "}
+                <span className="font-medium">{c.userName}</span>{c.actedByName ? <span className="muted"> ({t("test.byAdmin", { name: c.actedByName })})</span> : null}{" "}
                 <time className="muted" dateTime={c.createdAt}>{new Date(c.createdAt).toLocaleString(locale)}</time>
               </span>
               {c.userId === meId && (

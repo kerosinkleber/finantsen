@@ -26,6 +26,7 @@ export default defineConfig({
       DATABASE_URL,
       APP_URL: `http://localhost:${PORT}`,
       // Feste Kurse statt Netzwerk (Kurse pro 1 EUR); ohne ANTHROPIC_API_KEY ist der Belegscan ausgeblendet
+      TEST_FEATURES_DEFAULT: "true",
       EXCHANGE_RATE_PROVIDER: "static",
       EXCHANGE_RATES_STATIC: '{"USD":1.25,"JPY":160}',
       ANTHROPIC_API_KEY: "",

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { groupMembers, groups, notifications, users } from "../schema";
 import { translate, normalizeLocale } from "@/i18n";
@@ -28,9 +28,9 @@ export async function notifyGroup(opts: {
   try {
     const db = getDb();
     const [g] = await db.select({ name: groups.name, kind: groups.kind }).from(groups).where(eq(groups.id, opts.groupId));
-    const [actor] = await db.select({ name: users.name }).from(users).where(eq(users.id, opts.actorId));
+    const [actor] = await db.select({ name: sql<string>`case when ${users.kind} = 'test' then ${users.name} || ' (Test)' else ${users.name} end` }).from(users).where(eq(users.id, opts.actorId));
     const recipients = await db
-      .select({ id: users.id, locale: users.locale })
+      .select({ id: users.id, locale: users.locale, kind: users.kind })
       .from(groupMembers)
       .innerJoin(users, eq(users.id, groupMembers.userId))
       .where(eq(groupMembers.groupId, opts.groupId));
@@ -49,7 +49,7 @@ export async function notifyGroup(opts: {
       others.map((r) => ({ userId: r.id, type: opts.type, groupId: opts.groupId, expenseId: opts.expenseId, data })),
     );
     await Promise.all(
-      others.map((r) => {
+      others.filter((r) => r.kind !== "test").map((r) => { // Testnutzer bekommen nie Push
         const locale = normalizeLocale(r.locale) ?? "de";
         return sendPush(r.id, {
           title: "Finantsen",

@@ -31,6 +31,8 @@ export const users = pgTable(
     /** null, solange das Konto per Einmal-Link noch nicht aktiviert wurde */
     passwordHash: text("password_hash"),
     isAdmin: boolean("is_admin").notNull().default(false),
+    /** user = echtes Konto | test = Testnutzer (kein Passwort, nie selbst anmeldbar, nur vom Admin steuerbar) */
+    kind: varchar("kind", { length: 10 }).notNull().default("user"),
     /** active | invited (wartet auf Aktivierung per Link) | pending (Selbstregistrierung, wartet auf Freigabe) | disabled */
     status: varchar("status", { length: 20 }).notNull().default("active"),
     mustChangePassword: boolean("must_change_password").notNull().default(false),
@@ -70,6 +72,8 @@ export const sessions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    /** Admin handelt in dieser Sitzung als dieser Testnutzer (nur kind = test) */
+    actingAsUserId: uuid("acting_as_user_id").references(() => users.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -196,6 +200,8 @@ export const expenseHistory = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
+    /** Echter Admin, der als Testnutzer gehandelt hat (userId ist dann der Testnutzer) */
+    actedBy: uuid("acted_by").references(() => users.id, { onDelete: "set null" }),
     action: varchar("action", { length: 10 }).notNull(), // create | update | delete
     snapshot: jsonb("snapshot").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -220,6 +226,7 @@ export const payments = pgTable(
     currency: varchar("currency", { length: 3 }).notNull(),
     date: date("date", { mode: "string" }).notNull(),
     note: varchar("note", { length: 200 }),
+    actedBy: uuid("acted_by").references(() => users.id, { onDelete: "set null" }),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),
@@ -252,6 +259,7 @@ export const expenseComments = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
+    actedBy: uuid("acted_by").references(() => users.id, { onDelete: "set null" }),
     body: varchar("body", { length: 2000 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

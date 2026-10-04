@@ -26,6 +26,7 @@ export default async function AdminUsersPage() {
     <>
       <h1 className="text-xl font-semibold">{t("admin.users")}</h1>
       <AdminSettings initial={settings} />
+      {settings.testFeaturesEnabled && <Link href="/admin/test-users" className="btn-secondary" data-testid="test-users-link">{t("test.link")}</Link>}
       <UsersAdmin users={view} meId={admin.id} />
       <Link href="/settings" className="btn-secondary">{t("common.back")}</Link>
     </>

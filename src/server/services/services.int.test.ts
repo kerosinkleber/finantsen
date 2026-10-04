@@ -10,11 +10,12 @@ d("services (PostgreSQL)", () => {
 
   async function load() {
     process.env.DATABASE_URL = url;
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
       import("../auth"),
+      import("./testUsers"),
       import("./groups"),
       import("./expenses"),
       import("./balances"),
@@ -26,7 +27,7 @@ d("services (PostgreSQL)", () => {
       import("../rates"),
       import("./settings"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings };
   }
 
   beforeAll(async () => {
@@ -40,7 +41,18 @@ d("services (PostgreSQL)", () => {
 
   const PW = "Correct-Horse-Battery-9!";
   type U = { id: string; username: string; isAdmin: boolean };
-  const actor = (u: U) => ({ id: u.id, username: u.username, email: null, name: u.username, isAdmin: u.isAdmin, locale: "de", mustChangePassword: false });
+  const actor = (u: U) => ({
+    id: u.id,
+    username: u.username,
+    email: null,
+    name: u.username,
+    isAdmin: u.isAdmin,
+    locale: "de",
+    kind: "user" as const,
+    mustChangePassword: false,
+    real: { id: u.id, name: u.username, isAdmin: u.isAdmin },
+    impersonating: false,
+  });
 
   /** Legt über den Admin ein Konto mit Passwort an (ohne Passwortwechsel-Pflicht). */
   async function mkUser(admin: U, username: string, extra: { email?: string; isAdmin?: boolean; name?: string } = {}) {
@@ -525,6 +537,279 @@ d("services (PostgreSQL)", () => {
       await svc.users.adminAction(actor(a), b.id, { action: "disable" });
       expect(await svc.users.peekLink(token)).toBeNull();
       await expect(svc.users.adminAction(actor(a), b.id, { action: "link" })).rejects.toMatchObject({ code: "invalid_state" });
+    });
+  });
+
+  describe("Admin-Testfunktionen (Testnutzer)", () => {
+    const tid = (t: { id: string }) => t.id;
+    const mkTest = async (admin: U, count = 1) => (await svc.testUsers.createTestUsers(actor(admin), { count })).map(tid);
+    /** Admin handelt als Testnutzer (ohne Cookie): Sitzung anlegen, „Handeln als“ setzen, Identität auflösen. */
+    async function actAs(admin: U, testId: string) {
+      const token = await svc.auth.createSessionFor(admin.id);
+      const sid = svc.auth.sha256(token);
+      await svc.testUsers.startActingAs(actor(admin), testId, sid);
+      return { token, sid, me: (await svc.auth.resolveSession(token))! };
+    }
+    beforeEach(async () => {
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: true });
+    });
+
+    it("Schalter: Standard kommt aus TEST_FEATURES_DEFAULT (ohne Variable aus); Wahl in der Datenbank hat Vorrang", async () => {
+      await svc.getDb().execute(svc.sql`truncate settings`);
+      const old = process.env.TEST_FEATURES_DEFAULT;
+      try {
+        delete process.env.TEST_FEATURES_DEFAULT;
+        expect(await svc.settings.testFeaturesEnabled()).toBe(false);
+        process.env.TEST_FEATURES_DEFAULT = "true";
+        expect(await svc.settings.testFeaturesEnabled()).toBe(true);
+        await svc.settings.updateAdminSettings({ testFeaturesEnabled: false });
+        expect(await svc.settings.testFeaturesEnabled()).toBe(false); // explizit aus schlägt Variable
+        process.env.TEST_FEATURES_DEFAULT = "yes";
+        await svc.getDb().execute(svc.sql`truncate settings`);
+        expect(await svc.settings.testFeaturesEnabled()).toBe(false); // nur "true" schaltet ein
+      } finally {
+        if (old === undefined) delete process.env.TEST_FEATURES_DEFAULT;
+        else process.env.TEST_FEATURES_DEFAULT = old;
+      }
+    });
+
+    it("bei ausgeschalteten Testfunktionen ist alles gesperrt", async () => {
+      const { a } = await setup();
+      const [t] = await mkTest(a);
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: false });
+      await expect(svc.testUsers.listTestUsers(actor(a))).rejects.toMatchObject({ code: "test_features_disabled" });
+      await expect(svc.testUsers.createTestUsers(actor(a), { count: 1 })).rejects.toMatchObject({ code: "test_features_disabled" });
+      await expect(svc.testUsers.startActingAs(actor(a), t)).rejects.toMatchObject({ code: "test_features_disabled" });
+    });
+
+    it("nur echte Admins: Nicht-Admins und „Handeln als“-Identität werden abgewiesen", async () => {
+      const { a, b } = await setup();
+      const [t] = await mkTest(a);
+      await expect(svc.testUsers.listTestUsers(actor(b))).rejects.toMatchObject({ status: 403 });
+      await expect(svc.testUsers.createTestUsers(actor(b), { count: 1 })).rejects.toMatchObject({ status: 403 });
+      const { me } = await actAs(a, t);
+      expect(me.impersonating).toBe(true);
+      await expect(svc.testUsers.listTestUsers(me)).rejects.toMatchObject({ status: 403 }); // auch als Testnutzer kein Admin
+      await expect(svc.users.listUsers(me)).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("Anlegen: fortlaufend test-1…, einzeln mit eigenem Namen, Nutzername eindeutig, Testnutzer nicht in der echten Nutzerliste", async () => {
+      const { a } = await setup();
+      const first = await svc.testUsers.createTestUsers(actor(a), { count: 3 });
+      expect(first.map((u) => u.username)).toEqual(["test-1", "test-2", "test-3"]);
+      expect(first.map((u) => u.name)).toEqual(["Test 1", "Test 2", "Test 3"]);
+      expect((await svc.testUsers.createTestUsers(actor(a), { count: 2 })).map((u) => u.username)).toEqual(["test-4", "test-5"]);
+      const [custom] = await svc.testUsers.createTestUsers(actor(a), { name: "Hilde", username: "hilde" });
+      expect(custom.username).toBe("hilde");
+      await expect(svc.testUsers.createTestUsers(actor(a), { name: "X", username: "HILDE" })).rejects.toMatchObject({ code: "username_taken" });
+      await expect(svc.testUsers.createTestUsers(actor(a), { name: "X", username: "anna" })).rejects.toMatchObject({ code: "username_taken" });
+      expect((await svc.users.listUsers(actor(a))).some((u) => u.username.startsWith("test-"))).toBe(false);
+      expect(await svc.testUsers.listTestUsers(actor(a))).toHaveLength(6);
+    });
+
+    it("Sicherheit: Testnutzer können sich nie anmelden, keinen Link bekommen, nicht Admin werden, kein Passwort ändern", async () => {
+      const { a } = await setup();
+      const [t] = await mkTest(a);
+      expect(await svc.users.authenticate("test-1", PW)).toEqual({ kind: "invalid" });
+      // selbst wenn ein Passwort-Hash in die Datenbank geraten würde, bleibt der Login gesperrt
+      const hash = await svc.auth.hashPassword(PW);
+      await svc.getDb().execute(svc.sql`update users set password_hash = ${hash} where id = ${t}`);
+      expect(await svc.users.authenticate("test-1", PW)).toEqual({ kind: "invalid" });
+      await expect(svc.users.adminAction(actor(a), t, { action: "link" })).rejects.toMatchObject({ status: 404 });
+      await expect(svc.users.adminAction(actor(a), t, { action: "makeAdmin" })).rejects.toMatchObject({ status: 404 });
+      await expect(svc.users.adminAction(actor(a), t, { action: "setPassword", password: PW, mustChange: false })).rejects.toMatchObject({ status: 404 });
+      await expect(svc.users.changePassword(t, PW, "Another-Strong-Pass-77#", null)).rejects.toMatchObject({ status: 401 });
+      // eine Sitzung eines Testnutzers wird nie aufgelöst
+      const token = await svc.auth.createSessionFor(t);
+      expect(await svc.auth.resolveSession(token)).toBeNull();
+    });
+
+    it("„Handeln als“: nur Testnutzer, nie echte Konten; Identität wechselt, echter Admin bleibt erhalten; Beenden und Abschalten", async () => {
+      const { a, b } = await setup();
+      const [t] = await mkTest(a);
+      await expect(svc.testUsers.startActingAs(actor(a), b.id)).rejects.toMatchObject({ status: 404 }); // echtes Konto
+      await expect(svc.testUsers.startActingAs(actor(a), a.id)).rejects.toMatchObject({ status: 404 });
+      const { token, sid, me } = await actAs(a, t);
+      expect(me).toMatchObject({ id: t, kind: "test", isAdmin: false, impersonating: true, real: { id: a.id, isAdmin: true } });
+      await svc.testUsers.stopActingAs(me, sid);
+      expect(await svc.auth.resolveSession(token)).toMatchObject({ id: a.id, impersonating: false, isAdmin: true });
+      // Testfunktionen ausschalten beendet die Wirkung sofort
+      await svc.testUsers.startActingAs(actor(a), t, sid);
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: false });
+      expect(await svc.auth.resolveSession(token)).toMatchObject({ id: a.id, impersonating: false });
+      // ein Nicht-Admin-Konto kann „Handeln als“ auch per manipulierter Sitzung nicht nutzen
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: true });
+      const tokB = await svc.auth.createSessionFor(b.id);
+      await svc.getDb().execute(svc.sql`update sessions set acting_as_user_id = ${t} where id = ${svc.auth.sha256(tokB)}`);
+      expect(await svc.auth.resolveSession(tokB)).toMatchObject({ id: b.id, impersonating: false });
+    });
+
+    it("als Testnutzer handeln: Ausgabe, Kommentar und Zahlung erscheinen von ihm, im Verlauf „durch Admin“; Benachrichtigung in der App, kein Push", async () => {
+      const { a, b, g } = await setup();
+      const [t] = await mkTest(a);
+      await svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member", confirmed: true });
+      const { me } = await actAs(a, t);
+      const e = await svc.expenses.createExpense(me.id, g.id, base({ payers: [{ userId: t, amountMinor: 3000 }], split: { type: "equal", participants: [t, b.id] } }), me.real.id);
+      expect(e.createdBy).toBe(t);
+      await svc.comments.addComment(me.id, g.id, e.id, "Hallo", me.real.id);
+      await svc.payments.createPayment(me.id, g.id, { fromUser: b.id, toUser: t, amountMinor: 500, currency: "EUR", date: "2026-01-03" }, me.real.id);
+      const hist = await svc.expenses.expenseHistoryFor(a.id, g.id, e.id);
+      expect(hist[0]).toMatchObject({ userName: "Test 1 (Test)", actedByName: "Anna" });
+      const comments = await svc.comments.listComments(a.id, g.id, e.id);
+      expect(comments[0]).toMatchObject({ userName: "Test 1 (Test)", actedByName: "Anna" });
+      // ohne „Handeln als“ bleibt actedBy leer
+      const own = await svc.expenses.createExpense(b.id, g.id, base({ payers: [{ userId: b.id, amountMinor: 3000 }], split: { type: "equal", participants: [b.id] } }));
+      expect((await svc.expenses.expenseHistoryFor(b.id, g.id, own.id))[0].actedByName).toBeNull();
+      // Testnutzer sieht seine Benachrichtigung (Ausgabe von Ben), Push gibt es nie
+      expect(await svc.notifications.unreadCount(t)).toBe(1);
+    });
+
+    it("Testnutzer sind in Gruppenlisten mit „(Test)“ gekennzeichnet", async () => {
+      const { a, g } = await setup();
+      const [t] = await mkTest(a);
+      await svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member", confirmed: true });
+      const group = (await svc.groups.listGroups(a.id)).find((x) => x.id === g.id)!;
+      expect(group.members.find((m) => m.id === t)).toMatchObject({ name: "Test 1 (Test)", isTest: true });
+      expect(group.members.find((m) => m.id === a.id)).toMatchObject({ isTest: false });
+    });
+
+    it("Gruppen hinzufügen: Warnung bei echten Mitgliedern, Datenschutz-Auswahl, Rolle, Doppelte", async () => {
+      const { a, b, g } = await setup(); // g: anna (admin), ben, cleo
+      const [t] = await mkTest(a);
+      await expect(svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member" })).rejects.toMatchObject({ code: "needs_confirmation", extra: { realMembers: ["Ben", "Cleo"] } });
+      await svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member", confirmed: true });
+      await expect(svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member", confirmed: true })).rejects.toMatchObject({ code: "already_member" });
+      // Gruppe echter Nutzer ohne den Admin: nicht auswählbar und nicht hinzufügbar
+      const fremd = await svc.groups.createGroup(b.id, { name: "Fremd", defaultCurrency: "EUR" });
+      const d = await svc.testUsers.getTestUserDetail(actor(a), t);
+      expect(d.addableGroups.map((x) => x.name)).not.toContain("Fremd");
+      await expect(svc.testUsers.addToGroup(actor(a), t, fremd.id, { role: "member", confirmed: true })).rejects.toMatchObject({ status: 404 });
+      // reine Testnutzer-Gruppe ist ohne Warnung hinzufügbar
+      const [t2] = await mkTest(a);
+      const tg = await svc.groups.createGroup(t2, { name: "Nur Tests", defaultCurrency: "EUR" });
+      expect((await svc.testUsers.getTestUserDetail(actor(a), t)).addableGroups.map((x) => x.name)).toContain("Nur Tests");
+      await svc.testUsers.addToGroup(actor(a), t, tg.id, { role: "owner" });
+      const detail = await svc.testUsers.getTestUserDetail(actor(a), t);
+      expect(detail.memberships.find((m) => m.groupId === tg.id)).toMatchObject({ role: "owner", hasRealMembers: false });
+      expect(detail.memberships.find((m) => m.groupId === g.id)).toMatchObject({ role: "member", hasRealMembers: true });
+    });
+
+    it("Rolle ändern: letzter Besitzer ist geschützt; entfernen mit offenem Saldo nur nach Bestätigung; letztes Mitglied bleibt", async () => {
+      const { a, b, g } = await setup();
+      const [t] = await mkTest(a);
+      await svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member", confirmed: true });
+      await svc.testUsers.setGroupRole(actor(a), t, g.id, "owner");
+      await svc.testUsers.setGroupRole(actor(a), t, g.id, "member"); // anna ist weiterhin Besitzerin
+      const tg = await svc.groups.createGroup(t, { name: "Solo", defaultCurrency: "EUR" });
+      await expect(svc.testUsers.setGroupRole(actor(a), t, tg.id, "member")).rejects.toMatchObject({ code: "last_owner" });
+      await expect(svc.testUsers.removeFromGroup(actor(a), t, tg.id, { confirmed: true })).rejects.toMatchObject({ code: "last_member" });
+      // offener Saldo
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, t] } }));
+      await expect(svc.testUsers.removeFromGroup(actor(a), t, g.id)).rejects.toMatchObject({ code: "balance_not_zero" });
+      await svc.testUsers.removeFromGroup(actor(a), t, g.id, { confirmed: true });
+      expect((await svc.expenses.listExpenses(a.id, g.id)).length).toBe(1); // Ausgabe bleibt erhalten
+      expect(b.id).toBeTruthy();
+    });
+
+    it("Besitzer wird beim Entfernen weitergereicht", async () => {
+      const { a, g } = await setup();
+      const [t] = await mkTest(a);
+      const tg = await svc.groups.createGroup(t, { name: "T-Gruppe", defaultCurrency: "EUR" });
+      await svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member", confirmed: true });
+      const [t2] = await mkTest(a);
+      await svc.testUsers.addToGroup(actor(a), t2, tg.id, { role: "member" });
+      await svc.testUsers.removeFromGroup(actor(a), t, tg.id, { confirmed: true });
+      const rows = await svc.getDb().execute(svc.sql`select role from group_members where group_id = ${tg.id} and user_id = ${t2}`);
+      expect(rows[0].role).toBe("owner");
+    });
+
+    it("Freundschaften: Testnutzer ↔ Testnutzer, Admin; echte Konten nur nach Bestätigung; keine Doppelten; Beenden entfernt nur den Testnutzer", async () => {
+      const { a, b } = await setup();
+      const [t1, t2] = await mkTest(a, 2);
+      await svc.testUsers.addFriend(actor(a), t1, t2);
+      await expect(svc.testUsers.addFriend(actor(a), t2, t1)).rejects.toMatchObject({ code: "already_friends" });
+      await svc.testUsers.addFriend(actor(a), t1, a.id); // Admin ohne Warnung
+      await expect(svc.testUsers.addFriend(actor(a), t1, b.id)).rejects.toMatchObject({ code: "needs_confirmation" });
+      await svc.testUsers.addFriend(actor(a), t1, b.id, { confirmed: true });
+      const d = await svc.testUsers.getTestUserDetail(actor(a), t1);
+      expect(d.memberships.filter((m) => m.kind === "direct").map((m) => m.name).sort()).toEqual(["Test 2 (Test)", "Anna", "Ben"].sort());
+      expect(d.friendCandidates.some((c) => c.id === t2)).toBe(false); // schon befreundet
+      // Beenden: Direktgruppe bleibt für den anderen bestehen
+      const direct = d.memberships.find((m) => m.name === "Ben")!;
+      await svc.testUsers.removeFromGroup(actor(a), t1, direct.groupId, { confirmed: true });
+      expect((await svc.groups.listGroups(b.id)).find((x) => x.id === direct.groupId)?.members).toHaveLength(1);
+      await expect(svc.testUsers.addFriend(actor(a), t1, t1)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("Bearbeiten: Name, Nutzername, Sprache; echte Konten sind hier nie erreichbar", async () => {
+      const { a, b } = await setup();
+      const [t] = await mkTest(a);
+      const u = await svc.testUsers.updateTestUser(actor(a), t, { name: "Neu", username: "NEU-1", locale: "en" });
+      expect(u).toMatchObject({ name: "Neu", username: "neu-1", locale: "en" });
+      await expect(svc.testUsers.updateTestUser(actor(a), t, { username: "anna" })).rejects.toMatchObject({ code: "username_taken" });
+      for (const fn of [
+        () => svc.testUsers.updateTestUser(actor(a), b.id, { name: "Hack" }),
+        () => svc.testUsers.getTestUserDetail(actor(a), b.id),
+        () => svc.testUsers.deleteTestUser(actor(a), b.id),
+        () => svc.testUsers.addToGroup(actor(a), b.id, "00000000-0000-0000-0000-000000000000", { role: "member" }),
+        () => svc.testUsers.removeFromGroup(actor(a), b.id, "00000000-0000-0000-0000-000000000000"),
+        () => svc.testUsers.addFriend(actor(a), b.id, a.id),
+      ])
+        await expect(fn()).rejects.toMatchObject({ status: 404 });
+      expect((await svc.users.listUsers(actor(a))).find((x) => x.id === b.id)?.name).toBe("Ben"); // unverändert
+    });
+
+    it("Löschen: reine Testnutzer-Gruppen samt Daten, bloße Mitgliedschaften werden gelöst", async () => {
+      const { a, g } = await setup();
+      const [t1, t2] = await mkTest(a, 2);
+      const tg = await svc.groups.createGroup(t1, { name: "Testgruppe", defaultCurrency: "EUR" });
+      await svc.testUsers.addToGroup(actor(a), t2, tg.id, { role: "member" });
+      await svc.expenses.createExpense(t1, tg.id, base({ payers: [{ userId: t1, amountMinor: 3000 }], split: { type: "equal", participants: [t1, t2] } }));
+      await svc.payments.createPayment(t2, tg.id, { fromUser: t2, toUser: t1, amountMinor: 100, currency: "EUR", date: "2026-01-03" });
+      await svc.testUsers.addToGroup(actor(a), t1, g.id, { role: "member", confirmed: true }); // nur Mitglied, keine Daten
+      await svc.testUsers.deleteTestUser(actor(a), t1);
+      expect(await svc.getDb().execute(svc.sql`select 1 from groups where id = ${tg.id}`)).toHaveLength(0);
+      expect(await svc.getDb().execute(svc.sql`select 1 from expenses where group_id = ${tg.id}`)).toHaveLength(0);
+      expect(await svc.getDb().execute(svc.sql`select 1 from users where id = ${t1}`)).toHaveLength(0);
+      expect(await svc.getDb().execute(svc.sql`select 1 from users where id = ${t2}`)).toHaveLength(1); // anderer Testnutzer bleibt
+      expect((await svc.groups.listGroups(a.id)).find((x) => x.id === g.id)!.members.some((m) => m.id === t1)).toBe(false);
+      expect(await svc.getDb().execute(svc.sql`select 1 from groups where id = ${g.id}`)).toHaveLength(1);
+    });
+
+    it("Löschen blockiert (nichts wird gelöscht), wenn Daten in einer Gruppe mit echten Nutzern hängen", async () => {
+      const { a, g } = await setup();
+      const [t] = await mkTest(a);
+      await svc.testUsers.addToGroup(actor(a), t, g.id, { role: "member", confirmed: true });
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, t] } }));
+      await expect(svc.testUsers.deleteTestUser(actor(a), t)).rejects.toMatchObject({
+        code: "test_user_in_real_group",
+        extra: { groups: [{ id: g.id, name: "WG", users: expect.arrayContaining(["Anna"]) }] },
+      });
+      expect(await svc.getDb().execute(svc.sql`select 1 from users where id = ${t}`)).toHaveLength(1);
+      expect((await svc.expenses.listExpenses(a.id, g.id)).length).toBe(1);
+      // eine vom Testnutzer nur angelegte Gruppe (ohne seine Daten) blockiert nicht: Verweis geht auf ein anderes Mitglied über
+      const [t2] = await mkTest(a);
+      const tg = await svc.groups.createGroup(t2, { name: "Mit Admin", defaultCurrency: "EUR" });
+      await svc.getDb().execute(svc.sql`insert into group_members(group_id, user_id) values (${tg.id}, ${a.id})`);
+      await svc.testUsers.deleteTestUser(actor(a), t2);
+      const [row] = await svc.getDb().execute(svc.sql`select created_by from groups where id = ${tg.id}`);
+      expect(row.created_by).toBe(a.id);
+      const [mem] = await svc.getDb().execute(svc.sql`select role from group_members where group_id = ${tg.id} and user_id = ${a.id}`);
+      expect(mem.role).toBe("owner"); // Besitzer wurde weitergereicht
+      // Direktgruppe ohne Daten: Mitgliedschaft wird gelöst
+      const [t3] = await mkTest(a);
+      await svc.testUsers.addFriend(actor(a), t3, a.id);
+      await svc.testUsers.deleteTestUser(actor(a), t3);
+      expect(await svc.getDb().execute(svc.sql`select 1 from users where id = ${t3}`)).toHaveLength(0);
+    });
+
+    it("Löschen beendet „Handeln als“-Sitzungen sauber", async () => {
+      const { a } = await setup();
+      const [t] = await mkTest(a);
+      const { token, sid } = await actAs(a, t);
+      await svc.testUsers.deleteTestUser(actor(a), t);
+      expect(await svc.auth.resolveSession(token)).toMatchObject({ id: a.id, impersonating: false });
+      expect(sid).toBeTruthy();
     });
   });
 });

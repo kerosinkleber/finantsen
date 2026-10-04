@@ -7,6 +7,7 @@ const KEYS = {
   registrationEnabled: "registration_enabled",
   allowDuplicateEmails: "allow_duplicate_emails",
   linkValidityHours: "link_validity_hours",
+  testFeatures: "test_features_enabled",
 } as const;
 
 export const LINK_VALIDITY_MIN = 1;
@@ -30,17 +31,35 @@ export async function linkValidityHours(): Promise<number> {
   return Number.isInteger(n) && n >= LINK_VALIDITY_MIN && n <= LINK_VALIDITY_MAX ? n : 72;
 }
 
+/**
+ * Admin-Testfunktionen (Testnutzer, "Handeln als"). Der Standardwert kommt aus TEST_FEATURES_DEFAULT
+ * (nur "true" schaltet ein); ohne die Variable ist die Funktion aus, so auch im produktiven Compose-Stack.
+ * Eine explizite Wahl im Admin-Bereich (Datenbank) hat Vorrang.
+ */
+export async function testFeaturesEnabled(): Promise<boolean> {
+  const v = await get(KEYS.testFeatures);
+  if (v !== null) return v === "true";
+  return process.env.TEST_FEATURES_DEFAULT === "true";
+}
+
 export async function getAdminSettings() {
   return {
     registrationEnabled: await registrationEnabled(),
     allowDuplicateEmails: await allowDuplicateEmails(),
     linkValidityHours: await linkValidityHours(),
+    testFeaturesEnabled: await testFeaturesEnabled(),
   };
 }
 
-export async function updateAdminSettings(data: { registrationEnabled?: boolean; allowDuplicateEmails?: boolean; linkValidityHours?: number }) {
+export async function updateAdminSettings(data: {
+  registrationEnabled?: boolean;
+  allowDuplicateEmails?: boolean;
+  linkValidityHours?: number;
+  testFeaturesEnabled?: boolean;
+}) {
   if (data.registrationEnabled !== undefined) await set(KEYS.registrationEnabled, String(data.registrationEnabled));
   if (data.allowDuplicateEmails !== undefined) await set(KEYS.allowDuplicateEmails, String(data.allowDuplicateEmails));
   if (data.linkValidityHours !== undefined) await set(KEYS.linkValidityHours, String(data.linkValidityHours));
+  if (data.testFeaturesEnabled !== undefined) await set(KEYS.testFeatures, String(data.testFeaturesEnabled));
   return getAdminSettings();
 }

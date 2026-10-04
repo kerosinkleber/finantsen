@@ -16,6 +16,7 @@ export const PATCH = route(async ({ req, user }) => {
     z.object({
       registrationEnabled: z.boolean().optional(),
       allowDuplicateEmails: z.boolean().optional(),
+      testFeaturesEnabled: z.boolean().optional(),
       linkValidityHours: z.number().int().min(LINK_VALIDITY_MIN).max(LINK_VALIDITY_MAX).optional(),
     }),
   );

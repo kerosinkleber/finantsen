@@ -1,4 +1,4 @@
-import { route, parseBody } from "@/server/http";
+import { actedBy, route, parseBody } from "@/server/http";
 import { expenseSchema } from "@/lib/schemas";
 import { createExpense, listExpenses } from "@/server/services/expenses";
 import { getGroup } from "@/server/services/groups";
@@ -13,5 +13,5 @@ export const GET = route<P>(async ({ req, user, params }) => {
 });
 export const POST = route<P>(async ({ req, user, params }) => {
   const body = await parseBody(req, expenseSchema);
-  return { expense: await createExpense(user.id, params.id, body) };
+  return { expense: await createExpense(user.id, params.id, body, actedBy(user)) };
 });

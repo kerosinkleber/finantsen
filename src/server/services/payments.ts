@@ -18,7 +18,7 @@ export async function listPayments(userId: string, groupId: string) {
   return loadPayments(groupId);
 }
 
-export async function createPayment(userId: string, groupId: string, body: PaymentBody) {
+export async function createPayment(userId: string, groupId: string, body: PaymentBody, actedBy: string | null = null) {
   await requireMember(userId, groupId);
   if (body.fromUser === body.toUser) throw new ApiError(400, "same_user");
   const members = await memberIds(groupId);
@@ -34,6 +34,7 @@ export async function createPayment(userId: string, groupId: string, body: Payme
       date: body.date,
       note: body.note || null,
       createdBy: userId,
+      actedBy,
     })
     .returning();
   return row;

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { hash, verify } from "@node-rs/argon2";
 import { and, eq, gt, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "./db";
 import { env } from "./env";
 import { sessions, users } from "./schema";
@@ -10,14 +11,21 @@ export const SESSION_COOKIE = "fs_session";
 const SESSION_DAYS = 30;
 
 export type SessionUser = {
+  /** Effektive Identität: bei „Handeln als“ der Testnutzer, sonst der angemeldete Nutzer */
   id: string;
   username: string;
   email: string | null;
   name: string;
+  /** Effektiv: ein Testnutzer ist nie Admin, auch wenn ein Admin als er handelt */
   isAdmin: boolean;
   locale: string;
-  /** Muss vor allem anderen sein Passwort ändern (vom Admin gesetzt oder zurückgesetzt) */
+  kind: "user" | "test";
+  /** Muss vor allem anderen sein Passwort ändern (gilt für das echte Konto) */
   mustChangePassword: boolean;
+  /** Der angemeldete (echte) Nutzer; entspricht dem effektiven Nutzer, wenn niemand als Testnutzer handelt */
+  real: { id: string; name: string; isAdmin: boolean };
+  /** Ein Admin handelt gerade als Testnutzer */
+  impersonating: boolean;
 };
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -47,22 +55,51 @@ export async function destroySession() {
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return null;
+  return token ? resolveSession(token) : null;
+}
+
+/** Löst ein Sitzungs-Token in die effektive Identität auf (ohne Cookies, damit testbar). */
+export async function resolveSession(token: string): Promise<SessionUser | null> {
+  const acting = alias(users, "acting");
   const rows = await getDb()
-    .select({
-      id: users.id,
-      username: users.username,
-      email: users.email,
-      name: users.name,
-      isAdmin: users.isAdmin,
-      locale: users.locale,
-      mustChangePassword: users.mustChangePassword,
-    })
+    .select({ real: users, acting })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, sql`now()`), eq(users.status, "active")))
+    .leftJoin(acting, eq(acting.id, sessions.actingAsUserId))
+    .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, sql`now()`), eq(users.status, "active"), eq(users.kind, "user")))
     .limit(1);
-  return rows[0] ?? null;
+  const r = rows[0];
+  if (!r) return null;
+  const real = { id: r.real.id, name: r.real.name, isAdmin: r.real.isAdmin };
+  // „Handeln als“ gilt nur für Testnutzer und nur, solange das echte Konto Admin ist und die Testfunktionen an sind.
+  let eff = r.real;
+  let impersonating = false;
+  if (r.acting && r.acting.kind === "test" && r.real.isAdmin) {
+    const { testFeaturesEnabled } = await import("./services/settings");
+    if (await testFeaturesEnabled()) {
+      eff = r.acting;
+      impersonating = true;
+    }
+  }
+  return {
+    id: eff.id,
+    username: eff.username,
+    email: eff.email,
+    name: eff.name,
+    isAdmin: impersonating ? false : eff.isAdmin,
+    locale: eff.locale,
+    kind: eff.kind as "user" | "test",
+    mustChangePassword: r.real.mustChangePassword,
+    real,
+    impersonating,
+  };
+}
+
+/** Admin beginnt (userId) oder beendet (null) „Handeln als“ in der aktuellen (oder angegebenen) Sitzung. */
+export async function setActingAs(userId: string | null, sessionId?: string | null) {
+  const id = sessionId ?? (await currentSessionId());
+  if (!id) return;
+  await getDb().update(sessions).set({ actingAsUserId: userId }).where(eq(sessions.id, id));
 }
 
 /** Hash der aktuellen Sitzung (um beim Passwortwechsel alle anderen zu beenden). */
@@ -108,7 +145,7 @@ export async function requireAdminUser(): Promise<SessionUser> {
   return u;
 }
 
-/** Legt eine Sitzung ohne Cookie an (nur für Tests). */
+/** Legt eine Sitzung ohne Cookie an (nur für Tests); liefert das Token. */
 export async function createSessionFor(userId: string) {
   const token = randomBytes(32).toString("base64url");
   await getDb().insert(sessions).values({ id: sha256(token), userId, expiresAt: new Date(Date.now() + SESSION_DAYS * 86400_000) });

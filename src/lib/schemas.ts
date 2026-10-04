@@ -133,3 +133,20 @@ export const paymentSchema = z.object({
   note: z.string().trim().max(200).optional(),
 });
 export type PaymentBody = z.infer<typeof paymentSchema>;
+
+// ---- Admin-Testfunktionen
+export const testUserCreateSchema = z.union([
+  z.object({ count: z.number().int().min(1).max(20) }),
+  z.object({ name: displayName, username: usernameSchema }),
+]);
+export const testUserUpdateSchema = z.object({
+  name: displayName.optional(),
+  username: usernameSchema.optional(),
+  locale: z.enum(["de", "en"]).optional(),
+});
+export const membershipActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("addGroup"), groupId: id, role: z.enum(["owner", "member"]).default("member"), confirmed: z.boolean().optional() }),
+  z.object({ action: z.literal("setRole"), groupId: id, role: z.enum(["owner", "member"]) }),
+  z.object({ action: z.literal("removeGroup"), groupId: id, confirmed: z.boolean().optional() }),
+  z.object({ action: z.literal("addFriend"), userId: id, confirmed: z.boolean().optional() }),
+]);

@@ -59,7 +59,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         groupId={id}
         expenseId={eid}
         meId={user.id}
-        comments={comments.map((c) => ({ id: c.id, userId: c.userId, userName: c.userName, body: c.body, createdAt: c.createdAt.toISOString() }))}
+        comments={comments.map((c) => ({ id: c.id, userId: c.userId, userName: c.userName, actedByName: c.actedByName, body: c.body, createdAt: c.createdAt.toISOString() }))}
       />
       <section className="card" data-testid="history">
         <h2 className="mb-2 font-semibold">{t("expense.history")}</h2>
@@ -69,7 +69,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
             return (
               <li key={h.id} className="text-sm">
                 <p>
-                  <span className="font-medium">{t(`expense.action.${h.action}` as MessageKey)}</span> · {h.userName} ·{" "}
+                  <span className="font-medium">{t(`expense.action.${h.action}` as MessageKey)}</span> · {h.userName}{h.actedByName ? <span data-testid="acted-by"> ({t("test.byAdmin", { name: h.actedByName })})</span> : null} ·{" "}
                   <time className="muted" dateTime={h.createdAt.toISOString()}>{h.createdAt.toLocaleString(locale)}</time>
                 </p>
                 <p className="muted">

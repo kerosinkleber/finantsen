@@ -15,6 +15,9 @@ export class ApiError extends Error {
   }
 }
 
+/** ID des echten Admins, wenn er gerade als Testnutzer handelt (für die Nachvollziehbarkeit), sonst null. */
+export const actedBy = (user: SessionUser): string | null => (user.impersonating ? user.real.id : null);
+
 export const notFound = () => new ApiError(404, "not_found");
 export const forbidden = () => new ApiError(403, "forbidden");
 

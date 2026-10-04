@@ -26,13 +26,13 @@ So füllst du ihn aus: Kreuze mit `[x]` an (bei Einfachauswahl nur eins) oder sc
 
 ## Frage 1: Wie steuerst du einen Testnutzer?
 
-- [ ] **A: "Handeln als"**: Ein Klick, und du siehst die App genau so wie der Testnutzer (seine Gruppen, Salden, Benachrichtigungen) und kannst für ihn Ausgaben anlegen, kommentieren, Zahlungen verbuchen. Oben ein deutliches Banner "Du handelst als X, zurück zum Admin". (Empfehlung)
+- [x] **A: "Handeln als"**: Ein Klick, und du siehst die App genau so wie der Testnutzer (seine Gruppen, Salden, Benachrichtigungen) und kannst für ihn Ausgaben anlegen, kommentieren, Zahlungen verbuchen. Oben ein deutliches Banner "Du handelst als X, zurück zum Admin". (Empfehlung)
 - [ ] **B: Nur Bearbeitungsseite**: Du pflegst Daten und Mitgliedschaften nur auf der Admin-Seite, ohne die App als der Nutzer zu sehen.
 - [ ] **C: Beides** (A enthält die Bearbeitungsseite ohnehin; B allein wäre deutlich weniger Aufwand)
 
 Antwort / Anmerkung:
 
----
+
 
 ## Frage 2: Was bearbeitest du auf der Testnutzer-Seite?
 
@@ -43,7 +43,7 @@ Kreuze an, was dort einstellbar sein soll:
 - [x] Rolle in der Gruppe (Besitzer oder Mitglied) (Empfehlung)
 - [x] Sprache (Deutsch oder Englisch) (Empfehlung)
 - [ ] E-Mail (nur zum Testen von E-Mail-Dubletten und Filtern)
-- [ ] Freundschaften zu anderen Konten (Direktgruppen)
+- [x] Freundschaften zu anderen Konten (Direktgruppen)
 - [ ] Push-Benachrichtigungen für diesen Nutzer an oder aus (ohne echtes Gerät nur simuliert)
 - [ ] Später dazu: TOTP-Status und erzwungener Passwortwechsel (kommt mit Etappe B)
 
@@ -54,16 +54,16 @@ Antwort / Anmerkung (weitere Optionen, die du brauchst):
 ## Frage 3: Soll es einen Schalter "Testfunktionen" geben?
 
 - [ ] **Ja, mit Schalter, Standard aus.** Du schaltest ihn im Admin-Bereich ein. Solange er aus ist, sind Testnutzer-Verwaltung und "Handeln als" unsichtbar und gesperrt. Bereits angelegte Testnutzer bleiben gespeichert. (Empfehlung)
-- [ ] Ja, mit Schalter, Standard **an**
+- [x] Ja, mit Schalter, Standard **an**
 - [ ] Nein, immer verfügbar
 
 Antwort / Anmerkung:
 
----
+das wird bei release auf Standard aus gesetzt.
 
 ## Frage 4: Testnutzer und echte Gruppen
 
-- [ ] **A: Frei.** Testnutzer dürfen in jede Gruppe, auch mit echten Nutzern. Sie sind überall mit "Test" gekennzeichnet, und beim Hinzufügen zu einer Gruppe mit echten Mitgliedern erscheint eine Warnung. (Empfehlung)
+- [x] **A: Frei.** Testnutzer dürfen in jede Gruppe, auch mit echten Nutzern. Sie sind überall mit "Test" gekennzeichnet, und beim Hinzufügen zu einer Gruppe mit echten Mitgliedern erscheint eine Warnung. (Empfehlung)
 - [ ] **B: Getrennt.** Testnutzer dürfen nur in Gruppen, in denen kein echter Nutzer außer dir als Admin ist. Das schützt die Salden echter Nutzer vollständig, ist aber mehr Aufwand und weniger flexibel.
 
 Antwort / Anmerkung:
@@ -72,7 +72,7 @@ Antwort / Anmerkung:
 
 ## Frage 5: Mehrere Testnutzer auf einmal und Beispieldaten
 
-- [ ] **Mehrere auf einmal anlegen** (z. B. "5 Testnutzer": test-1 bis test-5). (Empfehlung)
+- [x] **Mehrere auf einmal anlegen** (z. B. "5 Testnutzer": test-1 bis test-5). (Empfehlung)
 - [ ] **Beispielszenario-Knopf** (legt eine Testgruppe mit einigen Beispielausgaben an). Später, nicht jetzt. (Empfehlung: später)
 - [ ] Beispielszenario **jetzt** mitbauen
 - [ ] Nur einzeln anlegen
@@ -85,7 +85,7 @@ Antwort / Anmerkung:
 
 Ausgaben verweisen auf Nutzer, deshalb kann man sie nicht einfach entfernen.
 
-- [ ] **A: Löschen mit Bereinigung, aber geschützt.** Ein Testnutzer lässt sich löschen. Gruppen, Ausgaben und Zahlungen, an denen **nur Testnutzer** beteiligt sind, werden mitgelöscht. Ist ein echter Nutzer beteiligt, wird das Löschen **blockiert** mit Hinweis, wo er noch vorkommt. (Empfehlung)
+- [x] **A: Löschen mit Bereinigung, aber geschützt.** Ein Testnutzer lässt sich löschen. Gruppen, Ausgaben und Zahlungen, an denen **nur Testnutzer** beteiligt sind, werden mitgelöscht. Ist ein echter Nutzer beteiligt, wird das Löschen **blockiert** mit Hinweis, wo er noch vorkommt. (Empfehlung)
 - [ ] **B: Nur deaktivieren, nie löschen.**
 - [ ] **C: Löschen mit Bereinigung auch in gemischten Gruppen.** Betroffene Ausgaben werden gelöscht, dadurch ändern sich Salden echter Nutzer. Nicht empfohlen.
 
@@ -97,7 +97,7 @@ Antwort / Anmerkung:
 
 Wenn du als Testnutzer handelst, soll das im Verlauf einer Ausgabe erkennbar sein ("Anlegt von test-2, durch Admin")?
 
-- [ ] **Ja** (Empfehlung). Kleiner Zusatz in der Datenbank, das Ändern des Verlaufs-Feldes ist rückwirkungsfrei.
+- [x] **Ja** (Empfehlung). Kleiner Zusatz in der Datenbank, das Ändern des Verlaufs-Feldes ist rückwirkungsfrei.
 - [ ] Nein, es soll aussehen, als hätte der Testnutzer selbst gehandelt.
 
 Antwort / Anmerkung:
@@ -113,3 +113,17 @@ Antwort / Anmerkung:
 5. Testnutzer erscheinen in der Nutzerliste getrennt von echten Konten, mit Kennzeichnung "Test".
 6. Aus einer Gruppe entfernen geht bei Testnutzern **auch mit offenem Saldo** nach einer Bestätigung (bei echten Nutzern bleibt die Sperre). Die Ausgaben bleiben erhalten.
 7. Die Reihenfolge danach bleibt wie vereinbart: Etappe B (TOTP), Etappe C (QR-Code), Passkeys zuletzt.
+
+---
+
+## Umsetzung (von Claude ergänzt)
+
+Auslegung der Antworten:
+
+1. **Frage 3 (Schalter, Standard an, zum Release aus):** Die Einstellung steht in der Datenbank. Ihr Standardwert kommt aus der Umgebungsvariable `TEST_FEATURES_DEFAULT`. Ohne sie ist der Schalter **aus**. Nur `docker-compose.local.yml` (lokaler Test) setzt sie auf `true`. Der produktive Stack `docker-compose.yml` setzt sie nicht, damit ist die Funktion dort zum Release automatisch aus, ohne dass jemand daran denken muss. Wer den Schalter einmal im Admin-Bereich gesetzt hat, behält diese Wahl. Siehe `docs/release-checkliste.md`.
+2. **Frage 2:** Bearbeitbar sind Anzeigename, Nutzername, Sprache, Gruppenzugehörigkeiten mit Rolle und Freundschaften. E-Mail, Push-Simulation und TOTP-Status gehören nicht dazu.
+3. **Gruppenauswahl beim Hinzufügen (Datenschutz):** Zur Auswahl stehen Gruppen, in denen der Admin selbst Mitglied ist, sowie reine Testnutzer-Gruppen. Fremde Gruppen echter Nutzer erscheinen nicht in der Liste, damit das Testwerkzeug nicht zum Stöbern in fremden Daten wird. Ist in der Zielgruppe ein echtes Mitglied außer dem Admin, kommt vor dem Hinzufügen eine Warnung.
+4. **Freundschaften:** Gegenüber können andere Testnutzer, der Admin oder (mit Warnung) echte Konten sein. Beenden entfernt den Testnutzer aus der Direktgruppe, die Daten bleiben erhalten (die Freundschaft erscheint beim anderen dann als offene Einladung).
+
+5. **Löschen:** Ersteller-Verweis und Besitzerrolle einer Gruppe, in der der Testnutzer nur Mitglied oder Ersteller ohne eigene Daten war, gehen auf ein anderes Mitglied über. Das blockiert das Löschen nicht. Blockiert wird nur bei echten Daten (Ausgaben, Zahlungen, Kommentare, Verlauf, Einladungen) in Gruppen mit echten Nutzern.
+6. **Kennzeichnung „(Test)“** gilt auch in Verlauf, Kommentaren und Benachrichtigungen.

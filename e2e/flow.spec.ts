@@ -573,3 +573,147 @@ test("one-time reset link for an active user sets a new password and ends his se
   await ctx.close();
   await other.close();
 });
+
+// ---------------------------------------------------------------- Admin-Testfunktionen
+
+test("test users: create, edit memberships on one page, act as them, banner and audit trail", async ({ page }) => {
+  page.on("dialog", (d) => d.accept()); // Warnungen („echte Mitglieder“) bestätigen
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  await page.getByTestId("test-users-link").click();
+  await expect(page.getByRole("heading", { name: "Test users", exact: true })).toBeVisible();
+  await page.getByLabel("Number").fill("2");
+  await page.getByTestId("test-create").getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByTestId("test-user")).toHaveCount(2);
+  await expect(page.locator('[data-username="test-1"]')).toContainText("Test");
+
+  // Bearbeiten: eine Seite für Profil, Gruppen, Rolle, Freundschaft
+  await page.locator('[data-username="test-1"]').getByRole("link", { name: "Edit" }).click();
+  await page.getByLabel("Display name").fill("Tessa");
+  await page.getByLabel("Language").selectOption("en");
+  await page.getByTestId("test-profile").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("test-profile").getByRole("status")).toBeVisible();
+  await page.getByLabel("Choose a group").selectOption({ label: "Ski trip ⚠" }); // ⚠ = echte Mitglieder
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  const m = page.locator('[data-testid="membership"][data-group="Ski trip"]');
+  await expect(m).toBeVisible();
+  await expect(m).toContainText("Real members");
+  await page.getByLabel("Role Ski trip").selectOption("owner");
+  await expect(page.getByLabel("Role Ski trip")).toHaveValue("owner");
+  await page.getByLabel("Choose an account").selectOption({ label: "Test 2 (Test)" });
+  await page.getByRole("button", { name: "Connect" }).click();
+  await expect(page.locator('[data-testid="membership"][data-group="Test 2 (Test)"]')).toContainText("Friendship");
+
+  // Handeln als: Banner, App aus Sicht des Testnutzers, Admin-Bereich gesperrt
+  await page.getByRole("button", { name: "Act as", exact: true }).click();
+  await expect(page.getByTestId("acting-banner")).toContainText("Tessa");
+  await page.goto(groupUrl);
+  await expect(page.getByRole("heading", { name: "Ski trip" })).toBeVisible();
+  await page.getByRole("tab", { name: "Members" }).click();
+  await expect(page.getByText("Tessa (Test) (You)")).toBeVisible(); // Kennzeichnung für alle
+  await page.goto(`${groupUrl}/expenses/new`);
+  await page.getByLabel("Title").fill("Taxi by Tessa");
+  await page.getByLabel("Amount").fill("10");
+  await page.getByRole("button", { name: "Save" }).click();
+  const item = page.getByTestId("expense-item").filter({ hasText: "Taxi by Tessa" });
+  await expect(item).toContainText("You paid €10.00"); // Sicht des Testnutzers
+  await item.click();
+  await expect(page.getByTestId("history")).toContainText("Tessa (Test)");
+  await expect(page.getByTestId("acted-by")).toContainText("by admin Anna");
+  await page.getByLabel("Write a comment …").fill("Kommentar als Testnutzer");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByTestId("comment")).toContainText("by admin Anna");
+  expect((await page.request.get("/api/admin/settings")).status()).toBe(403); // als Testnutzer kein Admin
+  expect((await page.request.post("/api/admin/test-users", { data: { count: 1 } })).status()).toBe(403);
+  await page.goto("/admin/users");
+  await expect(page).toHaveURL("/"); // Admin-Seiten sind gesperrt
+
+  // zurück zum Admin
+  await page.getByTestId("acting-banner").getByRole("button", { name: "Back to admin" }).click();
+  await expect(page).toHaveURL(/\/admin\/test-users\/[0-9a-f-]+$/);
+  await expect(page.getByTestId("acting-banner")).toHaveCount(0);
+  expect((await page.request.get("/api/admin/settings")).status()).toBe(200);
+});
+
+test("test users: cannot sign in, never reachable as real accounts, only real admins can use the tools", async ({ page, browser, baseURL }) => {
+  const anon = await browser.newContext({ baseURL, locale: "en-US" });
+  const ap = await anon.newPage();
+  for (const identifier of ["test-1", "test-2"]) {
+    const r = await ap.request.post("/api/auth/login", { data: { identifier, password: PASSWORD } });
+    expect(r.status()).toBe(401);
+  }
+  await anon.close();
+
+  await login(page, "anna");
+  const users = (await (await page.request.get("/api/admin/users")).json()).users as { id: string; username: string }[];
+  expect(users.some((u) => u.username.startsWith("test-"))).toBe(false); // nicht in der echten Nutzerliste
+  const ben = users.find((u) => u.username === "ben")!;
+  // „Handeln als“ nie für echte Konten
+  expect((await page.request.post("/api/admin/act", { data: { userId: ben.id } })).status()).toBe(404);
+  expect((await page.request.post(`/api/admin/test-users/${ben.id}/membership`, { data: { action: "removeGroup", groupId: crypto.randomUUID() } })).status()).toBe(404);
+  expect((await page.request.patch(`/api/admin/test-users/${ben.id}`, { data: { name: "Hack" } })).status()).toBe(404);
+  expect((await page.request.delete(`/api/admin/test-users/${ben.id}`)).status()).toBe(404);
+  // kein Einmal-Link, kein Passwort für Testnutzer
+  const tests = (await (await page.request.get("/api/admin/test-users")).json()).users as { id: string; username: string }[];
+  const t1 = tests.find((u) => u.username === "test-1")!;
+  expect((await page.request.post(`/api/admin/users/${t1.id}`, { data: { action: "link" } })).status()).toBe(404);
+  expect((await page.request.post(`/api/admin/users/${t1.id}`, { data: { action: "setPassword", password: PASSWORD, mustChange: false } })).status()).toBe(404);
+
+  // Ben (kein Admin) kommt an nichts heran
+  const bctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const bp = await bctx.newPage();
+  await login(bp, "ben"); // per Nutzername (die E-Mail ist durch den Dubletten-Test mehrfach vergeben)
+  expect((await bp.request.get("/api/admin/test-users")).status()).toBe(403);
+  expect((await bp.request.post("/api/admin/act", { data: { userId: t1.id } })).status()).toBe(403);
+  await bp.goto("/admin/test-users");
+  await expect(bp).toHaveURL("/");
+  // Ben sieht den Testnutzer in der Gruppe gekennzeichnet
+  await bp.goto(`${groupUrl}?tab=members`);
+  await expect(bp.getByText("Tessa (Test)").first()).toBeVisible();
+  await bctx.close();
+});
+
+test("test users: delete is blocked while data sits in groups with real users, otherwise cleans up", async ({ page }) => {
+  page.on("dialog", (d) => d.accept());
+  await login(page, "anna");
+  await page.goto("/admin/test-users");
+  // test-2 hat nur eine Freundschaft mit test-1 (keine Daten): löschbar
+  await page.locator('[data-username="test-2"]').getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Delete test user" }).click();
+  await expect(page).toHaveURL(/\/admin\/test-users$/);
+  await expect(page.locator('[data-username="test-2"]')).toHaveCount(0);
+  // test-1 hat Ausgabe und Kommentar in „Ski trip“ (mit echten Nutzern): blockiert
+  await page.locator('[data-username="test-1"]').getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Delete test user" }).click();
+  const blocked = page.getByTestId("delete-blocked");
+  await expect(blocked).toContainText("Ski trip");
+  await expect(blocked).toContainText("Anna");
+  await page.goto("/admin/test-users");
+  await expect(page.locator('[data-username="test-1"]')).toBeVisible(); // nichts wurde gelöscht
+  // Aus der Gruppe entfernen (mit offenem Saldo nach Bestätigung); die Ausgabe bleibt, daher bleibt das Löschen blockiert
+  await page.locator('[data-username="test-1"]').getByRole("link", { name: "Edit" }).click();
+  await page.locator('[data-testid="membership"][data-group="Ski trip"]').getByRole("button", { name: "Remove" }).click();
+  await expect(page.locator('[data-testid="membership"][data-group="Ski trip"]')).toHaveCount(0);
+  await page.goto(groupUrl);
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Taxi by Tessa" })).toBeVisible();
+});
+
+test("test features switch: off locks everything, on restores it", async ({ page }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  const settings = page.getByTestId("admin-settings");
+  await expect(settings.getByLabel("Test features")).toBeChecked(); // lokal/E2E: Standard an
+  await settings.getByLabel("Test features").uncheck();
+  await expect(settings.getByRole("status")).toBeVisible();
+  await expect(page.getByTestId("test-users-link")).toHaveCount(1); // Seite noch alt; neu laden
+  await page.reload();
+  await expect(page.getByTestId("test-users-link")).toHaveCount(0);
+  await page.goto("/admin/test-users");
+  await expect(page.getByTestId("test-disabled")).toBeVisible();
+  expect((await page.request.get("/api/admin/test-users")).status()).toBe(403);
+  expect((await page.request.post("/api/admin/test-users", { data: { count: 1 } })).status()).toBe(403);
+  await page.goto("/admin/users");
+  await page.getByTestId("admin-settings").getByLabel("Test features").check();
+  await expect(page.getByTestId("admin-settings").getByRole("status")).toBeVisible();
+  expect((await page.request.get("/api/admin/test-users")).status()).toBe(200);
+});

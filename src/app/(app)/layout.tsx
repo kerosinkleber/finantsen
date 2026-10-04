@@ -4,6 +4,7 @@ import { requireUser } from "@/server/auth";
 import { Nav } from "@/components/Nav";
 import { getT } from "@/i18n/server";
 import { unreadCount } from "@/server/services/notifications";
+import { ActingBanner } from "@/components/ActingBanner";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { t } = await getT();
   return (
     <div className="mx-auto min-h-dvh w-full max-w-3xl px-4 pb-24 pt-4 md:pb-8">
+      {user.impersonating && <ActingBanner testUserId={user.id} name={user.name} />}
       <header className="mb-4 flex items-center justify-between gap-4">
         <Link href="/" className="text-xl font-bold text-brand">Finantsen</Link>
         <div className="flex items-center gap-2">

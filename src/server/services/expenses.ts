@@ -1,4 +1,5 @@
-import { and, desc, eq, exists, gte, ilike, inArray, isNull, lte, or, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { and, desc, eq, exists, gte, ilike, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { getDb, type Tx } from "../db";
 import { expenseHistory, expensePayers, expenseShares, expenses, users } from "../schema";
 import { ApiError, notFound } from "../http";
@@ -236,7 +237,7 @@ function snapshot(e: ExpenseDetail) {
   };
 }
 
-export async function createExpense(userId: string, groupId: string, body: ExpenseBody) {
+export async function createExpense(userId: string, groupId: string, body: ExpenseBody, actedBy: string | null = null) {
   const { group } = await requireMember(userId, groupId);
   const p = await prepare(groupId, body, group.defaultCurrency);
   const id = await getDb().transaction(async (tx) => {
@@ -262,7 +263,7 @@ export async function createExpense(userId: string, groupId: string, body: Expen
     return row.id;
   });
   const detail = await getExpense(userId, groupId, id);
-  await getDb().insert(expenseHistory).values({ expenseId: id, userId, action: "create", snapshot: snapshot(detail) });
+  await getDb().insert(expenseHistory).values({ expenseId: id, userId, actedBy, action: "create", snapshot: snapshot(detail) });
   await notifyGroup({
     type: "expense_created",
     groupId,
@@ -275,7 +276,7 @@ export async function createExpense(userId: string, groupId: string, body: Expen
   return detail;
 }
 
-export async function updateExpense(userId: string, groupId: string, expenseId: string, body: ExpenseBody) {
+export async function updateExpense(userId: string, groupId: string, expenseId: string, body: ExpenseBody, actedBy: string | null = null) {
   const existing = await getExpense(userId, groupId, expenseId);
   if (existing.deletedAt) throw new ApiError(409, "expense_deleted");
   // Abrechnungswährung bleibt die der Ausgabe, auch wenn die Gruppenwährung inzwischen geändert wurde.
@@ -302,20 +303,21 @@ export async function updateExpense(userId: string, groupId: string, expenseId: 
     await writeParts(tx, expenseId, p);
   });
   const detail = await getExpense(userId, groupId, expenseId);
-  await getDb().insert(expenseHistory).values({ expenseId, userId, action: "update", snapshot: snapshot(detail) });
+  await getDb().insert(expenseHistory).values({ expenseId, userId, actedBy, action: "update", snapshot: snapshot(detail) });
   return detail;
 }
 
-export async function deleteExpense(userId: string, groupId: string, expenseId: string) {
+export async function deleteExpense(userId: string, groupId: string, expenseId: string, actedBy: string | null = null) {
   const existing = await getExpense(userId, groupId, expenseId);
   if (existing.deletedAt) return;
   await getDb().update(expenses).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(expenses.id, expenseId));
   const detail = await getExpense(userId, groupId, expenseId);
-  await getDb().insert(expenseHistory).values({ expenseId, userId, action: "delete", snapshot: snapshot(detail) });
+  await getDb().insert(expenseHistory).values({ expenseId, userId, actedBy, action: "delete", snapshot: snapshot(detail) });
 }
 
 export async function expenseHistoryFor(userId: string, groupId: string, expenseId: string) {
   await getExpense(userId, groupId, expenseId);
+  const actor = alias(users, "actor");
   return getDb()
     .select({
       id: expenseHistory.id,
@@ -323,10 +325,13 @@ export async function expenseHistoryFor(userId: string, groupId: string, expense
       snapshot: expenseHistory.snapshot,
       createdAt: expenseHistory.createdAt,
       userId: expenseHistory.userId,
-      userName: users.name,
+      userName: sql<string>`case when ${users.kind} = 'test' then ${users.name} || ' (Test)' else ${users.name} end`,
+      /** Name des Admins, der als Testnutzer gehandelt hat (sonst null) */
+      actedByName: actor.name,
     })
     .from(expenseHistory)
     .innerJoin(users, eq(users.id, expenseHistory.userId))
+    .leftJoin(actor, eq(actor.id, expenseHistory.actedBy))
     .where(eq(expenseHistory.expenseId, expenseId))
     .orderBy(desc(expenseHistory.createdAt));
 }

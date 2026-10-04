@@ -30,6 +30,8 @@ services:
       DATABASE_URL: postgres://finantsen:local-dev-only@db:5432/finantsen
       APP_URL: http://localhost:${LOCAL_PORT:-3000}
       DEFAULT_LOCALE: de
+      # Nur für den lokalen Test: Admin-Testfunktionen standardmäßig an (im produktiven Stack nicht gesetzt = aus)
+      TEST_FEATURES_DEFAULT: "true"
       # Optional: aus der Shell durchreichen, z. B. ANTHROPIC_API_KEY=sk-... docker compose -f ... up
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       EXCHANGE_RATE_PROVIDER: ${EXCHANGE_RATE_PROVIDER:-fawazahmed0}

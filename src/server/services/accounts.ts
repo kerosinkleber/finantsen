@@ -134,7 +134,7 @@ export function publicUser(u: UserRow) {
 
 export async function listUsers(actor: SessionUser) {
   requireAdmin(actor);
-  const rows = await getDb().select().from(users).orderBy(asc(users.createdAt));
+  const rows = await getDb().select().from(users).where(eq(users.kind, "user")).orderBy(asc(users.createdAt));
   return rows.map(publicUser);
 }
 
@@ -168,7 +168,7 @@ async function loadValidToken(token: string) {
     .where(and(eq(userTokens.tokenHash, sha256(token)), isNull(userTokens.usedAt), gt(userTokens.expiresAt, sql`now()`)))
     .limit(1);
   // Gesperrte oder auf Freigabe wartende Konten können Links nicht einlösen
-  if (!row || !["active", "invited"].includes(row.u.status)) return null;
+  if (!row || row.u.kind !== "user" || !["active", "invited"].includes(row.u.status)) return null;
   return row;
 }
 
@@ -228,7 +228,7 @@ export async function authenticate(identifier: string, password: string): Promis
   const rows = await db
     .select()
     .from(users)
-    .where(id.includes("@") ? sql`lower(${users.email}) = ${id}` : eq(users.username, id))
+    .where(and(eq(users.kind, "user"), id.includes("@") ? sql`lower(${users.email}) = ${id}` : eq(users.username, id)))
     .orderBy(asc(users.createdAt));
   const candidates = rows.filter((u) => u.passwordHash);
   if (candidates.length === 0) {
@@ -266,7 +266,7 @@ export async function authenticate(identifier: string, password: string): Promis
 
 export async function changePassword(userId: string, current: string, next: string, keepSessionId: string | null) {
   const [u] = await getDb().select().from(users).where(eq(users.id, userId));
-  if (!u || !u.passwordHash) throw new ApiError(401, "unauthorized");
+  if (!u || u.kind !== "user" || !u.passwordHash) throw new ApiError(401, "unauthorized");
   if (!(await verifyPassword(u.passwordHash, current))) throw new ApiError(403, "invalid_credentials");
   if (await verifyPassword(u.passwordHash, next)) throw new ApiError(400, "password_same");
   assertPassword(next, u);
@@ -287,7 +287,8 @@ export async function setLocale(userId: string, locale: "de" | "en") {
 async function target(tx: Tx, id: string): Promise<UserRow> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ApiError(404, "not_found");
   const [u] = await tx.select().from(users).where(eq(users.id, id));
-  if (!u) throw new ApiError(404, "not_found");
+  // Testnutzer haben kein Passwort/Login und werden über die Testnutzer-Verwaltung gesteuert
+  if (!u || u.kind !== "user") throw new ApiError(404, "not_found");
   return u;
 }
 

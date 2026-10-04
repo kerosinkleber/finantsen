@@ -13,7 +13,7 @@ export type GroupSummary = {
   kind: string;
   defaultCurrency: string;
   role: string;
-  members: { id: string; name: string }[];
+  members: { id: string; name: string; isTest: boolean }[];
   /** Anzeigename: bei Freunden der Name der anderen Person */
   displayName: string;
 };
@@ -29,12 +29,12 @@ export async function listGroups(userId: string): Promise<GroupSummary[]> {
   if (!mine.length) return [];
   const ids = mine.map((m) => m.group.id);
   const mem = await db
-    .select({ groupId: groupMembers.groupId, id: users.id, name: users.name })
+    .select({ groupId: groupMembers.groupId, id: users.id, name: users.name, kind: users.kind })
     .from(groupMembers)
     .innerJoin(users, eq(users.id, groupMembers.userId))
     .where(inArray(groupMembers.groupId, ids));
   return mine.map(({ group, role }) => {
-    const members = mem.filter((m) => m.groupId === group.id).map(({ id, name }) => ({ id, name }));
+    const members = mem.filter((m) => m.groupId === group.id).map(({ id, name, kind }) => ({ id, name: kind === "test" ? `${name} (Test)` : name, isTest: kind === "test" }));
     const other = members.find((m) => m.id !== userId);
     return {
       id: group.id,

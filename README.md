@@ -63,6 +63,13 @@ Mit `ANTHROPIC_API_KEY` in `.env` erscheint beim Anlegen einer Ausgabe der Butto
 - **Admin-Verwaltung:** Konten anlegen, freigeben, Einmal-Link erzeugen, Passwort setzen, deaktivieren (Sitzungen enden sofort, Ausgaben und Salden bleiben erhalten) und wieder aktivieren, Admin-Recht vergeben oder entziehen. Es kann mehrere Admins geben; der letzte aktive Admin kann sich weder degradieren noch deaktivieren.
 - **Kommt noch (Etappe B):** TOTP (Zwang durch den Admin, Wiederherstellungscodes), danach QR-Code für Gruppeneinladungen (Etappe C). Passkeys sind zurückgestellt.
 
+### Admin-Testfunktionen (Testnutzer)
+Zum Ausprobieren legt der Admin unter *Konto → Nutzer verwalten → Testnutzer verwalten* **Testnutzer** an (einzeln mit eigenem Namen oder mehrere auf einmal: `test-1`, `test-2`, …). Testnutzer haben **kein Passwort** und können sich **nie** selbst anmelden, auch nicht über Einmal-Link, Registrierung oder Passwort-Zurücksetzen. Sie werden überall mit „(Test)“ gekennzeichnet.
+- **Eine Seite pro Testnutzer:** Anzeigename, Nutzername, Sprache, Gruppen (hinzufügen, entfernen, Rolle Besitzer/Mitglied) und Freundschaften. Beim Hinzufügen zu einer Gruppe mit echten Mitgliedern kommt eine Warnung. Zur Auswahl stehen nur Gruppen, in denen du selbst Mitglied bist, und reine Testnutzer-Gruppen, damit das Werkzeug nicht in fremden Gruppen stöbert. Entfernen geht auch mit offenem Saldo nach Bestätigung, die Ausgaben bleiben.
+- **„Handeln als“:** Ein Klick, und du siehst die App wie der Testnutzer (Gruppen, Salden, Benachrichtigungen) und kannst für ihn Ausgaben anlegen, kommentieren und Zahlungen verbuchen. Ein Banner „Du handelst als … (Testnutzer)“ mit „Zurück zum Admin“ bleibt sichtbar. Als Testnutzer hast du keinen Zugriff auf Admin-Seiten. Im Ausgabenverlauf und bei Kommentaren steht „durch Admin …“.
+- **Löschen:** Gruppen, Ausgaben und Zahlungen, an denen nur Testnutzer beteiligt sind, werden mitgelöscht. Hängen Daten des Testnutzers in einer Gruppe mit echten Nutzern, wird **nichts** gelöscht und die App nennt die betroffenen Gruppen. Bloße Mitgliedschaften werden aufgelöst.
+- **Schalter „Testfunktionen“:** Im lokalen Test (`docker-compose.local.yml`) standardmäßig an. **Im produktiven Stack ist er standardmäßig aus**, weil dort `TEST_FEATURES_DEFAULT` nicht gesetzt ist. Eine bewusste Wahl im Admin-Bereich hat Vorrang. Siehe `docs/release-checkliste.md`.
+
 ### Als App installieren
 iOS (Safari): Teilen → „Zum Home-Bildschirm“. Android (Chrome): Menü → „App installieren“. Voraussetzung ist HTTPS.
 
