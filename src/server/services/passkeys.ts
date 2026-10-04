@@ -118,7 +118,8 @@ export async function clearPasskeys(userId: string) {
 
 // ------------------------------------------------------------------ Anmeldung
 
-const fakeCredential = (identifier: string) => hmacHex("passkey-fake", identifier.toLowerCase()).slice(0, 43);
+// Sieht aus wie eine echte Credential-ID (base64url, 32 Byte), ist aber für jede Kennung fest (kein Zufall → keine Unterscheidung über Wiederholungen)
+const fakeCredential = (identifier: string) => Buffer.from(hmacHex("passkey-fake", identifier.toLowerCase()), "hex").subarray(0, 32).toString("base64url");
 
 /**
  * Optionen für die Anmeldung zu einem Nutzernamen/einer E-Mail. Die Antwort sieht für unbekannte Konten und Konten ohne

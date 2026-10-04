@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { safeNext } from "@/lib/safe-next";
 import Link from "next/link";
 import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
@@ -26,7 +27,7 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
     setError(null);
     try {
       const r = await api<{ user: { mustChangePassword: boolean } }>("POST", "/api/auth/login/totp", { challenge, code: f.get("code") });
-      router.replace(r.user.mustChangePassword ? "/change-password" : next && next.startsWith("/") ? next : "/");
+      router.replace(r.user.mustChangePassword ? "/change-password" : safeNext(next));
       router.refresh();
     } catch (err) {
       // abgelaufene Challenge: zurück zum Passwortschritt
@@ -52,7 +53,7 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
         setBusy(false);
         return;
       }
-      const target = r.user.mustChangePassword ? "/change-password" : next && next.startsWith("/") ? next : "/";
+      const target = r.user.mustChangePassword ? "/change-password" : safeNext(next);
       router.replace(target);
       router.refresh();
     } catch (err) {
@@ -82,7 +83,7 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
       const { options, token } = await api<{ options: Parameters<typeof startAuthentication>[0]["optionsJSON"]; token: string }>("POST", "/api/auth/login/passkey/options", { identifier });
       const response = await startAuthentication({ optionsJSON: options });
       const r = await api<{ user: { mustChangePassword: boolean } }>("POST", "/api/auth/login/passkey", { token, response });
-      router.replace(r.user.mustChangePassword ? "/change-password" : next && next.startsWith("/") ? next : "/");
+      router.replace(r.user.mustChangePassword ? "/change-password" : safeNext(next));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error && !(err instanceof ApiClientError) ? new ApiClientError(0, "passkey_cancelled") : err);
@@ -95,7 +96,7 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
     setError(null);
     try {
       await api("POST", "/api/dev/login");
-      router.replace(next && next.startsWith("/") ? next : "/");
+      router.replace(safeNext(next));
       router.refresh();
     } catch (err) {
       setError(err);

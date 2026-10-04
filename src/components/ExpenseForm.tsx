@@ -167,7 +167,9 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         split = { type: "exact", entries: ids.map((userId) => ({ userId, amountMinor: parseAmount(values[userId] ?? "", currency) ?? 0 })) };
         break;
       case "shares":
-        split = { type: "shares", entries: ids.map((userId) => ({ userId, shares: Math.max(0, parseInt(values[userId] ?? "1", 10) || 0) })) };
+        // Anteile sind ganze Zahlen; „1,5“ o. Ä. nicht stillschweigend abschneiden, sondern ablehnen
+        if (ids.some((id) => !/^\d+$/.test((values[id] ?? "1").trim()))) throw new ApiClientError(400, "invalid_weight");
+        split = { type: "shares", entries: ids.map((userId) => ({ userId, shares: Number((values[userId] ?? "1").trim()) })) };
         break;
       case "items":
         if (rows.some((r) => r.who.length === 0)) throw new ApiClientError(400, "no_participants");
@@ -400,7 +402,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
                   <span className="flex items-center gap-1">
                     <input
                       className="input !w-28 text-right"
-                      inputMode="decimal"
+                      inputMode={splitType === "shares" ? "numeric" : "decimal"}
                       aria-label={`${t(`expense.split.${splitType}` as MessageKey)} ${m.name}`}
                       value={values[m.id] ?? (splitType === "shares" ? "1" : "")}
                       onChange={(e) => setVal(m.id, e.target.value)}

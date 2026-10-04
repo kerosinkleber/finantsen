@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/client-api";
+import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { parseAmount } from "@/lib/money";
@@ -26,13 +26,14 @@ export function DefaultSplitForm({ groupId, members, initial }: { groupId: strin
     setSaved(false);
     try {
       let defaultSplit: DefaultSplit | null = null;
+      if (kind === "shares" && members.some((m) => included.has(m.id) && !/^\d+$/.test((values[m.id] ?? "1").trim()))) throw new ApiClientError(400, "invalid_weight");
       if (kind !== "none") {
         const ids = members.filter((m) => included.has(m.id)).map((m) => m.id);
         defaultSplit = {
           type: kind,
           entries: ids.map((userId) => ({
             userId,
-            value: kind === "equal" ? 0 : kind === "percent" ? (parseAmount(values[userId] ?? "", "EUR") ?? 0) : Math.max(0, parseInt(values[userId] ?? "1", 10) || 0),
+            value: kind === "equal" ? 0 : kind === "percent" ? (parseAmount(values[userId] ?? "", "EUR") ?? 0) : Number((values[userId] ?? "1").trim()),
           })),
         };
       }

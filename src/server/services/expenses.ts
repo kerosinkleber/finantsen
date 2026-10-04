@@ -110,6 +110,8 @@ export type ExpenseFilter = {
   q?: string;
   minMinor?: number;
   maxMinor?: number;
+  /** Währung, in der min/max gelten; verglichen wird nur mit Ausgaben dieser Abrechnungswährung */
+  amountCurrency?: string;
   from?: string;
   to?: string;
   category?: string;
@@ -132,6 +134,8 @@ export async function loadExpenses(groupId: string, opts: { includeDeleted?: boo
   if (opts.onlyDeleted) conds.push(isNotNull(expenses.deletedAt));
   else if (!opts.includeDeleted) conds.push(isNull(expenses.deletedAt));
   if (f.q) conds.push(ilike(expenses.title, `%${f.q.replace(/[\\%_]/g, (c) => "\\" + c)}%`));
+  // Minor-Units sind nur innerhalb einer Währung vergleichbar (z. B. nach Wechsel der Gruppenwährung)
+  if ((f.minMinor !== undefined || f.maxMinor !== undefined) && f.amountCurrency) conds.push(eq(expenses.baseCurrency, f.amountCurrency));
   if (f.minMinor !== undefined) conds.push(gte(expenses.baseAmountMinor, f.minMinor));
   if (f.maxMinor !== undefined) conds.push(lte(expenses.baseAmountMinor, f.maxMinor));
   if (f.from) conds.push(gte(expenses.date, f.from));

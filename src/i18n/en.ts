@@ -48,7 +48,7 @@ const en: Record<MessageKey, string> = {
   "err.balance_not_zero": "Possible only once the balance is settled.",
   "err.invalid_amount": "Invalid amount.",
   "err.no_participants": "At least one person must take part.",
-  "err.invalid_weight": "Invalid shares.",
+  "err.invalid_weight": "Invalid shares. Shares are whole numbers (e.g. 2 and 1 instead of 1.5 and 1).",
   "err.same_user": "Payer and recipient must differ.",
   "err.bad_origin": "Invalid request.",
   "dash.title": "Overview",
@@ -536,5 +536,6 @@ const en: Record<MessageKey, string> = {
   "group.leaveConfirm": "Leave this group? Only possible with a settled balance; afterwards you no longer see the group.",
   "common.saved": "Saved.",
   "recurring.onlyOwner": "In this group only group owners manage recurring expenses.",
+  "err.push_endpoint_invalid": "This push service is not supported.",
 };
 export default en;

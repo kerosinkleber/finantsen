@@ -23,6 +23,7 @@ export function parseExpenseFilter(raw: Raw, fallbackCurrency: string): { filter
   const maxV = max ? parseAmount(max, currency) : null;
   if (minV !== null) filter.minMinor = minV;
   if (maxV !== null) filter.maxMinor = maxV;
+  if (minV !== null || maxV !== null) filter.amountCurrency = currency;
   const from = one(raw.from);
   const to = one(raw.to);
   if (isDate(from)) filter.from = from;

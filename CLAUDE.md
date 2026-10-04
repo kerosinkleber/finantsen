@@ -98,6 +98,8 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 - Neue UI-Texte: Schlüssel in `de.ts` UND `en.ts` (Test prüft Gleichheit).
 - Keine Secrets im Repo, Konfiguration über `.env` (siehe `.env.example`).
 - Uhrzeiten nie serverseitig formatieren (Server = UTC): `components/LocalTime.tsx` (formatiert erst im Browser). Falsches Passwort bei Passwort-Bestätigung: Fehlercode `wrong_password` (nicht `invalid_credentials`).
+- Weiterleitungsziele nach dem Login nur über `safeNext` (`lib/safe-next.ts`, blockt `//host` und `/\host`); Web-Push-Endpunkte nur über `isAllowedPushEndpoint` (HTTPS + bekannte Push-Dienste, gegen SSRF), geprüft beim Speichern und beim Senden.
+- Betragsfilter vergleicht nur Ausgaben derselben Abrechnungswährung (`amountCurrency`); Anteile (`shares`) sind ganze Zahlen, „1,5“ wird abgelehnt statt abgeschnitten.
 - Jeder sinnvolle Schritt = eigener Commit.
 - Neue Funktion = Eintrag in README, CLAUDE.md, `docs/roadmap.md` und eine Testanleitung in `docs/tester-guide.md` (ggf. Hinweis in `docs/agent-test-prompt.md`).
 

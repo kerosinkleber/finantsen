@@ -46,7 +46,7 @@ const de = {
   "err.balance_not_zero": "Das geht erst, wenn der Saldo ausgeglichen ist.",
   "err.invalid_amount": "Ungültiger Betrag.",
   "err.no_participants": "Mindestens eine Person muss beteiligt sein.",
-  "err.invalid_weight": "Ungültige Anteile.",
+  "err.invalid_weight": "Ungültige Anteile. Anteile sind ganze Zahlen (z. B. 2 und 1 statt 1,5 und 1).",
   "err.same_user": "Zahler und Empfänger müssen verschieden sein.",
   "err.bad_origin": "Ungültige Anfrage.",
   "dash.title": "Übersicht",
@@ -534,6 +534,7 @@ const de = {
   "group.leaveConfirm": "Gruppe verlassen? Das geht nur mit ausgeglichenem Saldo; danach siehst du die Gruppe nicht mehr.",
   "common.saved": "Gespeichert.",
   "recurring.onlyOwner": "In dieser Gruppe verwalten nur Gruppenbesitzer wiederkehrende Ausgaben.",
+  "err.push_endpoint_invalid": "Dieser Push-Dienst wird nicht unterstützt.",
 } as const;
 export default de;
 export type MessageKey = keyof typeof de;

@@ -1055,6 +1055,17 @@ d("services (PostgreSQL)", () => {
       }
     });
   });
+  it("Betragsfilter vergleicht nur Ausgaben derselben Abrechnungswährung (nach Wechsel der Gruppenwährung)", async () => {
+    const { a, b, g } = await setup();
+    await svc.expenses.createExpense(a.id, g.id, base({ title: "Euro-Ausgabe", amountMinor: 5000, payers: [{ userId: a.id, amountMinor: 5000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+    await svc.groups.updateGroup(a.id, g.id, { defaultCurrency: "JPY" });
+    const { parseExpenseFilter } = await import("../filter");
+    const { filter } = parseExpenseFilter({ min: "1000" }, "JPY"); // 1000 ¥ ≠ 10,00 €
+    expect((await svc.expenses.listExpenses(a.id, g.id, { filter })).map((e) => e.title)).toEqual([]);
+    const eur = parseExpenseFilter({ min: "40", currency: "EUR" }, "JPY").filter;
+    expect((await svc.expenses.listExpenses(a.id, g.id, { filter: eur })).map((e) => e.title)).toEqual(["Euro-Ausgabe"]);
+  });
+
   describe("Gelöschte Ausgaben wiederherstellen", () => {
     it("Löschen und Wiederherstellen: Saldo, Papierkorb, Verlauf, Benachrichtigung, Rechte", async () => {
       const { a, b, c, g } = await setup();

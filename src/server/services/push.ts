@@ -1,3 +1,4 @@
+import { isAllowedPushEndpoint } from "@/lib/safe-next";
 import webpush from "web-push";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../db";
@@ -36,6 +37,7 @@ export async function sendPush(userId: string, payload: { title: string; body: s
   const subs = await getDb().select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
   await Promise.all(
     subs.map(async (s) => {
+      if (!isAllowedPushEndpoint(s.endpoint)) return; // nie interne Adressen ansprechen (auch nicht alte Einträge)
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 86400 });
       } catch (e) {
