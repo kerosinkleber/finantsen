@@ -186,6 +186,15 @@ Needs a browser/device with a platform authenticator (fingerprint, face, device 
 
 ---
 
+## 9b. Re-checks of earlier findings
+
+- [ ] **Confirmation windows** (delete expense, delete group, disable user, reset 2FA, delete test user, delete guest): appear inside the page with *Confirm* / *Cancel*. *Cancel* changes nothing.
+- [ ] **"You owe" shows no minus sign** (expense list: "You owe €5.00", not "−€5.00").
+- [ ] **Same time everywhere:** a comment shows the same local time on the expense and in the notifications.
+- [ ] **Wording:** "You paid …", "X owes you …", "1 group" (singular) read correctly in English and German.
+
+---
+
 ## 10. How to report a problem
 
 Please send one message per problem with:
