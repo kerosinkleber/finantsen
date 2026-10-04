@@ -1328,6 +1328,9 @@ d("services (PostgreSQL)", () => {
         split: { type: "items", items: [{ name: "Kuchen", amountMinor: 500, participants: [oma.id, b.id] }], taxMinor: 0, tipMinor: 0 },
       }));
       await svc.payments.createPayment(a.id, g.id, { fromUser: b.id, toUser: oma.id, amountMinor: 100, currency: "EUR", date: "2026-01-05" });
+      // Ausgabe 3: gleichmäßig auf Oma, Ben, Anna
+      await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 999, payers: [{ userId: a.id, amountMinor: 999 }], split: { type: "equal", participants: [oma.id, b.id, a.id] } }));
+      await svc.groups.updateGroup(a.id, g.id, { defaultSplit: { type: "percent", entries: [{ userId: oma.id, value: 2000 }, { userId: b.id, value: 3000 }, { userId: a.id, value: 5000 }] } });
       await svc.recurring.createRecurring(a.id, g.id, { title: "Abo", amountMinor: 900, currency: "EUR", category: "other", payers: [{ userId: oma.id, amountMinor: 900 }], split: { type: "equal", participants: [oma.id, b.id] }, unit: "month", every: 1, startDate: "2099-01-01" });
       const before = (await svc.balances.getGroupBalances(a.id, g.id)).net.EUR;
       const sum = (before[oma.id] ?? 0) + (before[b.id] ?? 0);
@@ -1347,6 +1350,12 @@ d("services (PostgreSQL)", () => {
       expect(e1.shares.find((s) => s.userId === b.id)).toMatchObject({ amountMinor: 700, input: 7000 });
       const e2 = list.find((e) => e.amountMinor === 500)!;
       expect(JSON.stringify(e2.items)).not.toContain(oma.id);
+      expect(e2.splitType).toBe("exact"); // Einzelposten mit beiden → feste Beträge
+      expect(e2.shares.find((s) => s.userId === b.id)).toMatchObject({ amountMinor: 500, input: 500 });
+      const e3 = list.find((e) => e.amountMinor === 999)!;
+      expect(e3.splitType).toBe("shares"); // gleichmäßig mit beiden → Anteile 2:1
+      expect(e3.shares.find((s) => s.userId === b.id)).toMatchObject({ amountMinor: 666, input: 2 });
+      expect((await svc.groups.getGroup(a.id, g.id)).defaultSplit).toEqual({ type: "percent", entries: [{ userId: b.id, value: 5000 }, { userId: a.id, value: 5000 }] });
       expect((await svc.payments.listPayments(a.id, g.id)).length).toBe(0); // Ben→Oma wurde Ben→Ben: aufgehoben
       const tpl = (await svc.recurring.listRecurring(a.id, g.id)).items[0].template;
       expect(tpl.payers).toEqual([{ userId: b.id, amountMinor: 900 }]);
@@ -1354,6 +1363,17 @@ d("services (PostgreSQL)", () => {
       expect((await svc.groups.getGroup(a.id, g.id)).members.some((m) => m.id === oma.id)).toBe(false);
       const hist = await svc.expenses.expenseHistoryFor(a.id, g.id, e1.id);
       expect(JSON.stringify(hist)).not.toContain(oma.id);
+    });
+
+    it("Gäste werden nie Besitzer; letztes Konto-Mitglied kann nicht neben Gästen austreten", async () => {
+      const { a, b, c, g } = await setup();
+      await svc.guests.addGuest(a.id, g.id, "Erster Gast"); // tritt vor niemandem bei, aber Mitgliedschaft ist neuer als Ben/Cleo
+      await svc.getDb().execute(svc.sql`update group_members set joined_at = now() - interval '1 day' where user_id in (select id from users where kind = 'guest')`);
+      await svc.groups.removeMember(a.id, g.id, a.id); // Anna (Besitzerin) tritt aus
+      const owners = (await svc.getDb().execute(svc.sql`select u.kind from group_members m join users u on u.id = m.user_id where m.group_id = ${g.id} and m.role = 'owner'`)) as unknown as { kind: string }[];
+      expect(owners.map((o) => o.kind)).toEqual(["user"]);
+      await svc.groups.removeMember(b.id, g.id, b.id);
+      await expect(svc.groups.removeMember(c.id, g.id, c.id)).rejects.toMatchObject({ code: "last_account_member" });
     });
 
     it("Gast übernehmen durch ein neues Konto macht es zum Mitglied; Gruppe löschen entfernt Gäste", async () => {

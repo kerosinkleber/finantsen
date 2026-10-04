@@ -10,7 +10,8 @@ export const GET = route<{ id: string }>(async ({ user, params }) => {
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      // ASCII-Ersatz plus UTF-8-Name (RFC 5987), sonst scheitern Namen wie „Wrocław“ im Header
+      "Content-Disposition": `attachment; filename="${filename.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "")}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       "Cache-Control": "no-store",
     },
   });

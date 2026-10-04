@@ -527,5 +527,6 @@ const en: Record<MessageKey, string> = {
   "join.guest": "{inviter} invites you to take over the role of {guest} in “{name}”. All expenses, payments and balances of {guest} move to your account.",
   "err.guest_has_data": "This guest still has expenses, payments or recurring templates. Link them to an account or change the expenses first.",
   "err.direct_group": "Not possible in a friendship.",
+  "err.last_account_member": "You are the last member with an account. Delete the group instead, or link a guest to an account first.",
 };
 export default en;

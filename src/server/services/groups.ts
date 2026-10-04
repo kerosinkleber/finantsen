@@ -131,21 +131,25 @@ export async function removeMember(actorId: string, groupId: string, targetId: s
   const { role, group } = await requireMember(actorId, groupId);
   if (actorId !== targetId && role !== "owner") throw forbidden();
   if (group.kind === "direct") throw new ApiError(400, "direct_group");
-  const { net } = await groupBalances(groupId);
-  for (const cur of Object.values(net)) if (cur[targetId]) throw new ApiError(409, "balance_not_zero");
-  if (role === "owner" && actorId === targetId) {
-    const others = await getDb()
-      .select({ userId: groupMembers.userId })
-      .from(groupMembers)
-      .where(eq(groupMembers.groupId, groupId));
-    const next = others.find((o) => o.userId !== actorId);
-    if (next) await getDb().update(groupMembers).set({ role: "owner" }).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, next.userId)));
-  }
   const [target] = await getDb().select({ kind: users.kind }).from(users).where(eq(users.id, targetId));
   if (target?.kind === "guest") {
     // Gäste gehören nur zu dieser Gruppe: entfernen heißt löschen (nur ohne Daten)
     const { deleteGuest } = await import("./guests");
     return deleteGuest(actorId, groupId, targetId);
+  }
+  const { net } = await groupBalances(groupId);
+  for (const cur of Object.values(net)) if (cur[targetId]) throw new ApiError(409, "balance_not_zero");
+  // Verbleibende Mitglieder mit Konto (Gäste können nie Besitzer werden und sich nicht anmelden)
+  const others = await getDb()
+    .select({ userId: groupMembers.userId, kind: users.kind })
+    .from(groupMembers)
+    .innerJoin(users, eq(users.id, groupMembers.userId))
+    .where(eq(groupMembers.groupId, groupId))
+    .orderBy(groupMembers.joinedAt);
+  const accounts = others.filter((o) => o.userId !== targetId && o.kind !== "guest");
+  if (accounts.length === 0 && others.some((o) => o.kind === "guest")) throw new ApiError(409, "last_account_member");
+  if (role === "owner" && actorId === targetId && accounts[0]) {
+    await getDb().update(groupMembers).set({ role: "owner" }).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, accounts[0].userId)));
   }
   await getDb().delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, targetId)));
 }

@@ -525,6 +525,7 @@ const de = {
   "join.guest": "{inviter} lädt dich ein, in „{name}“ die Rolle von {guest} zu übernehmen. Alle Ausgaben, Zahlungen und Salden von {guest} gehen auf dein Konto über.",
   "err.guest_has_data": "Dieser Gast hat noch Ausgaben, Zahlungen oder wiederkehrende Vorlagen. Verknüpfe ihn mit einem Konto oder ändere die Ausgaben zuerst.",
   "err.direct_group": "Das geht in einer Freundschaft nicht.",
+  "err.last_account_member": "Du bist das letzte Mitglied mit Konto. Lösche die Gruppe stattdessen oder verknüpfe vorher einen Gast mit einem Konto.",
 } as const;
 export default de;
 export type MessageKey = keyof typeof de;

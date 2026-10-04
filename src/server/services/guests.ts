@@ -5,7 +5,7 @@ import { expenses, groupMembers, groups, invites, payments, recurringExpenses, u
 import { ApiError, notFound } from "../http";
 import { env } from "../env";
 import { requireMember } from "./access";
-import { replaceUserInItems, replaceUserInTemplate } from "@/lib/merge";
+import { replaceUserInDefaultSplit, replaceUserInItems, replaceUserInTemplate } from "@/lib/merge";
 
 /**
  * Mitglieder ohne Konto („Gäste“): users.kind = 'guest', gehören zu genau einer Gruppe (guest_group_id),
@@ -98,11 +98,18 @@ export async function createGuestLink(userId: string, groupId: string, guestId: 
 export async function claimGuest(tx: Tx, targetId: string, groupId: string, guestId: string) {
   const [target] = await tx.select({ kind: users.kind }).from(users).where(eq(users.id, targetId));
   if (!target || target.kind === "guest") throw new ApiError(400, "invite_invalid");
-  await tx.execute(sql`select pg_advisory_xact_lock(727003, hashtext(${groupId}))`);
   await loadGuest(tx, groupId, guestId);
   const ids = (await tx.select({ id: expenses.id }).from(expenses).where(eq(expenses.groupId, groupId))).map((r) => r.id);
   if (ids.length) {
     const list = sql.join(ids.map((x) => sql`${x}::uuid`), sql`, `);
+    // Ausgaben, an denen Gast UND Konto beteiligt sind: Aufteilungsart so umstellen, dass ein späteres Bearbeiten
+    // dieselben (zusammengefassten) Anteile ergibt
+    const overlap = (await tx.execute(sql`
+      select e.id, e.split_type from expenses e
+      where e.id in (${list})
+        and exists(select 1 from expense_shares s where s.expense_id = e.id and s.user_id = ${guestId})
+        and exists(select 1 from expense_shares s where s.expense_id = e.id and s.user_id = ${targetId})
+        and (e.split_type <> 'equal' or (select count(*) from expense_shares s where s.expense_id = e.id) > 2)`)) as unknown as { id: string; split_type: string }[];
     for (const table of ["expense_payers", "expense_shares"] as const) {
       const t = sql.raw(table);
       const input = table === "expense_shares" ? sql`, input = case when t.input is null or g.input is null then t.input else t.input + g.input end` : sql``;
@@ -110,6 +117,17 @@ export async function claimGuest(tx: Tx, targetId: string, groupId: string, gues
         from ${t} g where g.expense_id = t.expense_id and g.user_id = ${guestId} and t.user_id = ${targetId} and t.expense_id in (${list})`);
       await tx.execute(sql`delete from ${t} g using ${t} t where g.expense_id = t.expense_id and g.user_id = ${guestId} and t.user_id = ${targetId}`);
       await tx.execute(sql`update ${t} set user_id = ${targetId} where user_id = ${guestId}`);
+    }
+    for (const o of overlap) {
+      if (o.split_type === "equal") {
+        // gleichmäßig → Anteile: das Konto trägt jetzt zwei Teile (seinen und den des Gasts)
+        await tx.update(expenses).set({ splitType: "shares" }).where(eq(expenses.id, o.id));
+        await tx.execute(sql`update expense_shares set input = case when user_id = ${targetId} then 2 else 1 end where expense_id = ${o.id}`);
+      } else if (o.split_type === "items") {
+        // Einzelposten → feste Beträge (die bereits berechneten Anteile)
+        await tx.update(expenses).set({ splitType: "exact", items: null }).where(eq(expenses.id, o.id));
+        await tx.execute(sql`update expense_shares set input = amount_minor where expense_id = ${o.id}`);
+      }
     }
     // Einzelposten und Verlaufs-Snapshots nennen den Gast per ID
     const withItems = await tx.select({ id: expenses.id, items: expenses.items }).from(expenses).where(and(inArray(expenses.id, ids), isNotNull(expenses.items)));
@@ -128,6 +146,10 @@ export async function claimGuest(tx: Tx, targetId: string, groupId: string, gues
   for (const r of tpls) {
     if (!JSON.stringify(r.template).includes(guestId)) continue;
     await tx.update(recurringExpenses).set({ template: replaceUserInTemplate(r.template as never, guestId, targetId) }).where(eq(recurringExpenses.id, r.id));
+  }
+  const [grp] = await tx.select({ defaultSplit: groups.defaultSplit }).from(groups).where(eq(groups.id, groupId));
+  if (grp?.defaultSplit && JSON.stringify(grp.defaultSplit).includes(guestId)) {
+    await tx.update(groups).set({ defaultSplit: replaceUserInDefaultSplit(grp.defaultSplit as never, guestId, targetId) }).where(eq(groups.id, groupId));
   }
   const [isMember] = await tx.select({ u: groupMembers.userId }).from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, targetId)));
   if (!isMember) await tx.insert(groupMembers).values({ groupId, userId: targetId, role: "member" });

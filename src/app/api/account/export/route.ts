@@ -9,7 +9,7 @@ export const GET = route(async ({ user }) => {
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="finantsen-${user.username}-${new Date().toISOString().slice(0, 10)}.json"`,
+      "Content-Disposition": `attachment; filename="finantsen-${user.username.replace(/[^a-z0-9._-]/g, "_")}-${new Date().toISOString().slice(0, 10)}.json"`,
       "Cache-Control": "no-store",
     },
   });

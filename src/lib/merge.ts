@@ -1,7 +1,10 @@
+import { computeShares, type SplitInput } from "./money/split";
+
 /**
- * Ersetzt eine Person durch eine andere in einer Ausgaben-Vorlage bzw. in Einzelposten (rein). Kommen danach
- * beide Personen doppelt vor, werden die Einträge zusammengefasst (Beträge, Prozente und Gewichte addiert),
- * damit Summen und Aufteilung gültig bleiben. Gebraucht beim Verknüpfen eines Gasts mit einem Konto.
+ * Ersetzt eine Person durch eine andere in einer Ausgaben-Vorlage bzw. Aufteilung (rein). Kommen danach beide
+ * Personen vor, werden die Einträge zusammengefasst, und zwar so, dass die übernehmende Person genau das trägt,
+ * was vorher beide zusammen getragen haben: Beträge/Prozente/Gewichte werden addiert, „gleichmäßig“ wird zu
+ * „Anteilen“ (Gewicht 2), Einzelposten mit beiden werden zu festen Beträgen. Gebraucht beim Verknüpfen eines Gasts.
  */
 type Payer = { userId: string; amountMinor: number };
 type Split =
@@ -30,9 +33,24 @@ export function replaceUserInItems(items: Item[], from: string, to: string): Ite
   return items.map((i) => ({ ...i, participants: uniq(i.participants.map((p) => swap(p, from, to))) }));
 }
 
-export function replaceUserInSplit(split: Split, from: string, to: string): Split {
+/** Beide kommen vor und es bleiben danach noch andere übrig (sonst ist „gleichmäßig“ bzw. der Posten weiterhin richtig). */
+const both = (ids: string[], from: string, to: string) => ids.includes(from) && ids.includes(to) && new Set(ids).size > 2;
+
+function toInput(split: Split): SplitInput {
+  if (split.type === "items") return { type: "items", items: split.items.map((i) => ({ name: i.name, amount: i.amountMinor, participants: i.participants })), tax: split.taxMinor, tip: split.tipMinor };
+  if (split.type === "equal" || split.type === "full") return split;
+  if (split.type === "percent") return { type: "percent", entries: split.entries.map((e) => ({ id: e.userId, bp: e.bp })) };
+  if (split.type === "exact") return { type: "exact", entries: split.entries.map((e) => ({ id: e.userId, amount: e.amountMinor })) };
+  return { type: "shares", entries: split.entries.map((e) => ({ id: e.userId, shares: e.shares })) };
+}
+
+/** `total` wird nur gebraucht, wenn Einzelposten beide Personen enthalten (dann Umwandlung in feste Beträge). */
+export function replaceUserInSplit(split: Split, from: string, to: string, total?: number): Split {
   switch (split.type) {
     case "equal":
+      if (both(split.participants, from, to)) {
+        return { type: "shares", entries: mergeBy(split.participants.map((userId) => ({ userId, shares: 1 })), from, to, (a, b) => ({ ...a, shares: a.shares + b.shares })) };
+      }
       return { type: "equal", participants: uniq(split.participants.map((p) => swap(p, from, to))) };
     case "percent":
       return { type: "percent", entries: mergeBy(split.entries, from, to, (a, b) => ({ ...a, bp: a.bp + b.bp })) };
@@ -43,14 +61,27 @@ export function replaceUserInSplit(split: Split, from: string, to: string): Spli
     case "full":
       return { type: "full", owner: swap(split.owner, from, to) };
     case "items":
+      if (total !== undefined && split.items.some((i) => both(i.participants, from, to))) {
+        const alloc = computeShares(total, toInput(split)).map((a) => ({ userId: a.id, amountMinor: a.amount }));
+        return { type: "exact", entries: mergeBy(alloc, from, to, (a, b) => ({ ...a, amountMinor: a.amountMinor + b.amountMinor })) };
+      }
       return { ...split, items: replaceUserInItems(split.items, from, to) };
   }
 }
 
-export function replaceUserInTemplate<T extends { payers: Payer[]; split: Split }>(t: T, from: string, to: string): T {
+/** Standard-Aufteilung der Gruppe (equal/percent/shares mit `value`). */
+export function replaceUserInDefaultSplit<T extends { type: "equal" | "percent" | "shares"; entries: { userId: string; value: number }[] }>(d: T, from: string, to: string): T {
+  const ids = d.entries.map((e) => e.userId);
+  if (d.type === "equal" && both(ids, from, to)) {
+    return { ...d, type: "shares", entries: mergeBy(d.entries.map((e) => ({ ...e, value: 1 })), from, to, (a, b) => ({ ...a, value: a.value + b.value })) };
+  }
+  return { ...d, entries: mergeBy(d.entries, from, to, (a, b) => ({ ...a, value: a.value + b.value })) };
+}
+
+export function replaceUserInTemplate<T extends { amountMinor: number; payers: Payer[]; split: Split }>(t: T, from: string, to: string): T {
   return {
     ...t,
     payers: mergeBy(t.payers, from, to, (a, b) => ({ ...a, amountMinor: a.amountMinor + b.amountMinor })),
-    split: replaceUserInSplit(t.split, from, to),
+    split: replaceUserInSplit(t.split, from, to, t.amountMinor),
   };
 }

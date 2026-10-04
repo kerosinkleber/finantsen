@@ -211,7 +211,8 @@ export async function removeFromGroup(actor: SessionUser, testUserId: string, gr
   }
   await db.transaction(async (tx) => {
     await lock(tx);
-    const others = await tx.select({ userId: groupMembers.userId, joinedAt: groupMembers.joinedAt }).from(groupMembers).where(and(eq(groupMembers.groupId, groupId), sql`${groupMembers.userId} <> ${testUserId}`)).orderBy(asc(groupMembers.joinedAt));
+    // Besitz geht nie an Gäste (Mitglieder ohne Konto), sie können sich nicht anmelden
+    const others = await tx.select({ userId: groupMembers.userId, joinedAt: groupMembers.joinedAt }).from(groupMembers).innerJoin(users, eq(users.id, groupMembers.userId)).where(and(eq(groupMembers.groupId, groupId), sql`${groupMembers.userId} <> ${testUserId}`, sql`${users.kind} <> 'guest'`)).orderBy(asc(groupMembers.joinedAt));
     if (g.kind === "group" && others.length === 0) throw new ApiError(409, "last_member");
     if (g.kind === "group" && m.role === "owner" && (await ownersOf(tx, groupId)).length <= 1) {
       await tx.update(groupMembers).set({ role: "owner" }).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, others[0].userId)));
@@ -311,11 +312,11 @@ export async function deleteTestUser(actor: SessionUser, id: string) {
     await lock(tx);
     if (dataGroups.size > 0) await tx.delete(groups).where(inArray(groups.id, [...dataGroups])); // kaskadiert auf Ausgaben, Zahlungen, …
     for (const gid of memberOnly) {
-      const others = await tx.select({ userId: groupMembers.userId }).from(groupMembers).where(and(eq(groupMembers.groupId, gid), sql`${groupMembers.userId} <> ${id}`)).orderBy(asc(groupMembers.joinedAt));
+      const others = await tx.select({ userId: groupMembers.userId }).from(groupMembers).innerJoin(users, eq(users.id, groupMembers.userId)).where(and(eq(groupMembers.groupId, gid), sql`${groupMembers.userId} <> ${id}`, sql`${users.kind} <> 'guest'`)).orderBy(asc(groupMembers.joinedAt));
       await tx.delete(groupMembers).where(and(eq(groupMembers.groupId, gid), eq(groupMembers.userId, id)));
       if (others.length > 0) await tx.update(groups).set({ createdBy: others[0].userId }).where(and(eq(groups.id, gid), eq(groups.createdBy, id)));
       if (others.length === 0) {
-        await tx.delete(groups).where(eq(groups.id, gid)); // leere Gruppe ohne Daten
+        await tx.delete(groups).where(eq(groups.id, gid)); // ohne Konto-Mitglieder (höchstens noch Gäste) ist die Gruppe verwaist
       } else if ((await ownersOf(tx, gid)).length === 0) {
         await tx.update(groupMembers).set({ role: "owner" }).where(and(eq(groupMembers.groupId, gid), eq(groupMembers.userId, others[0].userId)));
       }
