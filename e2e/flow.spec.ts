@@ -190,6 +190,10 @@ test("percent split validates sum; edit shows history; delete is soft", async ({
   await expect(page.getByTestId("trash")).toHaveCount(0);
   await page.getByTestId("expense-item").filter({ hasText: "Rent January" }).click();
   await expect(page.getByTestId("history")).toContainText("Restored");
+  // wieder löschen, damit die folgenden Tests denselben Ausgangszustand sehen
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByTestId("confirm-yes").click();
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Rent January" })).toHaveCount(0);
 });
 
 test("language can be switched to German", async ({ page }) => {
@@ -223,7 +227,9 @@ test("notifications: new expense and comment reach the other member", async ({ p
   await login(page, "ben@example.com");
   await expect(page.getByTestId("unread")).toBeVisible();
   await page.getByTestId("bell").click();
-  await expect(page.getByTestId("notification").first()).toContainText("Anna added");
+  const notes = page.getByTestId("notification");
+  await expect(notes.filter({ hasText: "Anna added" }).first()).toBeVisible();
+  await expect(notes.filter({ hasText: "Anna restored “Rent January”" })).toHaveCount(1); // aus dem Papierkorb-Test
   await page.getByRole("button", { name: "Mark all as read" }).click();
   await expect(page.getByTestId("unread")).toHaveCount(0);
 
