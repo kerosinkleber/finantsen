@@ -190,5 +190,7 @@ async function clearTotp(userId: string) {
 /** Admin: TOTP zurücksetzen (z. B. Gerät verloren). Alle Sitzungen enden. */
 export async function resetTotp(userId: string) {
   await clearTotp(userId);
+  const { clearPasskeys } = await import("./passkeys");
+  await clearPasskeys(userId);
   await endSessions(userId);
 }

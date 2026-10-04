@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, count, eq, isNull, ne, sql, gt } from "drizzle-orm";
 import { getDb, type Tx } from "../db";
 import { env } from "../env";
-import { sessions, userTokens, users } from "../schema";
+import { passkeys, sessions, userTokens, users } from "../schema";
 import { ApiError } from "../http";
 import { endSessions, hashPassword, sha256, verifyPassword, type SessionUser } from "../auth";
 import { passwordIssues } from "@/lib/password";
@@ -119,7 +119,7 @@ export async function createUserByAdmin(
   return { user: publicUser(user), link };
 }
 
-export function publicUser(u: UserRow) {
+export function publicUser(u: UserRow, passkeyCounts?: Map<string, number>) {
   return {
     id: u.id,
     username: u.username,
@@ -132,13 +132,16 @@ export function publicUser(u: UserRow) {
     lockedUntil: u.lockedUntil,
     totpEnabled: !!u.totpSecret,
     totpRequired: u.totpRequired,
+    passkeyCount: passkeyCounts?.get(u.id) ?? 0,
   };
 }
 
 export async function listUsers(actor: SessionUser) {
   requireAdmin(actor);
   const rows = await getDb().select().from(users).where(eq(users.kind, "user")).orderBy(asc(users.createdAt));
-  return rows.map(publicUser);
+  const pk = await getDb().select({ id: passkeys.userId, n: count() }).from(passkeys).groupBy(passkeys.userId);
+  const counts = new Map(pk.map((r) => [r.id, r.n]));
+  return rows.map((u) => publicUser(u, counts));
 }
 
 // --------------------------------------------------------------- Einmal-Links

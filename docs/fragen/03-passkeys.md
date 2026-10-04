@@ -75,3 +75,14 @@ Antwort / Anmerkung:
 3. Der Dev-Login bleibt unverändert.
 4. Gesperrte oder deaktivierte Konten können sich auch mit Passkey nicht anmelden.
 5. Dies wird die letzte Etappe des Kontenplans; danach gibt es wieder freie Prioritäten (Roadmap-Ideen: Mitglieder ohne Konto, wiederkehrende Ausgaben, Wiederherstellen gelöschter Ausgaben).
+
+---
+
+## Umsetzung (von Claude ergänzt)
+
+Alle Antworten entsprachen der Empfehlung und sind so umgesetzt. Auslegungen:
+
+1. **Passkey und TOTP-Zwang:** Weil der Passkey den zweiten Faktor ersetzt, darf sich jemand mit Zwang, der einen Passkey, aber kein TOTP hat, **nicht** nur mit dem Passwort anmelden (sonst würde der Zwang umgangen). Er meldet sich mit dem Passkey an. Verliert er das Gerät, setzt der Admin zurück (löscht Passkeys und TOTP), danach muss er TOTP einrichten.
+2. **Fehlversuche:** Ein fehlgeschlagener Passkey-Versuch zählt auf demselben Konto-Zähler wie falsche Passwörter. Ein erfolgreicher Passkey-Login setzt ihn zurück.
+3. **Datenschutz:** Die Anmelde-Optionen verraten nicht, ob ein Konto existiert oder Passkeys hat.
+4. **Admin-Reset:** Der Knopf „2FA zurücksetzen“ erscheint auch bei Konten, die nur Passkeys haben. Der Admin sieht die Anzahl, nicht die Namen.

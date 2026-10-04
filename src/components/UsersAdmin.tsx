@@ -21,6 +21,7 @@ export type AdminUser = {
   lockedUntil: string | null;
   totpEnabled: boolean;
   totpRequired: boolean;
+  passkeyCount: number;
 };
 type LinkInfo = { url: string; expiresAt: string; for: string };
 
@@ -165,6 +166,7 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
         {u.isAdmin && <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-white">{t("admin.badge.admin")}</span>}
         {u.mustChangePassword && <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs text-amber-900">{t("admin.badge.mustChange")}</span>}
         {u.totpEnabled && <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs text-emerald-900" data-testid="badge-totp">{t("admin.badge.totp")}</span>}
+        {u.passkeyCount > 0 && <span className="rounded-full bg-violet-200 px-2 py-0.5 text-xs text-violet-900" data-testid="badge-passkey">{t("admin.badge.passkey", { n: u.passkeyCount })}</span>}
         {u.totpRequired && <span className="rounded-full bg-sky-200 px-2 py-0.5 text-xs text-sky-900" data-testid="badge-totp-required">{t("admin.badge.totpRequired")}</span>}
         {locked && <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs text-red-900">{t("admin.badge.locked")}</span>}
       </div>
@@ -181,7 +183,7 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
             {t(u.totpRequired ? "admin.action.unrequireTotp" : "admin.action.requireTotp")}
           </button>
         )}
-        {u.totpEnabled && (
+        {(u.totpEnabled || u.passkeyCount > 0) && (
           <button className={btn} data-testid="reset-totp" onClick={async () => (await ask(t("admin.confirmResetTotp"))) && act({ action: "resetTotp" })}>
             {t("admin.action.resetTotp")}
           </button>

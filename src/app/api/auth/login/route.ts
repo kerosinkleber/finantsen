@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { route, parseBody, ApiError } from "@/server/http";
 import { loginSchema } from "@/lib/schemas";
 import { authenticate } from "@/server/services/accounts";
-import { issueChallenge } from "@/server/services/totp";
+import { issueChallenge, totpRequiredFor } from "@/server/services/totp";
+import { passkeyCount } from "@/server/services/passkeys";
 import { clearRateLimit, createSession, rateLimit } from "@/server/auth";
 
 export const POST = route(
@@ -28,6 +29,8 @@ export const POST = route(
     }
     clearRateLimit(key);
     // Mit TOTP wird noch keine Sitzung angelegt: erst der zweite Schritt (Code) schließt die Anmeldung ab.
+    // Wer nur einen Passkey als zweiten Faktor hat und einen zweiten Faktor braucht, meldet sich mit dem Passkey an
+    if (!user.totpSecret && (await totpRequiredFor(user)) && (await passkeyCount(user.id)) > 0) throw new ApiError(403, "passkey_required");
     if (user.totpSecret) return { totpRequired: true, challenge: issueChallenge(user.id) };
     await createSession(user.id);
     return { user: { id: user.id, username: user.username, name: user.name, isAdmin: user.isAdmin, mustChangePassword: user.mustChangePassword } };

@@ -23,6 +23,7 @@ export default async function AdminUsersPage() {
     lockedUntil: u.lockedUntil ? u.lockedUntil.toISOString() : null,
     totpEnabled: u.totpEnabled,
     totpRequired: u.totpRequired,
+    passkeyCount: u.passkeyCount,
   }));
   return (
     <>

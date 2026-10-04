@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -29,8 +29,9 @@ d("services (PostgreSQL)", () => {
       import("./settings"),
       import("./totp"),
       import("../totp"),
+      import("./passkeys"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys };
   }
 
   beforeAll(async () => {
@@ -1048,6 +1049,64 @@ d("services (PostgreSQL)", () => {
       } finally {
         delete process.env.DEV_ADMIN;
       }
+    });
+  });
+  describe("Passkeys", () => {
+    const rp = { id: "localhost", origin: "http://localhost:3000" };
+    const addRow = (userId: string, cred: string) =>
+      svc.getDb().execute(svc.sql`insert into passkeys (user_id, credential_id, public_key, name) values (${userId}, ${cred}, 'AA', 'Handy')`);
+
+    it("Einrichten und Löschen verlangen das Passwort; fremde Passkeys sind unerreichbar", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      const b = await mkUser(a, "ben");
+      await expect(svc.passkeys.registrationOptions(b.id, "falsch", rp)).rejects.toMatchObject({ code: "invalid_credentials" });
+      const { options, token } = await svc.passkeys.registrationOptions(b.id, PW, rp);
+      expect(options.rp.id).toBe("localhost");
+      expect(options.authenticatorSelection?.userVerification).toBe("required");
+      expect(token).toContain(".");
+      await addRow(b.id, "cred-ben");
+      const [row] = await svc.passkeys.listPasskeys(b.id);
+      await expect(svc.passkeys.deletePasskey(a.id, row.id, PW)).rejects.toMatchObject({ code: "not_found" }); // anderes Konto
+      await expect(svc.passkeys.deletePasskey(b.id, row.id, "falsch")).rejects.toMatchObject({ code: "invalid_credentials" });
+      await svc.passkeys.deletePasskey(b.id, row.id, PW);
+      expect(await svc.passkeys.passkeyCount(b.id)).toBe(0);
+    });
+
+    it("Registrierungs-Token gehört zu genau einem Konto", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      const b = await mkUser(a, "ben");
+      const { token } = await svc.passkeys.registrationOptions(b.id, PW, rp);
+      await expect(svc.passkeys.registerPasskey(a.id, { token, response: {} as never, name: "x" }, rp)).rejects.toMatchObject({ code: "challenge_invalid" });
+      await expect(svc.passkeys.registerPasskey(b.id, { token, response: { id: "x" } as never, name: "x" }, rp)).rejects.toMatchObject({ code: "passkey_invalid" });
+    });
+
+    it("Anmelde-Optionen sehen für unbekannte Konten und Konten ohne Passkey gleich aus; Fehlversuche zählen auf dem Konto", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      const b = await mkUser(a, "ben");
+      await addRow(b.id, "cred-ben");
+      const known = await svc.passkeys.authenticationOptions("anna", rp);
+      const unknown = await svc.passkeys.authenticationOptions("niemand", rp);
+      expect(known.options.allowCredentials).toHaveLength(1);
+      expect(unknown.options.allowCredentials).toHaveLength(1);
+      const real = await svc.passkeys.authenticationOptions("ben", rp);
+      expect(real.options.allowCredentials?.[0].id).toBe("cred-ben");
+      await expect(svc.passkeys.completePasskeyLogin("x.y", { id: "cred-ben" } as never, rp)).rejects.toMatchObject({ code: "challenge_invalid" });
+      for (let i = 0; i < 5; i++) await expect(svc.passkeys.completePasskeyLogin(real.token, { id: "cred-ben", rawId: "cred-ben", type: "public-key", response: {}, clientExtensionResults: {} } as never, rp)).rejects.toMatchObject({ code: "invalid_credentials" });
+      await expect(svc.passkeys.completePasskeyLogin(real.token, { id: "cred-ben" } as never, rp)).rejects.toMatchObject({ status: 429 });
+    });
+
+    it("Ein Passkey erfüllt den TOTP-Zwang; Admin-Reset entfernt Passkeys; Testnutzer/Löschen kaskadiert", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      const b = await mkUser(a, "ben");
+      await svc.users.adminAction(actor(a), b.id, { action: "requireTotp" });
+      const token = await svc.auth.createSessionFor(b.id);
+      expect((await svc.auth.resolveSession(token))?.totpSetupRequired).toBe(true);
+      await addRow(b.id, "cred-ben");
+      expect((await svc.auth.resolveSession(token))?.totpSetupRequired).toBe(false);
+      const list = await svc.users.listUsers(actor(a));
+      expect(list.find((u) => u.username === "ben")?.passkeyCount).toBe(1);
+      await svc.users.adminAction(actor(a), b.id, { action: "resetTotp" });
+      expect(await svc.passkeys.passkeyCount(b.id)).toBe(0);
     });
   });
 });

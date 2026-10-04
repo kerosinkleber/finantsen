@@ -845,3 +845,71 @@ async function signInNoTotp(p: Page) {
   await p.getByLabel("Password").fill(PASSWORD);
   await p.getByRole("button", { name: "Sign in" }).click();
 }
+
+test("passkeys: add with password, sign in without password or code, mandatory 2FA forces passkey sign-in, admin resets", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  await form(page).getByLabel("Username", { exact: true }).fill("pia");
+  await form(page).getByLabel("I set the password").check();
+  await form(page).getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await form(page).getByLabel("Require a password change at first sign-in").uncheck();
+  await form(page).getByRole("button", { name: "Create account" }).click();
+  await expect(card(page, "pia")).toBeVisible();
+
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const pp = await ctx.newPage();
+  // virtueller Authenticator (Gerät mit Fingerabdruck/PIN)
+  const cdp = await ctx.newCDPSession(pp);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+  const signInPassword = async () => {
+    await pp.goto("/login");
+    await pp.getByLabel("Username or email").fill("pia");
+    await pp.getByLabel("Password").fill(PASSWORD);
+    await pp.getByRole("button", { name: "Sign in", exact: true }).click();
+  };
+  await signInPassword();
+  await expect(pp).toHaveURL("/");
+
+  // hinzufügen: erst Passwort, dann Passkey
+  await pp.goto("/two-factor");
+  await pp.getByTestId("passkey-add").click();
+  await pp.getByLabel("Name (e.g.").fill("Laptop");
+  await pp.getByLabel("For safety: current password").fill("Falsches-Passwort-1234!");
+  await pp.getByTestId("passkey-create").click();
+  await expect(pp.getByTestId("passkeys").getByTestId("error")).toBeVisible();
+  await pp.getByLabel("For safety: current password").fill(PASSWORD);
+  await pp.getByTestId("passkey-create").click();
+  await expect(pp.getByTestId("passkey-item")).toContainText("Laptop");
+
+  // Anmeldung nur mit Passkey (Nutzername genügt)
+  await pp.request.post("/api/auth/logout");
+  await pp.goto("/login");
+  await pp.getByLabel("Username or email").fill("pia");
+  await pp.getByTestId("passkey-login").click();
+  await expect(pp).toHaveURL("/");
+
+  // Admin verlangt 2FA: Passkey erfüllt es, Passwort-Anmeldung allein ist dann nicht mehr möglich
+  await page.reload();
+  await expect(card(page, "pia").getByTestId("badge-passkey")).toBeVisible();
+  await card(page, "pia").getByTestId("toggle-totp-required").click();
+  await expect(card(page, "pia").getByTestId("badge-totp-required")).toBeVisible();
+  await pp.request.post("/api/auth/logout");
+  await signInPassword();
+  await expect(pp.getByTestId("error")).toContainText("sign in with your passkey");
+  await pp.goto("/login");
+  await pp.getByLabel("Username or email").fill("pia");
+  await pp.getByTestId("passkey-login").click();
+  await expect(pp).toHaveURL("/"); // kein Zwang zur TOTP-Einrichtung, der Passkey zählt
+
+  // Admin setzt zurück: Passkey weg, Sitzung beendet; bei Zwang muss Pia nun TOTP einrichten
+  await page.addLocatorHandler(page.getByTestId("confirm-yes"), (l) => l.click());
+  await card(page, "pia").getByTestId("reset-totp").click();
+  await expect(card(page, "pia").getByTestId("badge-passkey")).toHaveCount(0);
+  expect((await pp.request.get("/api/groups")).status()).toBe(401);
+  await signInPassword();
+  await expect(pp).toHaveURL(/two-factor/);
+  await ctx.close();
+});

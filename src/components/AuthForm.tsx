@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
+import { startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 
 type Account = { id: string; name: string; username: string; createdAt: string };
 
@@ -65,6 +66,26 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
         }
       }
       setError(err);
+      setBusy(false);
+    }
+  }
+
+  async function passkeyLogin(form: HTMLFormElement | null) {
+    const identifier = (form?.elements.namedItem("identifier") as HTMLInputElement | null)?.value.trim();
+    if (!identifier) {
+      setError(new ApiClientError(400, "identifier_required"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { options, token } = await api<{ options: Parameters<typeof startAuthentication>[0]["optionsJSON"]; token: string }>("POST", "/api/auth/login/passkey/options", { identifier });
+      const response = await startAuthentication({ optionsJSON: options });
+      const r = await api<{ user: { mustChangePassword: boolean } }>("POST", "/api/auth/login/passkey", { token, response });
+      router.replace(r.user.mustChangePassword ? "/change-password" : next && next.startsWith("/") ? next : "/");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error && !(err instanceof ApiClientError) ? new ApiClientError(0, "passkey_cancelled") : err);
       setBusy(false);
     }
   }
@@ -130,6 +151,9 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
       )}
       <ErrorMessage error={error} />
       <button className="btn" disabled={busy}>{t("auth.login")}</button>
+      {typeof window !== "undefined" && browserSupportsWebAuthn() && (
+        <button type="button" className="btn-secondary" disabled={busy} data-testid="passkey-login" onClick={(e) => passkeyLogin(e.currentTarget.form)}>{t("passkey.login")}</button>
+      )}
       <p className="muted text-center">{t("auth.notActivated")}</p>
       {registrationEnabled && (
         <p className="muted text-center">

@@ -89,7 +89,9 @@ export async function resolveSession(token: string): Promise<SessionUser | null>
   const totpEnabled = !!r.real.totpSecret;
   // Der passwortlose Entwicklungs-Admin ist ausgenommen (DEV_ADMIN)
   const devExempt = env.devAdmin && !r.real.passwordHash;
-  const totpSetupRequired = !totpEnabled && !devExempt && (r.real.totpRequired || (await totpRequiredAll()));
+  // Ein Passkey erfüllt die Anforderung „zweiter Faktor“
+  const { passkeyCount } = await import("./services/passkeys");
+  const totpSetupRequired = !totpEnabled && !devExempt && (r.real.totpRequired || (await totpRequiredAll())) && (await passkeyCount(r.real.id)) === 0;
   return {
     id: eff.id,
     username: eff.username,

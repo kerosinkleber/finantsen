@@ -24,7 +24,7 @@ The first build takes a few minutes. When the log shows `migrations applied` and
 
 **Test password** that satisfies the rules: `Correct-Horse-Battery-9!`
 
-**Not available in this version** (please do not report these as bugs): passkeys, scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), members without an account, restoring deleted expenses, push notifications on a local setup, receipt scanning (needs an API key).
+**Not available in this version** (please do not report these as bugs): scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), members without an account, restoring deleted expenses, push notifications on a local setup, receipt scanning (needs an API key).
 
 ---
 
@@ -135,6 +135,18 @@ You need an authenticator app (Aegis, 2FAS, Google/Microsoft Authenticator, …)
 5. As admin (*Manage users*): *Require 2FA* for one account. That user must set it up straight after the password and can do nothing else before. The setting "Require two-factor for everyone" does the same for everybody (careful: you are included).
 6. Admin *Reset 2FA* for a user who lost the phone: their sessions end, they sign in with the password only and set it up again if required.
 7. Try to break it: many wrong codes in a row (waiting time should grow), reuse a code, open a one-time link for an account with TOTP (you must still sign in with a code afterwards).
+
+---
+
+## 7c. Passkeys
+
+Needs a browser/device with a platform authenticator (fingerprint, face, device PIN). On `localhost` it works without HTTPS. If your tool cannot open the system passkey dialog, skip this section.
+
+1. Account → **Two-factor sign-in** page → **Passkeys** → *Add a passkey*. Name it, enter your **current password** (wrong password must be refused), confirm in the system dialog.
+2. Sign out. On the sign-in page type only your username, click **Use a passkey**: you are in without password or code.
+3. Add a second passkey; delete one (needs the password).
+4. As admin: *Require 2FA* for that user. Password-only sign-in must now be refused with a hint to use the passkey; the passkey sign-in works and no TOTP setup is demanded.
+5. Admin *Reset 2FA* removes TOTP and all passkeys of that user.
 
 ---
 

@@ -68,6 +68,28 @@ export const recoveryCodes = pgTable("recovery_codes", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Passkeys (WebAuthn): öffentlicher Schlüssel je Gerät; das Passwort bleibt Pflicht, Passkeys ergänzen es. */
+export const passkeys = pgTable(
+  "passkeys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Credential-ID (base64url), global eindeutig */
+    credentialId: text("credential_id").notNull(),
+    /** COSE-Public-Key (base64url) */
+    publicKey: text("public_key").notNull(),
+    /** Signaturzähler gegen geklonte Authenticatoren */
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
+    transports: text("transports"),
+    name: varchar("name", { length: 60 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("passkeys_credential_idx").on(t.credentialId), index("passkeys_user_idx").on(t.userId)],
+);
+
 /** Einmal-Links (Konto aktivieren / Passwort neu setzen); gespeichert wird nur der SHA-256 des Tokens. */
 export const userTokens = pgTable(
   "user_tokens",

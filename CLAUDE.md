@@ -43,7 +43,7 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Einmal-Links laufen über **eine** Stelle (`linkUrl` in accounts.ts); SMTP wäre dort nachrüstbar (bewusst nicht gebaut).
 - Ersteinrichtung: `/setup` (ohne Schutzcode, vom Auftraggeber so gewollt), `/login` und `/register` leiten dorthin, solange es kein Konto gibt.
 - Gruppeneinladungen (`/join/[code]`) nimmt nur ein angemeldetes Konto an.
-- Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. QR-Anzeige (Etappe C): `components/QrCode.tsx` (clientseitig via `qrcode`) in `InviteBox` und Aktivierungslink; Scanner in der App bewusst nicht gebaut. Offen: Passkeys zuletzt.
+- Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. QR-Anzeige (Etappe C): `components/QrCode.tsx` (clientseitig via `qrcode`) in `InviteBox` und Aktivierungslink; Scanner in der App bewusst nicht gebaut. Passkeys: siehe unten, Fragebogen `docs/fragen/03-passkeys.md`.
 
 ## Zwei-Faktor (TOTP, Etappe B)
 - `server/totp.ts` (RFC 6238 ohne Bibliothek: Base32, HOTP, `verifyTotp` mit Fenster ±1 und `afterStep`), `server/secrets.ts` (AES-256-GCM, HMAC, signierte kurzlebige Tokens, alles aus `APP_SECRET` abgeleitet; `env.appSecret` wirft ohne ≥16 Zeichen), `server/qr.ts` (QR als SVG-Data-URL, auch für Etappe C), `services/totp.ts`.
@@ -53,6 +53,12 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Einstellungen: `totp_required_all`, `recovery_code_count` (0–20, Standard 1). Admin-Aktionen in `adminAction`: `requireTotp`, `unrequireTotp`, `resetTotp` (beendet Sitzungen, löscht Codes).
 - Tests: `totp.test.ts` (RFC-Vektoren), Integrationstests „Etappe B: TOTP“, e2e „two-factor“ (liest den Schlüssel von der Seite, nutzt `totpAt` mit Schritt-Offsets −1/0/+1, weil jeder Code nur einmal gilt).
 - `APP_SECRET` ist Pflicht und darf nach Produktivstart nicht geändert werden (`docker-compose.yml` verlangt ihn; lokal fester Dev-Wert in `docker-compose.local.yml`).
+
+## Passkeys (WebAuthn)
+- `@simplewebauthn/server|browser` (MIT). `services/passkeys.ts`, Tabelle `passkeys` (Credential-ID eindeutig, Public Key, Zähler, Name, `last_used_at`), Routen `api/auth/passkeys*` und `api/auth/login/passkey*`, UI `components/Passkeys.tsx` (auf `/two-factor`) und Knopf im `LoginForm`.
+- Relying Party aus der Anfrage (`rpFromRequest`: Host, `x-forwarded-*`), Challenge stateless als signiertes Token (`signToken`, 5 min). Einrichten/Löschen nur mit Passwort. Anmelde-Optionen sind für unbekannte Konten und Konten ohne Passkey nicht unterscheidbar (erfundene Credential-ID). Fehlversuche zählen auf `failedAttempts/lockedUntil` (wie Passwort).
+- Entscheidungen: Passkey ersetzt Passwort **und** TOTP bei der Anmeldung, zählt für den TOTP-Zwang (`resolveSession`: `totpSetupRequired` false mit Passkey), und wer bei Zwang keinen TOTP, aber einen Passkey hat, kann sich nicht nur mit Passwort anmelden (403 `passkey_required`). Admin-Reset (`resetTotp`) löscht auch Passkeys. Nur `kind='user'`; Dev-Login unverändert.
+- Test: e2e mit virtuellem Authenticator (CDP `WebAuthn.addVirtualAuthenticator`); Integrationstests ohne Kryptografie (Optionen, Token, Rechte, Zähler, Zwang).
 
 ## Entwicklungs-Admin und Anzeigename
 - `DEV_ADMIN=true` (nur `docker-compose.local.yml`; produktiv nie durchgereicht): `ensureDevAdmin` (Start, `instrumentation.ts`) legt bei **leerer** Datenbank genau einen Admin `admin` ohne Passwort an (`name` = Nutzername); `/api/dev/login` + Knopf auf der Anmeldeseite + rotes Banner. `devLogin` gilt nur, solange Variable gesetzt, Konto `admin` echtes Konto (`kind user`), Admin, aktiv und **ohne Passwort**; sonst 404. Normaler Login bleibt für passwortlose Konten immer zu. Release: `docs/release-checkliste.md`.
