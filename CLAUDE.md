@@ -45,6 +45,10 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Gruppeneinladungen (`/join/[code]`) nimmt nur ein angemeldetes Konto an.
 - Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. Offen: Etappe B (TOTP) und C (QR), Passkeys zuletzt.
 
+## Entwicklungs-Admin und Anzeigename
+- `DEV_ADMIN=true` (nur `docker-compose.local.yml`; produktiv nie durchgereicht): `ensureDevAdmin` (Start, `instrumentation.ts`) legt bei **leerer** Datenbank genau einen Admin `admin` ohne Passwort an (`name` = Nutzername); `/api/dev/login` + Knopf auf der Anmeldeseite + rotes Banner. `devLogin` gilt nur, solange Variable gesetzt, Konto `admin` echtes Konto (`kind user`), Admin, aktiv und **ohne Passwort**; sonst 404. Normaler Login bleibt für passwortlose Konten immer zu. Release: `docs/release-checkliste.md`.
+- Anzeigename optional: Schemas (`displayName` preprocess leer → undefined), Services setzen `name = username`, wenn leer (`insertUser`, `insertTest`). DB-Spalte bleibt `NOT NULL`.
+
 ## Admin-Testfunktionen
 - Testnutzer: `users.kind = 'test'` (kein Passwort, `status active`, nie Admin). **Jede** Login-/Link-/Passwort-Funktion filtert auf `kind = 'user'` (`authenticate`, `loadValidToken`, `target` in `adminAction`, `changePassword`, `resolveSession`). Neue Konto-Funktionen müssen das beachten.
 - „Handeln als“: `sessions.acting_as_user_id`. `resolveSession` (cookie-frei, testbar) liefert die **effektive** Identität (`SessionUser.id/isAdmin` = Testnutzer, `isAdmin` dann false) und die echte unter `user.real`; es greift nur, wenn das echte Konto Admin ist, das Ziel `kind='test'` ist **und** Testfunktionen an sind. Admin-Seiten/-APIs prüfen die effektive Identität, sind also beim Handeln als Testnutzer gesperrt; `/api/admin/act` DELETE beendet es.

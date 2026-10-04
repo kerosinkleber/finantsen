@@ -253,7 +253,7 @@ const de = {
   "auth.identifier": "Nutzername oder E-Mail",
   "auth.username": "Nutzername",
   "auth.usernameHint": "3–32 Zeichen: a–z, 0–9, Punkt, Unterstrich, Bindestrich",
-  "auth.displayName": "Anzeigename",
+  "auth.displayName": "Anzeigename (optional)",
   "auth.emailOptional": "E-Mail (optional)",
   "auth.passwordRepeat": "Passwort wiederholen",
   "auth.passwordMismatch": "Die Passwörter stimmen nicht überein.",
@@ -384,6 +384,10 @@ const de = {
   "err.last_member": "Das ist das letzte Mitglied der Gruppe.",
   "err.already_friends": "Diese Freundschaft gibt es schon.",
   "err.test_user_in_real_group": "Löschen nicht möglich: Daten hängen in Gruppen mit echten Nutzern.",
+  "auth.displayNameHint": "Ohne Angabe wird der Nutzername angezeigt.",
+  "dev.warning": "Entwicklungsmodus: Anmeldung als „admin“ ohne Passwort. Nie produktiv verwenden.",
+  "dev.login": "Als admin anmelden (Entwicklung)",
+  "dev.banner": "ENTWICKLUNGSMODUS: Admin-Anmeldung ohne Passwort ist aktiv",
 } as const;
 export default de;
 export type MessageKey = keyof typeof de;

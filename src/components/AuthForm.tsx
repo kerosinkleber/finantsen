@@ -9,7 +9,7 @@ import { ErrorMessage } from "./ErrorMessage";
 type Account = { id: string; name: string; username: string; createdAt: string };
 
 /** Anmeldung mit Nutzername oder E-Mail. Bei mehreren Konten zur selben E-Mail erscheint eine Auswahl. */
-export function LoginForm({ next, registrationEnabled }: { next?: string; registrationEnabled: boolean }) {
+export function LoginForm({ next, registrationEnabled, devAdmin = false }: { next?: string; registrationEnabled: boolean; devAdmin?: boolean }) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const [error, setError] = useState<unknown>(null);
@@ -46,9 +46,28 @@ export function LoginForm({ next, registrationEnabled }: { next?: string; regist
     }
   }
 
+  async function devLogin() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api("POST", "/api/dev/login");
+      router.replace(next && next.startsWith("/") ? next : "/");
+      router.refresh();
+    } catch (err) {
+      setError(err);
+      setBusy(false);
+    }
+  }
+
   return (
     <form onSubmit={submit} className="card flex flex-col gap-4">
       <h2 className="text-xl font-semibold">{t("auth.login")}</h2>
+      {devAdmin && (
+        <div className="flex flex-col gap-2 rounded-lg border-2 border-dashed border-amber-500 p-3" data-testid="dev-admin">
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-400">{t("dev.warning")}</p>
+          <button type="button" className="btn" disabled={busy} onClick={devLogin}>{t("dev.login")}</button>
+        </div>
+      )}
       <div>
         <label className="label" htmlFor="identifier">{t("auth.identifier")}</label>
         <input id="identifier" name="identifier" className="input" required autoComplete="username" autoCapitalize="none" spellCheck={false} />

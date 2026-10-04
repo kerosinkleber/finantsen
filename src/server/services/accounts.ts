@@ -35,7 +35,7 @@ export async function needsSetup(): Promise<boolean> {
   return n === 0;
 }
 
-type NewUser = { name: string; username: string; email?: string; password?: string };
+type NewUser = { name?: string; username: string; email?: string; password?: string };
 
 async function insertUser(
   tx: Tx,
@@ -50,7 +50,8 @@ async function insertUser(
       .insert(users)
       .values({
         username: u.username.trim().toLowerCase(),
-        name: u.name,
+        // Ohne Anzeigename gilt der Nutzername
+        name: (u.name ?? "").trim() || u.username.trim().toLowerCase(),
         email: u.email ?? null,
         passwordHash: u.passwordHash,
         status: u.status,
@@ -68,7 +69,7 @@ async function insertUser(
 }
 
 /** Legt den ersten Admin an. Nur möglich, solange es noch kein Konto gibt. */
-export async function setupAdmin(input: Required<Pick<NewUser, "name" | "username" | "password">> & { email?: string }) {
+export async function setupAdmin(input: Required<Pick<NewUser, "username" | "password">> & { name?: string; email?: string }) {
   assertPassword(input.password, input);
   const passwordHash = await hashPassword(input.password);
   return getDb().transaction(async (tx) => {
@@ -82,7 +83,7 @@ export async function setupAdmin(input: Required<Pick<NewUser, "name" | "usernam
 // ------------------------------------------------------------------ Anlegen
 
 /** Selbstregistrierung: nur wenn der Admin sie aktiviert hat; das Konto wartet auf Freigabe. */
-export async function registerSelf(input: Required<Pick<NewUser, "name" | "username" | "password">> & { email?: string }) {
+export async function registerSelf(input: Required<Pick<NewUser, "username" | "password">> & { name?: string; email?: string }) {
   if (await needsSetup()) throw new ApiError(409, "setup_required");
   if (!(await registrationEnabled())) throw new ApiError(403, "registration_disabled");
   assertPassword(input.password, input);
@@ -364,4 +365,44 @@ export async function adminAction(actor: SessionUser, userId: string, a: AdminAc
 export async function sessionCount(userId: string) {
   const [{ n }] = await getDb().select({ n: count() }).from(sessions).where(eq(sessions.userId, userId));
   return n;
+}
+
+// ------------------------------------------------------------ Entwicklungs-Admin
+
+export const DEV_ADMIN_USERNAME = "admin";
+
+/**
+ * Nur mit DEV_ADMIN=true: Bei komplett leerer Datenbank wird der Admin "admin" ohne Passwort und ohne
+ * eigenen Anzeigenamen angelegt, damit die Ersteinrichtung beim Entwickeln entfällt. Existiert schon ein
+ * Konto, passiert nichts.
+ */
+export async function ensureDevAdmin(): Promise<boolean> {
+  if (!env.devAdmin) return false;
+  const created = await getDb().transaction(async (tx) => {
+    await lock(tx);
+    const [{ n }] = await tx.select({ n: count() }).from(users);
+    if (n > 0) return false;
+    await insertUser(tx, { username: DEV_ADMIN_USERNAME, passwordHash: null, status: "active", isAdmin: true, mustChangePassword: false, name: undefined });
+    return true;
+  });
+  if (created) console.warn("[finantsen] DEV_ADMIN aktiv: Admin 'admin' ohne Passwort angelegt. NUR für Entwicklung/lokalen Test, nie produktiv!");
+  return created;
+}
+
+async function devAdminUser() {
+  if (!env.devAdmin) return null;
+  const [u] = await getDb().select().from(users).where(eq(users.username, DEV_ADMIN_USERNAME));
+  // nur solange der Admin tatsächlich passwortlos ist; hat er ein Passwort gesetzt, ist der Zugang zu
+  return u && u.kind === "user" && u.isAdmin && u.status === "active" && !u.passwordHash ? u : null;
+}
+
+export async function devAdminAvailable(): Promise<boolean> {
+  return (await devAdminUser()) !== null;
+}
+
+/** Anmeldung des Entwicklungs-Admins ohne Passwort. Sonst 404 (die Route „existiert“ dann nicht). */
+export async function devLogin(): Promise<UserRow> {
+  const u = await devAdminUser();
+  if (!u) throw new ApiError(404, "not_found");
+  return u;
 }

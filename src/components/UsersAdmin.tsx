@@ -92,7 +92,7 @@ function CreateUser({ onCreated }: { onCreated: (link: LinkInfo | null) => void 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="cu-name">{t("auth.displayName")}</label>
-          <input id="cu-name" className="input" value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
+          <input id="cu-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} placeholder={username || undefined} />
         </div>
         <div>
           <label className="label" htmlFor="cu-username">{t("auth.username")}</label>

@@ -1,6 +1,6 @@
 // Integrationstests gegen eine echte PostgreSQL-DB. Werden nur ausgeführt, wenn TEST_DATABASE_URL gesetzt ist.
 import type { ExpenseBody } from "@/lib/schemas";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const url = process.env.TEST_DATABASE_URL;
 const d = url ? describe : describe.skip;
@@ -810,6 +810,111 @@ d("services (PostgreSQL)", () => {
       await svc.testUsers.deleteTestUser(actor(a), t);
       expect(await svc.auth.resolveSession(token)).toMatchObject({ id: a.id, impersonating: false });
       expect(sid).toBeTruthy();
+    });
+  });
+
+  describe("Anzeigename optional", () => {
+    it("ohne Anzeigename gilt der Nutzername, überall", async () => {
+      const a = await svc.users.setupAdmin({ username: "Chef", password: PW });
+      expect(a.name).toBe("chef");
+      const mk = async (input: object) =>
+        (await svc.users.createUserByAdmin(actor(a), { mode: "password", password: PW, mustChange: false, isAdmin: false, ...(input as { username: string }) })).user;
+      expect((await mk({ username: "lena" })).name).toBe("lena");
+      expect((await mk({ username: "paul", name: "   " })).name).toBe("paul"); // nur Leerzeichen = leer
+      expect((await mk({ username: "uwe", name: "Uwe Meier" })).name).toBe("Uwe Meier"); // Angabe bleibt
+      await svc.settings.updateAdminSettings({ registrationEnabled: true });
+      await svc.users.registerSelf({ username: "gast", password: PW });
+      expect((await svc.users.listUsers(actor(a))).find((u) => u.username === "gast")?.name).toBe("gast");
+      const [t] = await svc.testUsers.createTestUsers(actor(a), { username: "tester" }).catch(async () => {
+        await svc.settings.updateAdminSettings({ testFeaturesEnabled: true });
+        return svc.testUsers.createTestUsers(actor(a), { username: "tester" });
+      });
+      expect(t.name).toBe("tester");
+    });
+
+    it("Schema: leerer oder fehlender Anzeigename ist erlaubt, zu lang nicht", async () => {
+      const { adminCreateUserSchema, setupSchema } = await import("@/lib/schemas");
+      expect(setupSchema.parse({ username: "abc", password: "x" }).name).toBeUndefined();
+      expect(adminCreateUserSchema.parse({ name: "", username: "abc", mode: "link" }).name).toBeUndefined();
+      expect(adminCreateUserSchema.parse({ name: "  Anna  ", username: "abc", mode: "link" }).name).toBe("Anna");
+      expect(() => adminCreateUserSchema.parse({ name: "x".repeat(101), username: "abc", mode: "link" })).toThrow();
+    });
+  });
+
+  describe("Entwicklungs-Admin (DEV_ADMIN)", () => {
+    const old = process.env.DEV_ADMIN;
+    afterEach(() => {
+      if (old === undefined) delete process.env.DEV_ADMIN;
+      else process.env.DEV_ADMIN = old;
+    });
+
+    it("ohne DEV_ADMIN passiert nichts: kein Konto, Dev-Anmeldung existiert nicht", async () => {
+      delete process.env.DEV_ADMIN;
+      expect(await svc.users.ensureDevAdmin()).toBe(false);
+      expect(await svc.users.needsSetup()).toBe(true);
+      expect(await svc.users.devAdminAvailable()).toBe(false);
+      await expect(svc.users.devLogin()).rejects.toMatchObject({ status: 404 });
+      process.env.DEV_ADMIN = "yes"; // nur "true" zählt
+      expect(await svc.users.ensureDevAdmin()).toBe(false);
+    });
+
+    it("mit DEV_ADMIN=true: legt bei leerer Datenbank genau einmal den Admin ohne Passwort und ohne Anzeigenamen an", async () => {
+      process.env.DEV_ADMIN = "true";
+      expect(await svc.users.ensureDevAdmin()).toBe(true);
+      expect(await svc.users.ensureDevAdmin()).toBe(false); // zweiter Start: nichts mehr
+      expect(await svc.users.needsSetup()).toBe(false); // keine Ersteinrichtung nötig
+      const [row] = await svc.getDb().execute(svc.sql`select username, name, password_hash, is_admin, status, kind, must_change_password from users`);
+      expect(row).toMatchObject({ username: "admin", name: "admin", password_hash: null, is_admin: true, status: "active", kind: "user", must_change_password: false });
+      const u = await svc.users.devLogin();
+      expect(u.username).toBe("admin");
+    });
+
+    it("gleichzeitige Starts legen nur einen Admin an", async () => {
+      process.env.DEV_ADMIN = "true";
+      const r = await Promise.all([svc.users.ensureDevAdmin(), svc.users.ensureDevAdmin(), svc.users.ensureDevAdmin()]);
+      expect(r.filter(Boolean)).toHaveLength(1);
+    });
+
+    it("legt keinen Admin an, wenn schon Konten existieren", async () => {
+      await svc.users.setupAdmin({ username: "anna", password: PW });
+      process.env.DEV_ADMIN = "true";
+      expect(await svc.users.ensureDevAdmin()).toBe(false);
+      expect(await svc.users.devAdminAvailable()).toBe(false); // kein Konto "admin"
+    });
+
+    it("normaler Login bleibt zu: mit keinem Passwort (auch leer) kommt man als admin hinein", async () => {
+      process.env.DEV_ADMIN = "true";
+      await svc.users.ensureDevAdmin();
+      for (const pw of ["", " ", "admin", PW]) expect(await svc.users.authenticate("admin", pw)).toEqual({ kind: "invalid" });
+    });
+
+    it("Dev-Zugang schließt sich, sobald der Admin ein Passwort hat, deaktiviert wird oder die Variable fehlt", async () => {
+      process.env.DEV_ADMIN = "true";
+      await svc.users.ensureDevAdmin();
+      const a = (await svc.users.devLogin()) as unknown as U;
+      await svc.users.adminAction(actor({ ...a, isAdmin: true }), a.id, { action: "setPassword", password: PW, mustChange: false });
+      await expect(svc.users.devLogin()).rejects.toMatchObject({ status: 404 }); // Passwort gesetzt => zu
+      expect(await svc.users.authenticate("admin", PW)).toMatchObject({ kind: "ok" }); // normaler Login geht
+      // Variable weg => zu
+      await svc.getDb().execute(svc.sql`update users set password_hash = null where username = 'admin'`);
+      expect(await svc.users.devAdminAvailable()).toBe(true);
+      delete process.env.DEV_ADMIN;
+      expect(await svc.users.devAdminAvailable()).toBe(false);
+      await expect(svc.users.devLogin()).rejects.toMatchObject({ status: 404 });
+      // deaktiviert => zu
+      process.env.DEV_ADMIN = "true";
+      await svc.getDb().execute(svc.sql`update users set status = 'disabled' where username = 'admin'`);
+      await expect(svc.users.devLogin()).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("ein anderer passwortloser Admin-Name oder Testnutzer \"admin\" öffnet den Zugang nicht", async () => {
+      await svc.users.setupAdmin({ username: "anna", password: PW });
+      process.env.DEV_ADMIN = "true";
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: true });
+      const annaRow = (await svc.users.listUsers({ ...actor({ id: "x", username: "x", isAdmin: true }) }))[0];
+      await svc.testUsers.createTestUsers(actor({ id: annaRow.id, username: "anna", isAdmin: true }), { username: "admin" });
+      expect(await svc.users.devAdminAvailable()).toBe(false); // Konto "admin" ist ein Testnutzer (kind=test)
+      await expect(svc.users.devLogin()).rejects.toMatchObject({ status: 404 });
     });
   });
 });

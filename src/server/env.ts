@@ -15,6 +15,13 @@ export const env = {
     if (!publicKey || !privateKey) return null;
     return { publicKey, privateKey, subject: process.env.VAPID_SUBJECT || this.appUrl };
   },
+  /**
+   * NUR ENTWICKLUNG/LOKALER TEST: legt bei leerer Datenbank den Admin "admin" ohne Passwort an und erlaubt die
+   * Anmeldung per Knopf ohne Passwort. Im produktiven Stack wird die Variable nie gesetzt (siehe Release-Checkliste).
+   */
+  get devAdmin() {
+    return process.env.DEV_ADMIN === "true";
+  },
   get secureCookies() {
     return this.appUrl.startsWith("https://");
   },

@@ -59,14 +59,14 @@ export function TestUsersAdmin({ users }: { users: TestUserRow[] }) {
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="tname">{t("auth.displayName")}</label>
-              <input id="tname" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+              <input id="tname" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} placeholder={username || undefined} />
             </div>
             <div>
               <label className="label" htmlFor="tuser">{t("auth.username")}</label>
               <input id="tuser" className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" spellCheck={false} />
             </div>
           </div>
-          <button className="btn-secondary mt-3" disabled={busy || !name || !username} onClick={() => create({ name, username })}>{t("test.createN")}</button>
+          <button className="btn-secondary mt-3" disabled={busy || !username} onClick={() => create({ name: name || undefined, username })}>{t("test.createN")}</button>
         </details>
         <ErrorMessage error={error} />
       </section>

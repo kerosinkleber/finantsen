@@ -255,7 +255,7 @@ const en: Record<MessageKey, string> = {
   "auth.identifier": "Username or email",
   "auth.username": "Username",
   "auth.usernameHint": "3–32 characters: a–z, 0–9, dot, underscore, hyphen",
-  "auth.displayName": "Display name",
+  "auth.displayName": "Display name (optional)",
   "auth.emailOptional": "Email (optional)",
   "auth.passwordRepeat": "Repeat password",
   "auth.passwordMismatch": "The passwords do not match.",
@@ -386,5 +386,9 @@ const en: Record<MessageKey, string> = {
   "err.last_member": "This is the last member of the group.",
   "err.already_friends": "This friendship already exists.",
   "err.test_user_in_real_group": "Cannot delete: data lives in groups with real users.",
+  "auth.displayNameHint": "Without a value the username is shown.",
+  "dev.warning": "Development mode: sign in as “admin” without a password. Never use in production.",
+  "dev.login": "Sign in as admin (development)",
+  "dev.banner": "DEVELOPMENT MODE: passwordless admin sign-in is active",
 };
 export default en;

@@ -56,7 +56,7 @@ export function TestUserEditor({ detail }: { detail: TestUserDetail }) {
     setError(null);
     setSaved(false);
     try {
-      await api("PATCH", `/api/admin/test-users/${u.id}`, { name, username, locale });
+      await api("PATCH", `/api/admin/test-users/${u.id}`, { name: name.trim() || username, username, locale });
       setSaved(true);
       refresh();
     } catch (e) {
@@ -93,7 +93,7 @@ export function TestUserEditor({ detail }: { detail: TestUserDetail }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className={label} htmlFor="p-name">{t("auth.displayName")}</label>
-            <input id="p-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+            <input id="p-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} placeholder={username || undefined} />
           </div>
           <div>
             <label className={label} htmlFor="p-user">{t("auth.username")}</label>

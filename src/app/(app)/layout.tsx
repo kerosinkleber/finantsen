@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { env } from "@/server/env";
 import { requireUser } from "@/server/auth";
 import { Nav } from "@/components/Nav";
 import { getT } from "@/i18n/server";
@@ -16,6 +17,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { t } = await getT();
   return (
     <div className="mx-auto min-h-dvh w-full max-w-3xl px-4 pb-24 pt-4 md:pb-8">
+      {env.devAdmin && (
+        <p className="-mx-4 mb-4 bg-red-600 px-4 py-1 text-center text-xs font-semibold text-white" data-testid="dev-banner">{t("dev.banner")}</p>
+      )}
       {user.impersonating && <ActingBanner testUserId={user.id} name={user.name} />}
       <header className="mb-4 flex items-center justify-between gap-4">
         <Link href="/" className="text-xl font-bold text-brand">Finantsen</Link>

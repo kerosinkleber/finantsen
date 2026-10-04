@@ -34,11 +34,11 @@ function isUnique(e: unknown) {
   return x?.code === "23505" || x?.cause?.code === "23505";
 }
 
-async function insertTest(tx: Tx, name: string, username: string) {
+async function insertTest(tx: Tx, name: string | undefined, username: string) {
   try {
     const [u] = await tx
       .insert(users)
-      .values({ username: username.trim().toLowerCase(), name, kind: "test", status: "active", passwordHash: null, isAdmin: false, locale: env.defaultLocale })
+      .values({ username: username.trim().toLowerCase(), name: (name ?? "").trim() || username.trim().toLowerCase(), kind: "test", status: "active", passwordHash: null, isAdmin: false, locale: env.defaultLocale })
       .returning();
     return u;
   } catch (e) {
@@ -63,11 +63,11 @@ export async function listTestUsers(actor: SessionUser) {
 }
 
 /** Legt `count` Testnutzer (test-1, test-2, …, fortlaufend) oder einen einzelnen mit eigenem Namen an. */
-export async function createTestUsers(actor: SessionUser, input: { count: number } | { name: string; username: string }) {
+export async function createTestUsers(actor: SessionUser, input: { count: number } | { name?: string; username: string }) {
   await requireTestAdmin(actor);
   return getDb().transaction(async (tx) => {
     await lock(tx);
-    if ("name" in input) return [await insertTest(tx, input.name, input.username)];
+    if ("username" in input) return [await insertTest(tx, input.name, input.username)];
     const existing = await tx.select({ u: users.username }).from(users).where(like(users.username, "test-%"));
     let next = existing.reduce((m, r) => Math.max(m, Number(/^test-(\d+)$/.exec(r.u)?.[1] ?? 0)), 0) + 1;
     const out = [];

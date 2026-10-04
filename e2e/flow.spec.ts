@@ -717,3 +717,28 @@ test("test features switch: off locks everything, on restores it", async ({ page
   await expect(page.getByTestId("admin-settings").getByRole("status")).toBeVisible();
   expect((await page.request.get("/api/admin/test-users")).status()).toBe(200);
 });
+
+test("display name is optional (defaults to the username); dev admin sign-in does not exist in normal mode", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  await form(page).getByLabel("Username", { exact: true }).fill("kai");
+  await form(page).getByRole("button", { name: "Create account" }).click();
+  await expect(card(page, "kai")).toContainText("kai"); // Anzeigename = Nutzername
+  await expect(card(page, "kai").locator("span.font-medium")).toHaveText("kai");
+  await form(page).getByLabel("Username", { exact: true }).fill("kim");
+  await form(page).getByLabel("Display name").fill("Kim Meier");
+  await form(page).getByRole("button", { name: "Create account" }).click();
+  await expect(card(page, "kim").locator("span.font-medium")).toHaveText("Kim Meier");
+
+  // ohne DEV_ADMIN gibt es die passwortlose Anmeldung nicht: Route 404, kein Knopf
+  const anon = await browser.newContext({ baseURL, locale: "en-US" });
+  const ap = await anon.newPage();
+  expect((await ap.request.post("/api/dev/login")).status()).toBe(404);
+  await ap.goto("/login");
+  await expect(ap.getByLabel("Username or email")).toBeVisible();
+  await expect(ap.getByTestId("dev-admin")).toHaveCount(0);
+  await anon.close();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Your total balance" })).toBeVisible();
+  await expect(page.getByTestId("dev-banner")).toHaveCount(0); // kein Entwicklungsbanner im Normalbetrieb
+});

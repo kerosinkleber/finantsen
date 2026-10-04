@@ -43,7 +43,8 @@ function ProfileForm({ endpoint, submitKey, onDone, titleKey }: {
       <h2 className="text-xl font-semibold">{t(titleKey)}</h2>
       <div>
         <label className="label" htmlFor="name">{t("auth.displayName")}</label>
-        <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoComplete="name" />
+        <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoComplete="name" placeholder={username || undefined} />
+        <p className="muted mt-1">{t("auth.displayNameHint")}</p>
       </div>
       <div>
         <label className="label" htmlFor="username">{t("auth.username")}</label>

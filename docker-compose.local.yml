@@ -32,6 +32,9 @@ services:
       DEFAULT_LOCALE: de
       # Nur für den lokalen Test: Admin-Testfunktionen standardmäßig an (im produktiven Stack nicht gesetzt = aus)
       TEST_FEATURES_DEFAULT: "true"
+      # Nur lokaler Test: Admin "admin" ohne Passwort wird angelegt, Anmeldung per Knopf (keine Ersteinrichtung nötig).
+      # Der produktive Stack setzt DEV_ADMIN nie.
+      DEV_ADMIN: "true"
       # Optional: aus der Shell durchreichen, z. B. ANTHROPIC_API_KEY=sk-... docker compose -f ... up
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       EXCHANGE_RATE_PROVIDER: ${EXCHANGE_RATE_PROVIDER:-fawazahmed0}

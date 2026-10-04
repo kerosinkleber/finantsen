@@ -20,7 +20,11 @@ export const usernameSchema = z
   .trim()
   .toLowerCase()
   .regex(/^[a-z0-9][a-z0-9._-]{2,31}$/, "invalid username");
-const displayName = z.string().trim().min(1).max(100);
+/** Anzeigename ist optional; ohne Angabe gilt der Nutzername (Server setzt den Standard). */
+const displayName = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().trim().min(1).max(100).optional(),
+);
 const optionalEmail = z.preprocess(
   (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
   z.string().trim().toLowerCase().email().max(320).optional(),
