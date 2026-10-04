@@ -457,6 +457,10 @@ const de = {
   "err.passkey_exists": "Dieser Passkey ist schon eingerichtet.",
   "err.passkey_required": "Für dieses Konto ist ein zweiter Faktor verpflichtend. Bitte mit dem Passkey anmelden.",
   "err.identifier_required": "Bitte zuerst Nutzername oder E-Mail eingeben.",
+  "expense.restore": "Wiederherstellen",
+  "expense.trash": "Gelöschte Ausgaben ({n})",
+  "expense.action.restore": "Wiederhergestellt",
+  "notif.expense_restored": "{actor} hat „{title}“ ({amount}) in {group} wiederhergestellt.",
 } as const;
 export default de;
 export type MessageKey = keyof typeof de;

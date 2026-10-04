@@ -24,7 +24,7 @@ The first build takes a few minutes. When the log shows `migrations applied` and
 
 **Test password** that satisfies the rules: `Correct-Horse-Battery-9!`
 
-**Not available in this version** (please do not report these as bugs): scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), members without an account, restoring deleted expenses, push notifications on a local setup, receipt scanning (needs an API key).
+**Not available in this version** (please do not report these as bugs): scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), members without an account, push notifications on a local setup, receipt scanning (needs an API key).
 
 ---
 
@@ -84,6 +84,7 @@ Use at least three people in one group so the results are interesting.
 - [ ] **Rounding check:** split `10.00` equally between 3 people. Expected: the shares add up to exactly 10.00 (e.g. 3.34 / 3.33 / 3.33), nothing is lost.
 - [ ] **Decimal formats:** `12,5`, `12.50`, `1.234,56` are understood. A currency without decimals (JPY) refuses `1.5`.
 - [ ] **Edit** an expense (open it from the list), **delete** it. Expected: it disappears from the list and balances; the *Change history* at the bottom of the expense still shows who created/changed/deleted it and what the values were.
+- [ ] **Deleted expenses (trash):** below the expense list a box "Deleted expenses (n)" appears. Open it and press **Restore** (or open the deleted expense and press Restore). Expected: the expense is back in the list and in the balances, the history shows "Restored", the other members get a notification.
 - [ ] **Comments** on an expense. You can delete your own comments only.
 - [ ] **Search & filter** (group → *Expenses* → *Search & filter*): by text, amount range, date range, category, person. *Reset* clears it.
 

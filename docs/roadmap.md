@@ -7,6 +7,7 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 - **Phase 0 und 1**: Grundgerüst, Gruppen und Freunde, Ausgaben mit allen Aufteilungsarten, Salden, Schuldenvereinfachung, Zahlungen, Soft Delete mit Verlauf.
 - **Phase 2**: Kommentare, Suche und Filter, Standard-Aufteilung, Benachrichtigungen und Web Push, Auswertungen.
 - **Phase 3**: Währungsumrechnung, Belegscan, Einzelposten.
+- **Papierkorb**: gelöschte Ausgaben lassen sich von jedem Gruppenmitglied wiederherstellen (Verlauf „Wiederhergestellt“, Benachrichtigung).
 - **Passkeys**: mehrere benannte Passkeys, ersetzen Passwort und TOTP bei der Anmeldung, zählen für den TOTP-Zwang.
 - **Konten Etappe C**: QR-Code zu Gruppen-/Freundschaftslinks und Aktivierungslinks (Anzeige; Scanner in der App bewusst später).
 - **Konten Etappe B**: TOTP (RFC 6238, ohne Fremdbibliothek), Zwang global und je Konto, Wiederherstellungscodes (Standard 1, einstellbar 0 bis 20), Admin-Reset, `APP_SECRET` Pflicht.
@@ -18,4 +19,4 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 ## Danach (Reihenfolge wie vereinbart)
 
 ## Ideen ohne Termin
-Mitglieder ohne Konto, Wiederherstellen gelöschter Ausgaben, wiederkehrende Ausgaben, weitere Belegscan-Anbieter, SMTP (E-Mail-Versand, nachrüstbar über `linkUrl` in `services/accounts.ts`).
+Mitglieder ohne Konto, wiederkehrende Ausgaben, weitere Belegscan-Anbieter, SMTP (E-Mail-Versand, nachrüstbar über `linkUrl` in `services/accounts.ts`).

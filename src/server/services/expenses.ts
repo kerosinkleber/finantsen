@@ -1,5 +1,5 @@
 import { alias } from "drizzle-orm/pg-core";
-import { and, desc, eq, exists, gte, ilike, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, exists, gte, ilike, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { getDb, type Tx } from "../db";
 import { expenseHistory, expensePayers, expenseShares, expenses, users } from "../schema";
 import { ApiError, notFound } from "../http";
@@ -117,16 +117,17 @@ export type ExpenseFilter = {
 export async function listExpenses(
   userId: string,
   groupId: string,
-  opts: { includeDeleted?: boolean; filter?: ExpenseFilter } = {},
+  opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter } = {},
 ) {
   await requireMember(userId, groupId);
   return loadExpenses(groupId, opts);
 }
 
-export async function loadExpenses(groupId: string, opts: { includeDeleted?: boolean; filter?: ExpenseFilter } = {}) {
+export async function loadExpenses(groupId: string, opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter } = {}) {
   const f = opts.filter ?? {};
   const conds: (SQL | undefined)[] = [eq(expenses.groupId, groupId)];
-  if (!opts.includeDeleted) conds.push(isNull(expenses.deletedAt));
+  if (opts.onlyDeleted) conds.push(isNotNull(expenses.deletedAt));
+  else if (!opts.includeDeleted) conds.push(isNull(expenses.deletedAt));
   if (f.q) conds.push(ilike(expenses.title, `%${f.q.replace(/[\\%_]/g, (c) => "\\" + c)}%`));
   if (f.minMinor !== undefined) conds.push(gte(expenses.baseAmountMinor, f.minMinor));
   if (f.maxMinor !== undefined) conds.push(lte(expenses.baseAmountMinor, f.maxMinor));
@@ -313,6 +314,25 @@ export async function deleteExpense(userId: string, groupId: string, expenseId: 
   await getDb().update(expenses).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(expenses.id, expenseId));
   const detail = await getExpense(userId, groupId, expenseId);
   await getDb().insert(expenseHistory).values({ expenseId, userId, actedBy, action: "delete", snapshot: snapshot(detail) });
+}
+
+/** Holt eine gelöschte Ausgabe zurück (jedes Mitglied darf das; im Verlauf als „Wiederhergestellt“). */
+export async function restoreExpense(userId: string, groupId: string, expenseId: string, actedBy: string | null = null) {
+  const existing = await getExpense(userId, groupId, expenseId);
+  if (!existing.deletedAt) return existing; // schon aktiv: nichts zu tun
+  await getDb().update(expenses).set({ deletedAt: null, updatedAt: new Date() }).where(eq(expenses.id, expenseId));
+  const detail = await getExpense(userId, groupId, expenseId);
+  await getDb().insert(expenseHistory).values({ expenseId, userId, actedBy, action: "restore", snapshot: snapshot(detail) });
+  await notifyGroup({
+    type: "expense_restored",
+    groupId,
+    expenseId,
+    actorId: userId,
+    title: detail.title,
+    amountMinor: detail.amountMinor,
+    currency: detail.currency,
+  });
+  return detail;
 }
 
 export async function expenseHistoryFor(userId: string, groupId: string, expenseId: string) {

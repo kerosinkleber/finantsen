@@ -16,7 +16,7 @@ export type NotificationData = {
 
 /** Legt In-App-Benachrichtigungen für alle anderen Gruppenmitglieder an und stößt Web Push an. */
 export async function notifyGroup(opts: {
-  type: "expense_created" | "comment";
+  type: "expense_created" | "expense_restored" | "comment";
   groupId: string;
   expenseId: string;
   actorId: string;
@@ -66,7 +66,7 @@ export async function notifyGroup(opts: {
 export function renderNotification(locale: "de" | "en", type: string, d: NotificationData): string {
   if (type === "comment")
     return translate(locale, "notif.comment", { actor: d.actorName, title: d.title, excerpt: d.excerpt ?? "" });
-  return translate(locale, "notif.expense_created", {
+  return translate(locale, type === "expense_restored" ? "notif.expense_restored" : "notif.expense_created", {
     actor: d.actorName,
     title: d.title,
     group: d.groupName,

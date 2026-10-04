@@ -7,6 +7,7 @@ import { listExpenses } from "@/server/services/expenses";
 import { listPayments } from "@/server/services/payments";
 import { getGroupBalances } from "@/server/services/balances";
 import { ApiError } from "@/server/http";
+import { RestoreButton } from "@/components/RestoreButton";
 import { Money } from "@/components/Money";
 import { InviteBox } from "@/components/InviteBox";
 import { GroupSettings } from "@/components/GroupSettings";
@@ -100,7 +101,24 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
   sp: Record<string, string | string[] | undefined>;
 }) {
   const { filter, active } = parseExpenseFilter(sp, group.defaultCurrency);
-  const [expenses, allPayments] = await Promise.all([listExpenses(userId, groupId, { filter }), listPayments(userId, groupId)]);
+  const [expenses, allPayments, trash] = await Promise.all([listExpenses(userId, groupId, { filter }), listPayments(userId, groupId), listExpenses(userId, groupId, { onlyDeleted: true })]);
+  const trashBox = trash.length > 0 && !active && (
+    <details className="card" data-testid="trash">
+      <summary className="cursor-pointer font-medium">{t("expense.trash", { n: trash.length })}</summary>
+      <ul className="mt-3 flex flex-col gap-2">
+        {trash.map((e) => (
+          <li key={e.id} className="flex items-center justify-between gap-3 text-sm" data-testid="trash-item">
+            <Link href={`/groups/${groupId}/expenses/${e.id}`} className="min-w-0">
+              <span className="muted">{e.date}</span>
+              <span className="block truncate font-medium">{e.title}</span>
+              <span className="muted">{formatMoney(e.amountMinor, e.currency, locale)}</span>
+            </Link>
+            <RestoreButton groupId={groupId} expenseId={e.id} compact />
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
   const payments = active ? [] : allPayments; // Zahlungen gehören nicht zu Ausgaben-Filtern
   const form = <FilterForm groupId={groupId} members={group.members.map((m) => ({ id: m.id, name: m.id === userId ? t("common.you") : m.name }))} currency={group.defaultCurrency} values={sp} active={active} t={t} />;
   type Item = { kind: "e"; date: string; at: number; e: (typeof expenses)[number] } | { kind: "p"; date: string; at: number; p: (typeof payments)[number] };
@@ -108,7 +126,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
     ...expenses.map((e) => ({ kind: "e" as const, date: e.date, at: +e.createdAt, e })),
     ...payments.map((p) => ({ kind: "p" as const, date: p.date, at: +p.createdAt, p })),
   ].sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1));
-  if (items.length === 0) return <>{form}<p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p></>;
+  if (items.length === 0) return <>{form}<p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
   return (
     <>
     {form}
@@ -162,6 +180,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
         );
       })}
     </ul>
+    {trashBox}
     </>
   );
 }

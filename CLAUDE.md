@@ -83,7 +83,7 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 - Summe der Anteile == Gesamtbetrag (Rundung deterministisch: Rest nach größtem Nachkommarest, Gleichstand nach `id`-Reihenfolge).
 - Rechteprüfung ausschließlich serverseitig in den Services (`requireMember` → 404 bei Nicht-Mitgliedern). Neue Services müssen sie aufrufen.
 - Freunde = Gruppe mit `kind='direct'` (genau 2 Personen); gleiche Logik wie Gruppen.
-- Löschen von Ausgaben/Zahlungen ist Soft Delete (`deletedAt`); Ausgaben haben `expense_history` (Snapshot je Änderung).
+- Löschen von Ausgaben/Zahlungen ist Soft Delete (`deletedAt`); Ausgaben haben `expense_history` (Snapshot je Änderung: create/update/delete/restore). `restoreExpense` (jedes Mitglied) holt gelöschte Ausgaben zurück; Papierkorb in `groups/[id]` (`listExpenses(..., {onlyDeleted})`), Benachrichtigung `expense_restored`.
 - Neue UI-Texte: Schlüssel in `de.ts` UND `en.ts` (Test prüft Gleichheit).
 - Keine Secrets im Repo, Konfiguration über `.env` (siehe `.env.example`).
 - Jeder sinnvolle Schritt = eigener Commit.

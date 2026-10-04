@@ -1051,6 +1051,33 @@ d("services (PostgreSQL)", () => {
       }
     });
   });
+  describe("Gelöschte Ausgaben wiederherstellen", () => {
+    it("Löschen und Wiederherstellen: Saldo, Papierkorb, Verlauf, Benachrichtigung, Rechte", async () => {
+      const { a, b, c, g } = await setup();
+      const e = await svc.expenses.createExpense(
+        a.id,
+        g.id,
+        base({ title: "Miete", amountMinor: 1000, payers: [{ userId: a.id, amountMinor: 1000 }], split: { type: "equal", participants: [a.id, b.id] } }),
+      );
+      const open = async () => JSON.stringify(await svc.balances.getGroupBalances(a.id, g.id));
+      expect(await open()).toContain("500");
+      await svc.expenses.deleteExpense(b.id, g.id, e.id);
+      expect(await open()).not.toContain("500");
+      expect((await svc.expenses.listExpenses(a.id, g.id, { onlyDeleted: true })).map((x) => x.title)).toEqual(["Miete"]);
+      // Nichtmitglied: 404
+      const outsider = await mkUser(a, "dora");
+      await expect(svc.expenses.restoreExpense(outsider.id, g.id, e.id)).rejects.toMatchObject({ status: 404 });
+      await svc.expenses.restoreExpense(b.id, g.id, e.id);
+      await svc.expenses.restoreExpense(b.id, g.id, e.id); // idempotent
+      expect(await open()).toContain("500");
+      expect(await svc.expenses.listExpenses(a.id, g.id, { onlyDeleted: true })).toHaveLength(0);
+      const hist = await svc.expenses.expenseHistoryFor(a.id, g.id, e.id);
+      expect(hist.map((h) => h.action)).toEqual(["restore", "delete", "create"]);
+      const notes = await svc.notifications.listNotifications(c.id);
+      expect(notes.some((n) => n.type === "expense_restored")).toBe(true);
+    });
+  });
+
   describe("Passkeys", () => {
     const rp = { id: "localhost", origin: "http://localhost:3000" };
     const addRow = (userId: string, cred: string) =>

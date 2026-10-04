@@ -1,3 +1,4 @@
+import { RestoreButton } from "@/components/RestoreButton";
 import { LocalTime } from "@/components/LocalTime";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/server/auth";
@@ -52,6 +53,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       {expense.deletedAt ? (
         <section className="card">
           <p className="muted">{t("expense.deleted")}</p>
+          <RestoreButton groupId={id} expenseId={eid} />
         </section>
       ) : (
         <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} baseCurrency={expense.baseCurrency} initial={initial} />

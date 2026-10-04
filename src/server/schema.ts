@@ -246,7 +246,7 @@ export const expenseHistory = pgTable(
       .references(() => users.id),
     /** Echter Admin, der als Testnutzer gehandelt hat (userId ist dann der Testnutzer) */
     actedBy: uuid("acted_by").references(() => users.id, { onDelete: "set null" }),
-    action: varchar("action", { length: 10 }).notNull(), // create | update | delete
+    action: varchar("action", { length: 10 }).notNull(), // create | update | delete | restore
     snapshot: jsonb("snapshot").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -318,7 +318,7 @@ export const notifications = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    /** expense_created | comment */
+    /** expense_created | expense_restored | comment */
     type: varchar("type", { length: 20 }).notNull(),
     groupId: uuid("group_id")
       .notNull()

@@ -180,6 +180,16 @@ test("percent split validates sum; edit shows history; delete is soft", async ({
   await page.getByRole("button", { name: "Delete" }).click();
   await page.getByTestId("confirm-yes").click();
   await expect(page.getByTestId("expense-item").filter({ hasText: "Rent January" })).toHaveCount(0);
+
+  // Papierkorb: gelöschte Ausgabe wiederherstellen
+  await expect(page.getByTestId("trash")).toBeVisible();
+  await page.getByTestId("trash").locator("summary").click();
+  await expect(page.getByTestId("trash-item")).toContainText("Rent January");
+  await page.getByTestId("trash-item").getByTestId("restore").click();
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Rent January" })).toHaveCount(1);
+  await expect(page.getByTestId("trash")).toHaveCount(0);
+  await page.getByTestId("expense-item").filter({ hasText: "Rent January" }).click();
+  await expect(page.getByTestId("history")).toContainText("Restored");
 });
 
 test("language can be switched to German", async ({ page }) => {

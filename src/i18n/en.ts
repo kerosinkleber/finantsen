@@ -459,5 +459,9 @@ const en: Record<MessageKey, string> = {
   "err.passkey_exists": "This passkey is already set up.",
   "err.passkey_required": "A second factor is mandatory for this account. Please sign in with your passkey.",
   "err.identifier_required": "Please enter your username or email first.",
+  "expense.restore": "Restore",
+  "expense.trash": "Deleted expenses ({n})",
+  "expense.action.restore": "Restored",
+  "notif.expense_restored": "{actor} restored “{title}” ({amount}) in {group}.",
 };
 export default en;
