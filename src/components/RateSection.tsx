@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { api, ApiClientError } from "@/lib/client-api";
-import { convertMinor, formatMoney, normalizeRate } from "@/lib/money";
+import { convertMinor, formatMoney, localDecimal, normalizeRate } from "@/lib/money";
 import type { MessageKey } from "@/i18n";
 
 type Preview = { rate: string; date: string };
@@ -55,7 +55,7 @@ export function RateSection({ from, to, date, amountMinor, stored, manual, setMa
         <h2 className="font-semibold">{t("rate.label")}</h2>
         {!errored && (
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="h-4 w-4" checked={manual !== null} onChange={(e) => setManual(e.target.checked ? (auto ? String(Number(auto)) : "") : null)} />
+            <input type="checkbox" className="h-4 w-4" checked={manual !== null} onChange={(e) => setManual(e.target.checked ? (auto ? localDecimal(Number(auto), locale) : "") : null)} />
             {t("rate.manual")}
           </label>
         )}

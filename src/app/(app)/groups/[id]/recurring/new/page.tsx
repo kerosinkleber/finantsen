@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
@@ -15,6 +16,16 @@ export default async function NewRecurringPage({ params }: { params: Promise<{ i
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;
   });
+  // Beschränkt der Besitzer die Verwaltung, sehen andere Mitglieder das Formular gar nicht erst
+  if (group.recurringPolicy === "owner" && group.role !== "owner") {
+    return (
+      <>
+        <h1 className="text-xl font-semibold">{t("recurring.new")}</h1>
+        <p className="card" data-testid="recurring-forbidden">{t("recurring.onlyOwner")}</p>
+        <Link href={`/groups/${id}?tab=recurring`} className="btn-secondary">{t("common.back")}</Link>
+      </>
+    );
+  }
   return (
     <>
       <h1 className="text-xl font-semibold">{t("recurring.new")}</h1>

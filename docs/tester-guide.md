@@ -133,7 +133,7 @@ For trying things out without creating many real accounts. Account → *Manage u
 - [ ] **Create test users** (e.g. 3 at once → `test-1`, `test-2`, `test-3`).
 - [ ] **Edit one on a single page:** display name, language, add to a group, change the role (owner/member), remove from a group, add a friendship.
   Expected: a warning appears before adding a test user to a group with real members.
-- [ ] **Act as:** *Act as* opens the app as that test user (yellow banner, "Back to admin"). Add an expense, write a comment. Expected: the expense history says "by admin …". Admin pages are not reachable while acting.
+- [ ] **Act as:** *Act as* opens the app as that test user (yellow banner, "Back to admin"). Add an expense, write a comment. Expected: the expense history says "by <admin name> as admin". Admin pages are not reachable while acting.
 - [ ] **Test users are marked "(Test)"** everywhere other people can see them.
 - [ ] **Test users can never sign in** (try their username with any password) and you cannot act as a real account.
 - [ ] **Delete** a test user. Expected: refused with an explanation if their data is in a group with real users; otherwise removed together with test-only groups.
@@ -191,7 +191,14 @@ Needs a browser/device with a platform authenticator (fingerprint, face, device 
 - [ ] **Confirmation windows** (delete expense, delete group, disable user, reset 2FA, delete test user, delete guest): appear inside the page with *Confirm* / *Cancel*. *Cancel* changes nothing.
 - [ ] **"You owe" shows no minus sign** (expense list: "You owe €5.00", not "−€5.00").
 - [ ] **Same time everywhere:** a comment shows the same local time on the expense and in the notifications.
-- [ ] **Wording:** "You paid …", "X owes you …", "1 group" (singular) read correctly in English and German.
+- [ ] **Wording:** "You paid …", "X owes you …", "1 group" (singular), "monthly" instead of "every 1 month(s)" read correctly in English and German.
+- [ ] **Overview:** "You owe" is shown without a minus sign there too.
+- [ ] **Recurring template:** change "monthly" to "every 2 weeks" after bookings exist. Expected: nothing already booked is booked again; the next booking comes after the last existing one.
+- [ ] **Forced 2FA / forced password change pages** have a *Sign out* button.
+- [ ] **Lockout:** the 5th wrong password already says how long to wait.
+- [ ] **Wrong password** when confirming (change password, add passkey, new recovery codes) says "The password is wrong."
+- [ ] **German forms** show decimal commas when editing (e.g. "100,00", not "100.00").
+- [ ] **Itemized rounding:** Pizza 15.00 (3 people) + Wine 5.00 (3 people, two of them also had pizza) + 3.00 tax: everybody is within 1 cent of the exact value.
 
 ---
 

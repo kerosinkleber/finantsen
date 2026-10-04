@@ -1,8 +1,8 @@
 "use client";
+import { LogoutButton } from "./LogoutButton";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
-import { clearOfflineCaches } from "./ServiceWorker";
 
 export function SettingsPanel() {
   const { t, locale } = useI18n();
@@ -13,11 +13,6 @@ export function SettingsPanel() {
     await api("PATCH", "/api/auth/me", { locale: l }).catch(() => {});
     router.refresh();
   }
-  async function logout() {
-    await api("POST", "/api/auth/logout").catch(() => {});
-    await clearOfflineCaches();
-    window.location.href = "/login";
-  }
   return (
     <div className="flex flex-col gap-4">
       <div className="card">
@@ -27,7 +22,7 @@ export function SettingsPanel() {
           <option value="en">English</option>
         </select>
       </div>
-      <button className="btn-secondary" onClick={logout}>{t("auth.logout")}</button>
+      <LogoutButton />
     </div>
   );
 }

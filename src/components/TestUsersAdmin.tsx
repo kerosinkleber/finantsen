@@ -76,7 +76,7 @@ export function TestUsersAdmin({ users }: { users: TestUserRow[] }) {
         {users.map((u) => (
           <li key={u.id} className="card flex flex-wrap items-center justify-between gap-2" data-testid="test-user" data-username={u.username}>
             <span>
-              <span className="font-medium">{u.name}</span> <span className="muted">@{u.username}</span>
+              <span className="font-medium">{u.name}</span> <span className="muted">@{u.username}</span>{" "}
               <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs text-amber-900">{t("test.badge")}</span>
               <span className="muted block">{u.groupCount === 1 ? t("test.groupsOne") : t("test.groupsCount", { n: u.groupCount })}</span>
             </span>

@@ -260,6 +260,8 @@ export async function authenticate(identifier: string, password: string): Promis
         .update(users)
         .set({ failedAttempts: failed, lockedUntil: secs ? new Date(Date.now() + secs * 1000) : null })
         .where(eq(users.id, u.id));
+      // Sperre gleich beim auslösenden Fehlversuch melden (nicht erst beim nächsten)
+      if (secs) retryAfter = Math.max(retryAfter, secs);
     }
   }
   if (matches.length === 0) return retryAfter > 0 ? { kind: "locked", retryAfter } : { kind: "invalid" };
@@ -273,7 +275,7 @@ export async function authenticate(identifier: string, password: string): Promis
 export async function changePassword(userId: string, current: string, next: string, keepSessionId: string | null) {
   const [u] = await getDb().select().from(users).where(eq(users.id, userId));
   if (!u || u.kind !== "user" || !u.passwordHash) throw new ApiError(401, "unauthorized");
-  if (!(await verifyPassword(u.passwordHash, current))) throw new ApiError(403, "invalid_credentials");
+  if (!(await verifyPassword(u.passwordHash, current))) throw new ApiError(403, "wrong_password");
   if (await verifyPassword(u.passwordHash, next)) throw new ApiError(400, "password_same");
   assertPassword(next, u);
   const passwordHash = await hashPassword(next);

@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { CurrencySelect } from "./CurrencySelect";
-import { parseAmount, toDecimalString } from "@/lib/money";
+import { parseAmount, toInputString } from "@/lib/money";
 
 export function SettleForm({ groupId, members, meId, initial }: {
   groupId: string;
@@ -13,19 +13,22 @@ export function SettleForm({ groupId, members, meId, initial }: {
   meId: string;
   initial: { from?: string; to?: string; amountMinor?: number; currency: string };
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const other = members.find((m) => m.id !== meId)?.id ?? meId;
   const [from, setFrom] = useState(initial.from ?? meId);
   const [to, setTo] = useState(initial.to ?? other);
   const [currency, setCurrency] = useState(initial.currency);
-  const [amount, setAmount] = useState(initial.amountMinor ? toDecimalString(initial.amountMinor, initial.currency) : "");
+  const [amount, setAmount] = useState(initial.amountMinor ? toInputString(initial.amountMinor, initial.currency, locale) : "");
   const [note, setNote] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
+  const inFlight = useRef(false); // gegen Mehrfach-Absenden (greift vor dem nächsten Rendern)
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -42,6 +45,7 @@ export function SettleForm({ groupId, members, meId, initial }: {
       router.replace(`/groups/${groupId}?tab=balances`);
       router.refresh();
     } catch (err) {
+      inFlight.current = false;
       setError(err);
       setBusy(false);
     }

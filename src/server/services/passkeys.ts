@@ -33,7 +33,7 @@ async function loadUser(id: string): Promise<UserRow> {
 }
 
 async function checkPassword(u: UserRow, password: string) {
-  if (!u.passwordHash || !(await verifyPassword(u.passwordHash, password))) throw new ApiError(403, "invalid_credentials");
+  if (!u.passwordHash || !(await verifyPassword(u.passwordHash, password))) throw new ApiError(403, "wrong_password");
 }
 
 const pub = (r: typeof passkeys.$inferSelect) => ({ id: r.id, name: r.name, createdAt: r.createdAt, lastUsedAt: r.lastUsedAt });

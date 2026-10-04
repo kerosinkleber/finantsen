@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
@@ -19,6 +20,15 @@ export default async function EditRecurringPage({ params }: { params: Promise<{ 
   };
   const group = await getGroup(user.id, id).catch(notFoundOn404);
   const r = await getRecurring(user.id, id, rid).catch(notFoundOn404);
+  if (group.recurringPolicy === "owner" && group.role !== "owner") {
+    return (
+      <>
+        <h1 className="text-xl font-semibold">{r.title}</h1>
+        <p className="card" data-testid="recurring-forbidden">{t("recurring.onlyOwner")}</p>
+        <Link href={`/groups/${id}?tab=recurring`} className="btn-secondary">{t("common.back")}</Link>
+      </>
+    );
+  }
   return (
     <>
       <h1 className="text-xl font-semibold">{t("recurring.edit")}</h1>
@@ -30,7 +40,7 @@ export default async function EditRecurringPage({ params }: { params: Promise<{ 
         defaultCurrency={group.defaultCurrency}
         baseCurrency={group.defaultCurrency}
         initial={templateToInitial(r.id, r.startDate, r.template)}
-        recurring={{ id: r.id, unit: r.unit, every: r.every, endDate: r.endDate, paused: r.paused }}
+        recurring={{ id: r.id, unit: r.unit, every: r.every, endDate: r.endDate, paused: r.paused, lastBookedDate: r.lastBookedDate }}
       />
     </>
   );

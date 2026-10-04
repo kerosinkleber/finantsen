@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client-api";
 import { useConfirm } from "./useConfirm";
@@ -10,7 +10,7 @@ import { RateSection } from "./RateSection";
 import { ItemsEditor, newRow, type ItemRow } from "./ItemsEditor";
 import { ReceiptScan, type ScanResult } from "./ReceiptScan";
 import { CATEGORIES } from "@/lib/categories";
-import { formatMoney, normalizeRate, parseAmount, toDecimalString } from "@/lib/money";
+import { formatMoney, localDecimal, normalizeRate, parseAmount, toInputString } from "@/lib/money";
 import type { MessageKey } from "@/i18n";
 import type { DefaultSplit } from "@/lib/schemas";
 import { dueOccurrences, UNITS, type Unit } from "@/lib/recurrence";
@@ -37,7 +37,7 @@ export type ExpenseInitial = {
 const SPLITS: SplitType[] = ["equal", "percent", "exact", "shares", "items", "full"];
 
 /** Modus „wiederkehrend“: dasselbe Formular legt eine Vorlage mit Rhythmus an (ohne Belegscan und manuellen Kurs). */
-export type RecurringInit = { id?: string; unit: Unit; every: number; endDate: string | null; paused: boolean };
+export type RecurringInit = { id?: string; unit: Unit; every: number; endDate: string | null; paused: boolean; lastBookedDate?: string | null };
 
 export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurrency, initial, defaultSplit, recurring }: {
   groupId: string;
@@ -58,7 +58,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [currency, setCurrency] = useState(initial?.currency ?? defaultCurrency);
-  const [amount, setAmount] = useState(initial ? toDecimalString(initial.amountMinor, initial.currency) : "");
+  const [amount, setAmount] = useState(initial ? toInputString(initial.amountMinor, initial.currency, locale) : "");
   const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState(initial?.category ?? "other");
   const [unit, setUnit] = useState<Unit>(recurring?.unit ?? "month");
@@ -73,7 +73,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   const [multi, setMulti] = useState((initial?.payers.length ?? 1) > 1);
   const [payer, setPayer] = useState(initial?.payers[0]?.userId ?? meId);
   const [payerAmounts, setPayerAmounts] = useState<Record<string, string>>(() =>
-    Object.fromEntries((initial?.payers ?? []).map((p) => [p.userId, toDecimalString(p.amountMinor, initial!.currency)])),
+    Object.fromEntries((initial?.payers ?? []).map((p) => [p.userId, toInputString(p.amountMinor, initial!.currency, locale)])),
   );
 
   // Aufteilung
@@ -88,8 +88,8 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
       return v;
     }
     for (const s of initial.shares) {
-      if (initial.splitType === "percent" && s.input !== null) v[s.userId] = (s.input / 100).toString();
-      if (initial.splitType === "exact") v[s.userId] = toDecimalString(s.amountMinor, initial.currency);
+      if (initial.splitType === "percent" && s.input !== null) v[s.userId] = localDecimal(s.input / 100, locale);
+      if (initial.splitType === "exact") v[s.userId] = toInputString(s.amountMinor, initial.currency, locale);
       if (initial.splitType === "shares" && s.input !== null) v[s.userId] = String(s.input);
     }
     return v;
@@ -100,25 +100,25 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   const allIds = members.map((m) => m.id);
   const [rows, setRows] = useState<ItemRow[]>(() =>
     initial?.items
-      ? initial.items.items.map((i) => newRow(i.participants, i.name, toDecimalString(i.amountMinor, initial.currency)))
+      ? initial.items.items.map((i) => newRow(i.participants, i.name, toInputString(i.amountMinor, initial.currency, locale)))
       : [newRow(allIds)],
   );
-  const [tax, setTax] = useState(initial?.items?.taxMinor ? toDecimalString(initial.items.taxMinor, initial.currency) : "");
-  const [tip, setTip] = useState(initial?.items?.tipMinor ? toDecimalString(initial.items.tipMinor, initial.currency) : "");
+  const [tax, setTax] = useState(initial?.items?.taxMinor ? toInputString(initial.items.taxMinor, initial.currency, locale) : "");
+  const [tip, setTip] = useState(initial?.items?.tipMinor ? toInputString(initial.items.tipMinor, initial.currency, locale) : "");
   const [manualRate, setManualRate] = useState<string | null>(null);
 
   const itemsTotal =
     rows.reduce((a, r) => a + (parseAmount(r.price, currency) ?? 0), 0) + (parseAmount(tax, currency) ?? 0) + (parseAmount(tip, currency) ?? 0);
-  const amountText = splitType === "items" ? toDecimalString(itemsTotal, currency) : amount;
+  const amountText = splitType === "items" ? toInputString(itemsTotal, currency, locale) : amount;
   const total = useMemo(() => parseAmount(amountText, currency), [amountText, currency]);
 
   function applyScan(r: ScanResult) {
     if (r.merchant) setTitle(r.merchant);
     if (r.date) setDate(r.date);
     setCurrency(r.currency);
-    setRows(r.items.length ? r.items.map((i) => newRow(allIds, i.name, toDecimalString(i.amountMinor, r.currency))) : [newRow(allIds)]);
-    setTax(r.taxMinor ? toDecimalString(r.taxMinor, r.currency) : "");
-    setTip(r.tipMinor ? toDecimalString(r.tipMinor, r.currency) : "");
+    setRows(r.items.length ? r.items.map((i) => newRow(allIds, i.name, toInputString(i.amountMinor, r.currency, locale))) : [newRow(allIds)]);
+    setTax(r.taxMinor ? toInputString(r.taxMinor, r.currency, locale) : "");
+    setTip(r.tipMinor ? toInputString(r.tipMinor, r.currency, locale) : "");
     setManualRate(null);
     setSplitType("items");
   }
@@ -192,16 +192,23 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
     return { title, amountMinor: total, currency, date, category, payers, split, rate };
   }
 
+  // Sperre gegen Mehrfach-Absenden: greift sofort, nicht erst nach dem nächsten Rendern (wie `busy`)
+  const inFlight = useRef(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
       const body = buildBody();
       if (recurring) {
         // Liegt der erste Termin in der Vergangenheit, werden verpasste Termine sofort gebucht: vorher bestätigen lassen.
-        const missed = dueOccurrences({ start: date, unit, every: Number(every) || 1, from: 0, until: new Date().toISOString().slice(0, 10), end: endDate || null }).length;
+        // schon gebuchte Zeiträume zählen nicht (der Server setzt die Folge nach der letzten Buchung fort)
+        const missed = dueOccurrences({ start: date, unit, every: Number(every) || 1, from: 0, until: new Date().toISOString().slice(0, 10), end: endDate || null, limit: 100_000 })
+          .filter((o) => !recurring.lastBookedDate || o.date > recurring.lastBookedDate).length;
         if (missed > 1 && !paused && !(await ask(t("recurring.confirmBackfill", { n: missed })))) {
+          inFlight.current = false;
           setBusy(false);
           return;
         }
@@ -216,6 +223,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
       router.replace(`/groups/${groupId}`);
       router.refresh();
     } catch (err) {
+      inFlight.current = false;
       setError(err);
       setBusy(false);
     }
@@ -318,8 +326,8 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         <legend className="sr-only">{t("expense.paidBy")}</legend>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">{t("expense.paidBy")}</h2>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="h-4 w-4" checked={multi} onChange={(e) => setMulti(e.target.checked)} />
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input type="checkbox" className="h-5 w-5" checked={multi} onChange={(e) => setMulti(e.target.checked)} />
             {t("expense.multiplePayers")}
           </label>
         </div>
@@ -383,8 +391,9 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
             <p className="muted">{t("expense.splitBetween")}</p>
             {members.map((m) => (
               <div key={m.id} className="flex items-center gap-3">
-                <label className="flex flex-1 items-center gap-3">
-                  <input type="checkbox" className="h-5 w-5" checked={included.has(m.id)} onChange={() => toggle(m.id)} aria-label={m.name} />
+                {/* ganze Zeile antippbar, mindestens 44 px hoch (Daumen) */}
+                <label className="flex min-h-11 flex-1 items-center gap-3">
+                  <input type="checkbox" className="h-6 w-6" checked={included.has(m.id)} onChange={() => toggle(m.id)} aria-label={m.name} />
                   <span>{nameOf(m.id)}</span>
                 </label>
                 {splitType !== "equal" && included.has(m.id) && (

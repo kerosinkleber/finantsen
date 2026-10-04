@@ -428,7 +428,7 @@ d("services (PostgreSQL)", () => {
       expect(svc.users.lockSeconds(6)).toBe(60);
       expect(svc.users.lockSeconds(50)).toBe(900);
       for (let i = 0; i < 4; i++) expect(await svc.users.authenticate("ben", "falsch")).toEqual({ kind: "invalid" });
-      expect(await svc.users.authenticate("ben", "falsch")).toEqual({ kind: "invalid" }); // 5. Fehlversuch sperrt ab jetzt
+      expect(await svc.users.authenticate("ben", "falsch")).toEqual({ kind: "locked", retryAfter: 30 }); // 5. Fehlversuch sperrt und sagt das sofort
       const locked = await svc.users.authenticate("ben", PW); // auch das richtige Passwort wird während der Sperre abgewiesen
       expect(locked).toMatchObject({ kind: "locked" });
       expect(locked.kind === "locked" && locked.retryAfter).toBeGreaterThan(0);
@@ -488,7 +488,7 @@ d("services (PostgreSQL)", () => {
       await svc.auth.createSessionFor(b.id);
       expect(await svc.users.sessionCount(b.id)).toBe(2);
       const NEW = "Brand-New-Passphrase-42?";
-      await expect(svc.users.changePassword(b.id, "falsch", NEW, null)).rejects.toMatchObject({ code: "invalid_credentials" });
+      await expect(svc.users.changePassword(b.id, "falsch", NEW, null)).rejects.toMatchObject({ code: "wrong_password" });
       await expect(svc.users.changePassword(b.id, PW, PW, null)).rejects.toMatchObject({ code: "password_same" });
       await expect(svc.users.changePassword(b.id, PW, "zu-kurz", null)).rejects.toMatchObject({ code: "password_policy" });
       await svc.users.changePassword(b.id, PW, NEW, null);
@@ -995,7 +995,7 @@ d("services (PostgreSQL)", () => {
       const { a, b, secret } = await enrolled();
       const admin = actor(a);
       // freiwillig ausschalten
-      await expect(svc.totp.disableTotp(b.id, "falsch", codeAt(secret, 0))).rejects.toMatchObject({ code: "invalid_credentials" });
+      await expect(svc.totp.disableTotp(b.id, "falsch", codeAt(secret, 0))).rejects.toMatchObject({ code: "wrong_password" });
       await svc.totp.disableTotp(b.id, PW, codeAt(secret, 0));
       expect((await svc.totp.totpStatus(b.id)).enabled).toBe(false);
       // verlangt (Konto-Flag)
@@ -1022,7 +1022,7 @@ d("services (PostgreSQL)", () => {
       const { secret } = await svc.totp.startEnrollment(a.id);
       const { recoveryCodes: first } = await svc.totp.confirmEnrollment(a.id, codeAt(secret, -1));
       expect(first).toHaveLength(3);
-      await expect(svc.totp.regenerateRecoveryCodes(a.id, "falsch")).rejects.toMatchObject({ code: "invalid_credentials" });
+      await expect(svc.totp.regenerateRecoveryCodes(a.id, "falsch")).rejects.toMatchObject({ code: "wrong_password" });
       await svc.settings.updateAdminSettings({ recoveryCodeCount: 0 });
       const { recoveryCodes: second } = await svc.totp.regenerateRecoveryCodes(a.id, PW);
       expect(second).toHaveLength(0);
@@ -1218,6 +1218,16 @@ d("services (PostgreSQL)", () => {
       const res = await svc.recurring.updateRecurring(a.id, g.id, r.id, tpl(a, b, { startDate: monthsAgo(2), amountMinor: 100000, payers: [{ userId: a.id, amountMinor: 100000 }] }));
       expect(res.booked).toBe(0);
       expect((await svc.recurring.getRecurring(a.id, g.id, r.id)).nextDate).toBe(before);
+      // Rhythmus ändern (monatlich → alle 2 Wochen, gleicher Start): nichts doppelt, weiter NACH der letzten Buchung
+      const lastBefore = (await svc.recurring.getRecurring(a.id, g.id, r.id)).lastBookedDate!;
+      const re = await svc.recurring.updateRecurring(a.id, g.id, r.id, tpl(a, b, { startDate: monthsAgo(2), unit: "week", every: 2 }));
+      const after = await svc.recurring.getRecurring(a.id, g.id, r.id);
+      expect(after.nextDate > lastBefore).toBe(true);
+      const expected = svc.recurrence
+        .dueOccurrences({ start: monthsAgo(2), unit: "week", every: 2, from: 0, until: new Date().toISOString().slice(0, 10) })
+        .filter((o) => o.date > lastBefore).length;
+      expect(re.booked).toBe(expected); // nur Termine nach der letzten Buchung
+      expect(await countExpenses(r.id)).toBe(3 + re.booked);
       // neuer Start in der Zukunft: Folge beginnt neu, bereits gebuchte Termine bleiben
       const future = monthsAgo(-2);
       await svc.recurring.updateRecurring(a.id, g.id, r.id, tpl(a, b, { startDate: future }));
@@ -1363,6 +1373,7 @@ d("services (PostgreSQL)", () => {
       expect((await svc.groups.getGroup(a.id, g.id)).members.some((m) => m.id === oma.id)).toBe(false);
       const hist = await svc.expenses.expenseHistoryFor(a.id, g.id, e1.id);
       expect(JSON.stringify(hist)).not.toContain(oma.id);
+      expect(JSON.stringify(hist)).toContain("guest:Oma"); // der Verlauf nennt weiter den Gast
     });
 
     it("Gäste werden nie Besitzer; letztes Konto-Mitglied kann nicht neben Gästen austreten", async () => {
@@ -1401,7 +1412,7 @@ d("services (PostgreSQL)", () => {
     it("Einrichten und Löschen verlangen das Passwort; fremde Passkeys sind unerreichbar", async () => {
       const a = await svc.users.setupAdmin({ username: "anna", password: PW });
       const b = await mkUser(a, "ben");
-      await expect(svc.passkeys.registrationOptions(b.id, "falsch", rp)).rejects.toMatchObject({ code: "invalid_credentials" });
+      await expect(svc.passkeys.registrationOptions(b.id, "falsch", rp)).rejects.toMatchObject({ code: "wrong_password" });
       const { options, token } = await svc.passkeys.registrationOptions(b.id, PW, rp);
       expect(options.rp.id).toBe("localhost");
       expect(options.authenticatorSelection?.userVerification).toBe("required");
@@ -1409,7 +1420,7 @@ d("services (PostgreSQL)", () => {
       await addRow(b.id, "cred-ben");
       const [row] = await svc.passkeys.listPasskeys(b.id);
       await expect(svc.passkeys.deletePasskey(a.id, row.id, PW)).rejects.toMatchObject({ code: "not_found" }); // anderes Konto
-      await expect(svc.passkeys.deletePasskey(b.id, row.id, "falsch")).rejects.toMatchObject({ code: "invalid_credentials" });
+      await expect(svc.passkeys.deletePasskey(b.id, row.id, "falsch")).rejects.toMatchObject({ code: "wrong_password" });
       await svc.passkeys.deletePasskey(b.id, row.id, PW);
       expect(await svc.passkeys.passkeyCount(b.id)).toBe(0);
     });

@@ -72,7 +72,13 @@ export async function getRecurring(userId: string, groupId: string, id: string) 
   await requireMember(userId, groupId);
   const r = await load(groupId, id);
   const [u] = await getDb().select({ name: users.name }).from(users).where(eq(users.id, r.createdBy));
-  return view(r, u?.name ?? "?");
+  return { ...view(r, u?.name ?? "?"), lastBookedDate: await lastBookedDate(id) };
+}
+
+/** Datum der letzten Buchung aus dieser Vorlage (auch gelöschte zählen: der Zeitraum war schon gebucht). */
+async function lastBookedDate(id: string): Promise<string | null> {
+  const [row] = (await getDb().execute(sql`select max(date)::text as d from expenses where recurring_id = ${id}`)) as unknown as { d: string | null }[];
+  return row?.d ?? null;
 }
 
 export async function createRecurring(userId: string, groupId: string, body: RecurringBody) {
@@ -105,8 +111,17 @@ export async function updateRecurring(userId: string, groupId: string, id: strin
   const r = await load(groupId, id);
   if (body.endDate && body.endDate < body.startDate) throw new ApiError(400, "end_before_start");
   await validateTemplate(groupId, templateOf(body));
-  // Ändert sich der Rhythmus oder Start, beginnt die Folge neu ab dem neuen Startdatum.
+  // Ändert sich der Rhythmus oder Start, beginnt die Folge neu, aber erst NACH der letzten bereits gebuchten
+  // Ausgabe dieser Vorlage: schon abgedeckte Zeiträume werden nie ein zweites Mal gebucht.
   const reschedule = r.unit !== body.unit || r.every !== body.every || r.startDate !== body.startDate;
+  let next = { nextIndex: 0, nextDate: body.startDate };
+  if (reschedule) {
+    const last = await lastBookedDate(id);
+    if (last) {
+      const covered = dueOccurrences({ start: body.startDate, unit: body.unit, every: body.every, from: 0, until: last, limit: 1_000_000 }).length;
+      next = { nextIndex: covered, nextDate: occurrence(body.startDate, body.unit, body.every, covered) };
+    }
+  }
   await getDb()
     .update(recurringExpenses)
     .set({
@@ -116,7 +131,7 @@ export async function updateRecurring(userId: string, groupId: string, id: strin
       every: body.every,
       startDate: body.startDate,
       endDate: body.endDate ?? null,
-      ...(reschedule ? { nextIndex: 0, nextDate: body.startDate } : {}),
+      ...(reschedule ? next : {}),
       paused: body.paused ?? r.paused,
       lastError: null,
       updatedAt: new Date(),

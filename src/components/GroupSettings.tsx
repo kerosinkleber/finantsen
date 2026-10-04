@@ -75,7 +75,7 @@ export function GroupSettings({ groupId, simplify, recurringOnlyOwner, isOwner, 
         </ul>
       )}
       {!isDirect && (
-        <button className="btn-secondary" onClick={() => run(() => api("DELETE", `/api/groups/${groupId}/members/${meId}`), () => { router.replace("/"); router.refresh(); })}>
+        <button className="btn-secondary" data-testid="leave-group" onClick={async () => (await ask(t("group.leaveConfirm"))) && run(() => api("DELETE", `/api/groups/${groupId}/members/${meId}`), () => { router.replace("/"); router.refresh(); })}>
           {t("group.leave")}
         </button>
       )}

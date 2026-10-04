@@ -305,7 +305,7 @@ test("foreign currency: automatic rate, conversion preview, manual override", as
   await expect(page.getByTestId("rate-auto")).toContainText("1 USD = 0.8 EUR");
   await expect(page.getByTestId("rate-converted")).toContainText("€20.00");
   await page.getByLabel("Set rate manually").check();
-  await page.getByLabel("1 USD = ? EUR").fill("0,9");
+  await page.getByLabel("Own rate: how many EUR is 1 USD?").fill("0,9");
   await expect(page.getByTestId("rate-converted")).toContainText("€22.50");
   await page.getByRole("button", { name: "Save" }).click();
   const item = page.getByTestId("expense-item").filter({ hasText: "Souvenirs" });
@@ -642,10 +642,10 @@ test("test users: create, edit memberships on one page, act as them, banner and 
   await expect(item).toContainText("You paid €10.00"); // Sicht des Testnutzers
   await item.click();
   await expect(page.getByTestId("history")).toContainText("Tessa (Test)");
-  await expect(page.getByTestId("acted-by")).toContainText("by admin Anna");
+  await expect(page.getByTestId("acted-by")).toContainText("by Anna as admin");
   await page.getByLabel("Write a comment …").fill("Kommentar als Testnutzer");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByTestId("comment")).toContainText("by admin Anna");
+  await expect(page.getByTestId("comment")).toContainText("by Anna as admin");
   expect((await page.request.get("/api/admin/settings")).status()).toBe(403); // als Testnutzer kein Admin
   expect((await page.request.post("/api/admin/test-users", { data: { count: 1 } })).status()).toBe(403);
   await page.goto("/admin/users");
@@ -787,6 +787,7 @@ test("two-factor: admin requires it, user must set it up, signs in with code and
   await tp.getByRole("button", { name: "Sign in" }).click();
   await expect(tp).toHaveURL(/two-factor/);
   await expect(tp.getByTestId("totp-forced")).toBeVisible();
+  await expect(tp.getByTestId("logout")).toBeVisible(); // wer kein Gerät hat, kann sich wenigstens abmelden
   expect((await tp.request.get("/api/groups")).status()).toBe(403);
   await tp.goto("/");
   await expect(tp).toHaveURL(/two-factor/);
@@ -948,7 +949,7 @@ test("recurring expenses: create with past start books missed dates, shown as au
   await page.getByTestId("confirm-yes").click();
   await expect(page).toHaveURL(/tab=recurring/);
   await expect(page.getByTestId("recurring-item")).toContainText("Gym");
-  await expect(page.getByTestId("recurring-item")).toContainText("every 1 month(s)");
+  await expect(page.getByTestId("recurring-item")).toContainText("monthly");
 
   await page.goto(`${groupUrl}?tab=expenses`);
   const gym = page.getByTestId("expense-item").filter({ hasText: "Gym" });
@@ -1049,4 +1050,39 @@ test("members without an account: add guest, use in expense, link to an account;
   await page.getByTestId("archive-toggle").click();
   await page.goto("/");
   await expect(page.getByTestId("archive")).toHaveCount(0);
+});
+
+test("times are shown in the viewer's time zone everywhere; the service worker registers", async ({ browser, baseURL }) => {
+  // Server läuft in UTC, Browser in Tokio (UTC+9): Kommentar und Benachrichtigung müssen dieselbe Ortszeit zeigen
+  const ben = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "Asia/Tokyo" });
+  const bp = await ben.newPage();
+  await login(bp, "ben");
+  await bp.goto(groupUrl);
+  await bp.getByTestId("expense-item").filter({ hasText: "Dinner" }).first().click();
+  await bp.getByLabel("Write a comment …").fill("Time check");
+  await bp.getByRole("button", { name: "Send" }).click();
+  await expect(bp.getByTestId("comment").filter({ hasText: "Time check" })).toBeVisible();
+  await ben.close();
+
+  const anna = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "Asia/Tokyo" });
+  const ap = await anna.newPage();
+  await login(ap, "anna");
+  await ap.goto("/notifications");
+  const note = ap.getByTestId("notification").filter({ hasText: "Time check" });
+  const noteTime = await note.getByTestId("local-time").innerText();
+  await note.click();
+  const commentTime = await ap.getByTestId("comment").filter({ hasText: "Time check" }).getByTestId("local-time").innerText();
+  const hhmm = (s: string) => s.match(/\d{1,2}:\d{2}/)?.[0];
+  expect(hhmm(noteTime)).toBeTruthy();
+  expect(hhmm(noteTime)).toBe(hhmm(commentTime));
+  // …und zwar Tokio-Zeit, nicht UTC (Stunde wie jetzt oder vor zwei Minuten in Tokio)
+  const tokyoHour = (ms: number) => new Date(ms).toLocaleString("en-US", { timeZone: "Asia/Tokyo" }).match(/, (\d{1,2}):/)?.[1];
+  expect([tokyoHour(Date.now()), tokyoHour(Date.now() - 120_000)]).toContain(noteTime.match(/, (\d{1,2}):/)?.[1]);
+  // Service Worker (Offline-Lesen) ist registriert
+  const registered = await ap.evaluate(async () => {
+    await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(r, 5000))]);
+    return !!(await navigator.serviceWorker.getRegistration());
+  });
+  expect(registered).toBe(true);
+  await anna.close();
 });

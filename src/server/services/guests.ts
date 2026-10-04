@@ -98,7 +98,7 @@ export async function createGuestLink(userId: string, groupId: string, guestId: 
 export async function claimGuest(tx: Tx, targetId: string, groupId: string, guestId: string) {
   const [target] = await tx.select({ kind: users.kind }).from(users).where(eq(users.id, targetId));
   if (!target || target.kind === "guest") throw new ApiError(400, "invite_invalid");
-  await loadGuest(tx, groupId, guestId);
+  const guest = await loadGuest(tx, groupId, guestId);
   const ids = (await tx.select({ id: expenses.id }).from(expenses).where(eq(expenses.groupId, groupId))).map((r) => r.id);
   if (ids.length) {
     const list = sql.join(ids.map((x) => sql`${x}::uuid`), sql`, `);
@@ -136,7 +136,10 @@ export async function claimGuest(tx: Tx, targetId: string, groupId: string, gues
       if (!JSON.stringify(it).includes(guestId)) continue;
       await tx.update(expenses).set({ items: { ...it, items: replaceUserInItems(it.items, guestId, targetId) } }).where(eq(expenses.id, e.id));
     }
-    await tx.execute(sql`update expense_history set snapshot = replace(snapshot::text, ${guestId}, ${targetId})::jsonb where expense_id in (${list})`);
+    // Der Verlauf bleibt wahr: dort stand der Gast. Statt seiner (gleich gelöschten) ID steht künftig „guest:<Name>“,
+    // die Ausgabenseite zeigt daraus „Name (Gast)“.
+    const marker = "guest:" + JSON.stringify(guest.name).slice(1, -1);
+    await tx.execute(sql`update expense_history set snapshot = replace(snapshot::text, ${guestId}, ${marker})::jsonb where expense_id in (${list})`);
   }
   await tx.update(payments).set({ fromUser: targetId }).where(and(eq(payments.groupId, groupId), eq(payments.fromUser, guestId)));
   await tx.update(payments).set({ toUser: targetId }).where(and(eq(payments.groupId, groupId), eq(payments.toUser, guestId)));

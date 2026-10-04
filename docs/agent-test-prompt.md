@@ -36,6 +36,7 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - **Bestätigungen** (Löschen, Deaktivieren usw.) erscheinen als Fenster **innerhalb der Seite** mit den Knöpfen „Bestätigen“/„Abbrechen“ (keine Browser-Dialoge mehr).
 - **Zwei-Faktor (7b) und Passkeys (7c):** brauchen eine Authenticator-App bzw. einen Fingerabdruck-/PIN-Dialog des Systems. Kann dein Werkzeug das nicht, bitte mich an dieser Stelle um Übernahme oder markiere BLOCKED. Teste 2FA nie am Admin-Konto, nur an einem Wegwerfkonto.
 - **Wiederkehrende Ausgaben:** Termine in der Zukunft werden automatisch gebucht (Prüfung alle 15 Minuten). Teste das über einen ersten Termin in der Vergangenheit oder heute, nicht durch Warten.
+- **Offline/Service Worker:** Manche eingebetteten Browser unterstützen keine Service Worker. Wenn `navigator.serviceWorker` fehlt oder nichts registriert wird, markiere Offline-Tests als BLOCKED (Werkzeug), nicht als Fehler.
 - **Exporte (CSV/JSON)** werden als Datei heruntergeladen. Kannst du Downloads nicht öffnen, prüfe nur, dass der Download startet, und notiere den Rest als BLOCKED.
 - Teste **Sperren nach Fehlversuchen nur mit einem Wegwerfkonto** (nicht mit dem Admin), und warte die angezeigte Wartezeit ab.
 - Rechne bei Beträgen **selbst nach** und vergleiche mit der App. Beispiele:

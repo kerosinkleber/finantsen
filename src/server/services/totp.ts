@@ -157,7 +157,7 @@ export async function confirmEnrollment(userId: string, code: string): Promise<{
 }
 
 async function checkPassword(u: UserRow, password: string) {
-  if (!u.passwordHash || !(await verifyPassword(u.passwordHash, password))) throw new ApiError(403, "invalid_credentials");
+  if (!u.passwordHash || !(await verifyPassword(u.passwordHash, password))) throw new ApiError(403, "wrong_password");
 }
 
 /** Ausschalten: nur freiwillig (nicht, wenn verlangt), mit Passwort und aktuellem Code. */

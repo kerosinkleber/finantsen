@@ -1,4 +1,5 @@
 "use client";
+import { LocalTime } from "./LocalTime";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client-api";
@@ -48,7 +49,7 @@ export function Comments({ groupId, expenseId, meId, comments }: { groupId: stri
             <p className="flex items-center justify-between gap-2">
               <span>
                 <span className="font-medium">{c.userName}</span>{c.actedByName ? <span className="muted"> ({t("test.byAdmin", { name: c.actedByName })})</span> : null}{" "}
-                <time className="muted" dateTime={c.createdAt}>{new Date(c.createdAt).toLocaleString(locale)}</time>
+                <LocalTime className="muted" iso={c.createdAt} locale={locale} />
               </span>
               {c.userId === meId && (
                 <button className="muted underline" onClick={() => remove(c.id)}>{t("common.delete")}</button>

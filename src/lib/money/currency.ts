@@ -77,6 +77,18 @@ export function toDecimalString(minor: number, currency: string): string {
   return (neg ? "-" : "") + int + frac;
 }
 
+/** Wert für Eingabefelder: wie toDecimalString, aber mit dem Dezimaltrennzeichen der Sprache ("12,50" auf Deutsch). */
+export function toInputString(minor: number, currency: string, locale = "de"): string {
+  const s = toDecimalString(minor, currency);
+  return locale.startsWith("de") ? s.replace(".", ",") : s;
+}
+
+/** Dezimalzahl (z. B. Prozent oder Kurs) mit dem Dezimaltrennzeichen der Sprache, ohne Tausendertrenner. */
+export function localDecimal(value: string | number, locale = "de"): string {
+  const s = String(value);
+  return locale.startsWith("de") ? s.replace(".", ",") : s;
+}
+
 /** Locale-abhängige Anzeige, z. B. "12,50 €". */
 export function formatMoney(minor: number, currency: string, locale = "de"): string {
   const digits = minorUnits(currency);

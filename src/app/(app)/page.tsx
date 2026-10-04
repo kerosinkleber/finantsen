@@ -42,7 +42,7 @@ export default async function Dashboard() {
             {totals.map(([cur, v]) => (
               <li key={cur} className="flex items-baseline justify-between text-xl font-semibold" data-testid={`total-${cur}`}>
                 <span className="muted">{v > 0 ? t("dash.youAreOwed") : t("dash.youOwe")}</span>
-                <Money minor={v} currency={cur} locale={locale} />
+                <Money minor={v} currency={cur} locale={locale} absolute />
               </li>
             ))}
           </ul>

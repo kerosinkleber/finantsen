@@ -56,7 +56,7 @@ export function RecurringList({ groupId, items, canManage }: { groupId: string; 
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{it.title}</span>
                   <span className="muted block">
-                    {formatMoney(it.template.amountMinor, it.template.currency, locale)} · {t("recurring.rhythm", { n: it.every, unit: t(`recurring.unit.${it.unit}` as MessageKey) })}
+                    {formatMoney(it.template.amountMinor, it.template.currency, locale)} · {it.every === 1 ? t(`recurring.once.${it.unit}` as MessageKey) : t("recurring.rhythm", { n: it.every, unit: t(`recurring.unit.${it.unit}` as MessageKey) })}
                   </span>
                   <span className="muted block">{it.finished ? t("recurring.finished") : t("recurring.next", { date: it.nextDate })} · {t("recurring.by", { name: it.createdByName })}</span>
                 </span>

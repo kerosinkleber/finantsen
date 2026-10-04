@@ -30,7 +30,7 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 ## Phase-3-Bausteine
 - Währungen: `lib/money/convert.ts` (BigInt-Umrechnung, Kurse als Dezimalstring mit 15 Stellen, kaufmännisch gerundet, `rescale` verteilt Zahler/Anteile neu, damit Summe == umgerechneter Betrag). Ausgaben haben `currency/amount_minor` (Original) und `base_currency/base_amount_minor/rate/rate_source` (Abrechnungswährung = Gruppenwährung beim Buchen); Zahler/Anteile tragen `base_amount_minor`. **Salden, Statistik und Betragsfilter rechnen mit den Basiswerten.** `isValidCurrency` prüft gegen ICU (Intl akzeptiert sonst jeden 3-Buchstaben-Code).
 - Kurse: `server/rates/providers.ts` (Interface `RateProvider` + fawazahmed0, open-er-api, frankfurter, static), `server/rates/index.ts` (DB-Cache `exchange_rates`, `getRate`, `getSupportedCurrencies`, Test-Hook `setRateProvider`). Anbieterformate sind nach Dokumentation implementiert und in Tests gemockt, nicht live geprüft.
-- Itemisierung: `computeItemized` in `lib/money/split.ts` (Rest-Cent rotiert je Position; Steuer/Trinkgeld getrennt proportional); Positionen liegen als jsonb in `expenses.items`, berechnete Anteile wie immer in `expense_shares`. Im Formular ist der Betrag bei „Einzelposten“ abgeleitet.
+- Itemisierung: `computeItemized` in `lib/money/split.ts` (exakte Anteile über alle Positionen mit BigInt-Gewichten (kgV der Teilnehmerzahlen), Steuer/Trinkgeld proportional, **einmal** gerundet per größtem Rest: jede Person < 1 Cent neben dem exakten Wert); Positionen liegen als jsonb in `expenses.items`, berechnete Anteile wie immer in `expense_shares`. Im Formular ist der Betrag bei „Einzelposten“ abgeleitet.
 - Belegscan: `server/receipts/` (`scanner.ts` Interface + Anthropic-Implementierung mit `messages.parse` und Zod-Schema, `normalize.ts` wandelt Modell-Strings in Minor-Units, `image.ts` Magic-Byte-Prüfung), Route `api/receipts/scan`, UI `components/ReceiptScan.tsx`. Aktiv nur mit `ANTHROPIC_API_KEY`; Ergebnis ist nur ein Vorschlag. Bilder werden nie gespeichert.
 - Migration `0002` füllt Basiswerte für Altdaten (= Originalwerte).
 
@@ -63,7 +63,7 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 ## Wiederkehrende Ausgaben
 - Fragebogen `docs/fragen/05-wiederkehrende-ausgaben.md`. Tabelle `recurring_expenses` (Vorlage = `ExpenseBody` ohne `date`/`rate` als jsonb, `unit` day|week|month|year + `every`, `start_date`, `end_date`, `next_index/next_date`, `paused`, `last_error`), `expenses.recurring_id` (eindeutiger Index `(recurring_id, date)` gegen Doppelbuchung), `groups.recurring_policy` (members|owner, vom Besitzer in den Gruppeneinstellungen).
 - `lib/recurrence.ts` (rein): n-ter Termin immer vom Start aus (31. → 28. → 31.), `dueOccurrences`. `services/recurring.ts`: `bookDue` beansprucht jeden Termin atomar (`next_index` hochzählen mit Bedingung), bucht über `createExpense(..., { recurringId })` (Ersteller = Anleger, Kurs zum Buchungstag, Benachrichtigung „automatisch“) und nimmt den Anspruch bei Fehlern zurück. Fehler: `rate_unavailable` → später erneut (kein geratener Kurs), `not_a_member` → pausiert mit `member_left`, sonst `booking_failed` (pausiert). Verpasste Termine werden nachgebucht (max. 400 je Lauf).
-- Scheduler: `startRecurringScheduler` aus `instrumentation.ts` (beim Start + alle 15 Minuten, `SCHEDULER=off` schaltet ab). Anlegen/Ändern/Fortsetzen bucht Fälliges sofort. Rhythmus/Start ändern = Folge beginnt neu; nur Inhalt ändern behält sie.
+- Scheduler: `startRecurringScheduler` aus `instrumentation.ts` (beim Start + alle 15 Minuten, `SCHEDULER=off` schaltet ab). Anlegen/Ändern/Fortsetzen bucht Fälliges sofort. Rhythmus/Start ändern = Folge beginnt neu, aber **erst nach der letzten Buchung** der Vorlage (`lastBookedDate`, auch gelöschte zählen) – nie doppelt; nur Inhalt ändern behält sie.
 - UI: Gruppenansicht `?tab=recurring` (Link unter den Filtern, kein eigener Reiter wegen der Breite), Formular = `ExpenseForm` mit Prop `recurring` (ohne Belegscan/manuellen Kurs), Seiten `groups/[id]/recurring/new|[rid]`. Testnutzer: Löschschutz berücksichtigt Vorlagen.
 
 ## Gäste, Archiv, Export
@@ -97,6 +97,7 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 - Löschen von Ausgaben/Zahlungen ist Soft Delete (`deletedAt`); Ausgaben haben `expense_history` (Snapshot je Änderung: create/update/delete/restore). `restoreExpense` (jedes Mitglied) holt gelöschte Ausgaben zurück; Papierkorb in `groups/[id]` (`listExpenses(..., {onlyDeleted})`), Benachrichtigung `expense_restored`.
 - Neue UI-Texte: Schlüssel in `de.ts` UND `en.ts` (Test prüft Gleichheit).
 - Keine Secrets im Repo, Konfiguration über `.env` (siehe `.env.example`).
+- Uhrzeiten nie serverseitig formatieren (Server = UTC): `components/LocalTime.tsx` (formatiert erst im Browser). Falsches Passwort bei Passwort-Bestätigung: Fehlercode `wrong_password` (nicht `invalid_credentials`).
 - Jeder sinnvolle Schritt = eigener Commit.
 - Neue Funktion = Eintrag in README, CLAUDE.md, `docs/roadmap.md` und eine Testanleitung in `docs/tester-guide.md` (ggf. Hinweis in `docs/agent-test-prompt.md`).
 

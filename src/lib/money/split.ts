@@ -46,7 +46,12 @@ export function allocate(total: number, weights: number[]): number[] {
   for (const w of weights) {
     if (!Number.isSafeInteger(w) || w < 0) throw new SplitError("invalid_weight");
   }
-  const sumW = weights.reduce((a, b) => a + BigInt(b), 0n);
+  return allocateExact(total, weights.map((w) => BigInt(w)));
+}
+
+/** Wie `allocate`, aber mit beliebig großen (exakten) BigInt-Gewichten. */
+function allocateExact(total: number, weights: bigint[]): number[] {
+  const sumW = weights.reduce((a, b) => a + b, 0n);
   if (sumW === 0n) throw new SplitError("invalid_weight", "weights sum to zero");
 
   const sign = total < 0 ? -1n : 1n;
@@ -55,20 +60,19 @@ export function allocate(total: number, weights: number[]): number[] {
   const rem: bigint[] = [];
   let assigned = 0n;
   for (const w of weights) {
-    const prod = abs * BigInt(w);
+    const prod = abs * w;
     const q = prod / sumW;
     base.push(q);
     rem.push(prod % sumW);
     assigned += q;
   }
-  let left = Number(abs - assigned);
+  const left = Number(abs - assigned);
   const order = weights
     .map((_, i) => i)
-    .filter((i) => weights[i] > 0)
+    .filter((i) => weights[i] > 0n)
     .sort((a, b) => (rem[a] === rem[b] ? a - b : rem[a] > rem[b] ? -1 : 1));
   for (let k = 0; k < left; k++) base[order[k % order.length]] += 1n;
-  left = 0;
-  return base.map((b) => Number(b * sign));
+  return base.map((x) => Number(x * sign));
 }
 
 function assertUnique(ids: string[]) {
@@ -146,26 +150,32 @@ export function computeItemized(total: number, items: ItemInput[], tax: number, 
   if (items.length === 0) throw new SplitError("no_participants");
   for (const v of [tax, tip]) if (!Number.isSafeInteger(v) || v < 0) throw new SplitError("invalid_amount");
   let itemSum = 0;
-  const sub = new Map<string, number>();
-  items.forEach((it, idx) => {
+  const gcd = (x: bigint, y: bigint): bigint => (y === 0n ? x : gcd(y, x % y));
+  let L = 1n; // kleinstes gemeinsames Vielfaches der Teilnehmerzahlen: macht alle Anteile ganzzahlig
+  for (const it of items) {
     if (!Number.isSafeInteger(it.amount) || it.amount < 0) throw new SplitError("invalid_amount");
+    if (it.participants.length === 0) throw new SplitError("no_participants");
     assertUnique(it.participants);
     itemSum += it.amount;
-    const ids = [...it.participants].sort();
-    const r = idx % ids.length;
-    const rotated = [...ids.slice(r), ...ids.slice(0, r)];
-    const parts = allocate(it.amount, rotated.map(() => 1));
-    rotated.forEach((id, i) => sub.set(id, (sub.get(id) ?? 0) + parts[i]));
-  });
+    const k = BigInt(it.participants.length);
+    L = (L / gcd(L, k)) * k;
+  }
   if (itemSum + tax + tip !== total)
     throw new SplitError("items_sum", `sum=${itemSum + tax + tip} total=${total}`);
-  const ids = [...sub.keys()].sort();
-  const weights = ids.map((id) => sub.get(id)!);
-  const result = new Map(ids.map((id, i) => [id, weights[i]]));
-  for (const extra of [tax, tip]) {
-    if (extra === 0) continue;
-    const parts = allocate(extra, weights); // wirft invalid_weight, wenn alle Positionen 0 sind
-    ids.forEach((id, i) => result.set(id, result.get(id)! + parts[i]));
+  // Exakter Anteil je Person (in 1/L Cent): Summe ihrer Positionsanteile. Steuer und Trinkgeld verteilen sich
+  // proportional dazu, also ist der exakte Gesamtanteil proportional zu diesem Gewicht. Gerundet wird nur EINMAL
+  // am Ende (größter Rest, Gleichstand nach ID): jede Person liegt weniger als 1 Cent neben dem exakten Wert.
+  const weight = new Map<string, bigint>();
+  for (const it of items) {
+    const per = BigInt(it.amount) * (L / BigInt(it.participants.length));
+    for (const id of it.participants) weight.set(id, (weight.get(id) ?? 0n) + per);
   }
-  return ids.map((id) => ({ id, amount: result.get(id)! }));
+  const ids = [...weight.keys()].sort();
+  const weights = ids.map((id) => weight.get(id)!);
+  if (weights.every((w) => w === 0n)) {
+    if (total === 0) return ids.map((id) => ({ id, amount: 0 }));
+    throw new SplitError("invalid_weight", "tax/tip without item amounts");
+  }
+  const parts = allocateExact(total, weights);
+  return ids.map((id, i) => ({ id, amount: parts[i] }));
 }

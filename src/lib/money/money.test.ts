@@ -409,10 +409,20 @@ describe("computeItemized", () => {
     const a = r.find((x) => x.id === "a")!.amount;
     const b = r.find((x) => x.id === "b")!.amount;
     expect(a + b).toBe(2300);
-    expect(a).toBeGreaterThanOrEqual(2012);
-    expect(a).toBeLessThanOrEqual(2013);
+    // exakt a = 2012,5 und b = 287,5: Gleichstand beim Rest, also nach ID-Reihenfolge an a
+    expect([a, b]).toEqual([2013, 287]);
   });
-  it("Rest-Cent rotiert über Positionen (nicht immer dieselbe Person)", () => {
+  it("jede Person liegt weniger als 1 Cent neben dem exakten Wert (Befund aus dem Testbericht)", () => {
+    // Pizza 15 € (lena, cleo, dora), Wein 5 € (admin, cleo, dora), Zuschlag 3 €: cleo/dora exakt je 766,666…
+    const r = computeItemized(2300, [
+      { name: "Pizza", amount: 1500, participants: ["lena", "cleo", "dora"] },
+      { name: "Wein", amount: 500, participants: ["admin", "cleo", "dora"] },
+    ], 300, 0);
+    const exact: Record<string, number> = { lena: 575, cleo: 2300 * (2000 / 3) / 2000, dora: 2300 * (2000 / 3) / 2000, admin: 2300 * (500 / 3) / 2000 };
+    for (const x of r) expect(Math.abs(x.amount - exact[x.id])).toBeLessThan(1);
+    expect(r.reduce((s, x) => s + x.amount, 0)).toBe(2300);
+  });
+  it("Rest-Cent landet nicht immer bei derselben Person (exakt über alle Positionen)", () => {
     const items = [1, 2, 3, 4].map((i) => ({ name: "x" + i, amount: 1, participants: ["a", "b"] }));
     const r = computeItemized(4, items, 0, 0);
     expect(r).toEqual([{ id: "a", amount: 2 }, { id: "b", amount: 2 }]);

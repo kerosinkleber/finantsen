@@ -92,6 +92,7 @@ export function DefaultSplitForm({ groupId, members, initial }: { groupId: strin
         </>
       )}
       <ErrorMessage error={error} />
+      {saved && <p className="pos text-sm" role="status" data-testid="defaults-saved">{t("common.saved")}</p>}
       <button className="btn-secondary" onClick={save}>{saved ? t("defaults.saved") : t("defaults.save")}</button>
     </section>
   );

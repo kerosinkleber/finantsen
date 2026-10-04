@@ -44,7 +44,8 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     rateSource: expense.rateSource,
     items: expense.items,
   };
-  const name = (uid: string) => group.members.find((m) => m.id === uid)?.name ?? "?";
+  // Im Verlauf können übernommene Gäste als „guest:<Name>“ stehen (siehe claimGuest)
+  const name = (uid: string) => (uid.startsWith("guest:") ? `${uid.slice(6)} (${t("guest.label")})` : (group.members.find((m) => m.id === uid)?.name ?? "?"));
   type Snap = { title: string; amountMinor: number; currency: string; deleted: boolean; payers: { userId: string; amountMinor: number }[]; shares: { userId: string; amountMinor: number }[] };
 
   return (
