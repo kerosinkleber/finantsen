@@ -18,6 +18,7 @@ export default async function SettingsPage() {
       {!user.impersonating && <Link href="/change-password" className="btn-secondary">{t("password.link")}</Link>}
       {!user.impersonating && <Link href="/two-factor" className="btn-secondary" data-testid="two-factor-link">{t("totp.link")}</Link>}
       {user.isAdmin && <Link href="/admin/users" className="btn-secondary" data-testid="admin-link">{t("admin.usersLink")}</Link>}
+      <a href="/api/account/export" download className="btn-secondary" data-testid="export-account">{t("export.account")}</a>
       <PushToggle />
       <SettingsPanel />
       <p className="muted">{t("settings.install")}</p>

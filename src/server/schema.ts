@@ -11,6 +11,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  type AnyPgColumn,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -32,7 +33,10 @@ export const users = pgTable(
     passwordHash: text("password_hash"),
     isAdmin: boolean("is_admin").notNull().default(false),
     /** user = echtes Konto | test = Testnutzer (kein Passwort, nie selbst anmeldbar, nur vom Admin steuerbar) */
+    /** user = echtes Konto | test = Testnutzer | guest = Mitglied ohne Konto (gehört zu genau einer Gruppe, nie anmeldbar) */
     kind: varchar("kind", { length: 10 }).notNull().default("user"),
+    /** Nur bei Gästen: die Gruppe, in der sie angelegt wurden (wird mit der Gruppe gelöscht) */
+    guestGroupId: uuid("guest_group_id").references((): AnyPgColumn => groups.id, { onDelete: "cascade" }),
     /** active | invited (wartet auf Aktivierung per Link) | pending (Selbstregistrierung, wartet auf Freigabe) | disabled */
     status: varchar("status", { length: 20 }).notNull().default("active"),
     mustChangePassword: boolean("must_change_password").notNull().default(false),
@@ -153,6 +157,8 @@ export const groupMembers = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     role: varchar("role", { length: 10 }).notNull().default("member"),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Gruppe in der eigenen Übersicht ins Archiv verschoben (gilt nur für dieses Mitglied) */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index("gm_user_idx").on(t.userId)],
 );
@@ -167,6 +173,8 @@ export const invites = pgTable("invites", {
     .references(() => users.id),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   maxUses: integer("max_uses").notNull().default(1),
+  /** Verknüpfungs-Link: wer ihn einlöst, übernimmt diesen Gast (Mitglied ohne Konto) */
+  guestId: uuid("guest_id").references(() => users.id, { onDelete: "cascade" }),
   uses: integer("uses").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

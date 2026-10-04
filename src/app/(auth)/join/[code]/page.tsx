@@ -12,8 +12,9 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
   const invite = await previewInvite(code);
   if (!invite) return <p className="card text-center">{t("join.invalid")}</p>;
   const user = await getCurrentUser();
-  const text =
-    invite.kind === "direct"
+  const text = invite.guestName
+    ? t("join.guest", { inviter: invite.inviter, name: invite.groupName ?? "", guest: invite.guestName })
+    : invite.kind === "direct"
       ? t("join.friend", { inviter: invite.inviter })
       : t("join.group", { inviter: invite.inviter, name: invite.groupName ?? "" });
   return (

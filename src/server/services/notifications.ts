@@ -37,7 +37,8 @@ export async function notifyGroup(opts: {
       .from(groupMembers)
       .innerJoin(users, eq(users.id, groupMembers.userId))
       .where(eq(groupMembers.groupId, opts.groupId));
-    const others = recipients.filter((r) => r.id !== opts.actorId);
+    // Gäste (Mitglieder ohne Konto) können nichts lesen: keine Einträge, kein Push
+    const others = recipients.filter((r) => r.id !== opts.actorId && r.kind !== "guest");
     if (!g || !actor || others.length === 0) return;
     const groupName = g.kind === "direct" ? actor.name : g.name;
     const data: NotificationData = {

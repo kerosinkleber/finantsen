@@ -11,6 +11,8 @@ import { RestoreButton } from "@/components/RestoreButton";
 import { Money } from "@/components/Money";
 import { InviteBox } from "@/components/InviteBox";
 import { GroupSettings } from "@/components/GroupSettings";
+import { ArchiveButton } from "@/components/ArchiveButton";
+import { Guests } from "@/components/Guests";
 import { DefaultSplitForm } from "@/components/DefaultSplitForm";
 import { FilterForm } from "@/components/FilterForm";
 import { StatsTab } from "@/components/StatsTab";
@@ -77,6 +79,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
             ))}
           </ul>
           <InviteBox createUrl={`/api/groups/${id}/invites`} label={t("group.invite")} />
+          {!isDirect && <Guests groupId={id} guests={group.members.filter((m) => m.isGuest).map((m) => ({ id: m.id, name: m.name.replace(/ \([^)]*\)$/, "") }))} />}
           <GroupSettings
             groupId={id}
             simplify={group.simplifyDebts}
@@ -87,6 +90,11 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
             meId={user.id}
           />
           <DefaultSplitForm groupId={id} members={group.members} initial={group.defaultSplit} />
+          <ArchiveButton groupId={id} archived={group.archived} />
+          <div className="card flex flex-col gap-2">
+            <a href={`/api/groups/${id}/export`} download className="btn-secondary" data-testid="export-csv">{t("export.csv")}</a>
+            <p className="muted">{t("export.csvHelp")}</p>
+          </div>
         </>
       )}
     </>

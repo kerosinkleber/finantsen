@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -32,8 +32,10 @@ d("services (PostgreSQL)", () => {
       import("./passkeys"),
       import("./recurring"),
       import("@/lib/recurrence"),
+      import("./guests"),
+      import("./export"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter };
   }
 
   beforeAll(async () => {
@@ -1239,6 +1241,135 @@ d("services (PostgreSQL)", () => {
       const r = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { unit: "week", every: 2, startDate: start }));
       expect(r.booked).toBe(3); // Tag 0, 14, 28
       expect(svc.recurrence.occurrence(start, "week", 2, 1)).toBe(new Date(Date.parse(start) + 14 * 86400_000).toISOString().slice(0, 10));
+    });
+  });
+
+  describe("Export, Archiv, Mitglieder ohne Konto", () => {
+    it("CSV: Kopfzeile, Zeilen, Saldo, Trennzeichen je Sprache, Formel-Schutz, Rechte", async () => {
+      const { a, b, c, g } = await setup();
+      await svc.expenses.createExpense(a.id, g.id, base({ title: "=SUM(A1)", amountMinor: 3000, payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      await svc.payments.createPayment(b.id, g.id, { fromUser: b.id, toUser: a.id, amountMinor: 1000, currency: "EUR", date: "2026-01-03" });
+      const de = await svc.exporter.groupCsv(a.id, g.id, "de");
+      const lines = de.csv.replace("\uFEFF", "").trim().split("\r\n");
+      expect(lines[0]).toContain("Art;Datum;Titel");
+      expect(lines[0]).toContain("Anna bezahlt;Anna Anteil");
+      expect(lines).toHaveLength(4); // Kopf, Ausgabe, Zahlung, Saldo EUR
+      expect(lines[1]).toContain("'=SUM(A1)");
+      expect(lines[1]).toContain("30,00");
+      expect(lines[3].startsWith("Saldo;")).toBe(true);
+      expect(lines[3]).toContain("10,00"); // Anna: +20 - 10 erhalten = +10
+      const en = await svc.exporter.groupCsv(a.id, g.id, "en");
+      expect(en.csv).toContain("Type,Date,Title");
+      expect(en.csv).toContain("30.00");
+      expect(de.filename).toMatch(/^finantsen-WG-\d{4}-\d{2}-\d{2}\.csv$/);
+      const outsider = await mkUser(a, "dora");
+      await expect(svc.exporter.groupCsv(outsider.id, g.id, "de")).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("Konto-Export: eigene Gruppen mit Daten, keine Geheimnisse", async () => {
+      const { a, b, g } = await setup();
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      const data = await svc.exporter.accountExport(b.id);
+      expect(data.groups).toHaveLength(1);
+      expect(data.groups[0].expenses).toHaveLength(1);
+      expect(data.groups[0].balances.EUR[b.id]).toBe(-1500);
+      const text = JSON.stringify(data);
+      expect(text).not.toMatch(/password|totp_secret|totpSecret|argon2/i);
+    });
+
+    it("Archiv gilt nur für das eigene Konto, Salden zählen weiter", async () => {
+      const { a, b, g } = await setup();
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      await svc.groups.setArchived(b.id, g.id, true);
+      expect((await svc.groups.listGroups(b.id)).find((x) => x.id === g.id)?.archived).toBe(true);
+      expect((await svc.groups.listGroups(a.id)).find((x) => x.id === g.id)?.archived).toBe(false);
+      expect((await svc.balances.overallBalances(b.id)).totals.EUR).toBe(-1500);
+      await svc.groups.setArchived(b.id, g.id, false);
+      expect((await svc.groups.listGroups(b.id)).find((x) => x.id === g.id)?.archived).toBe(false);
+      const outsider = await mkUser(a, "dora");
+      await expect(svc.groups.setArchived(outsider.id, g.id, true)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("Gast: anlegen, mitrechnen, nie anmeldbar, keine Benachrichtigung, Löschen nur ohne Daten", async () => {
+      const { a, b, g } = await setup();
+      const oma = await svc.guests.addGuest(b.id, g.id, "Oma");
+      const leer = await svc.guests.addGuest(a.id, g.id, "Leer");
+      const members = (await svc.groups.getGroup(a.id, g.id)).members;
+      expect(members.find((m) => m.id === oma.id)).toMatchObject({ isGuest: true, name: "Oma (Gast)" });
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: oma.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, oma.id] } }));
+      expect((await svc.balances.getGroupBalances(a.id, g.id)).net.EUR[oma.id]).toBe(1500);
+      expect(await svc.notifications.listNotifications(oma.id)).toHaveLength(0);
+      const [row] = (await svc.getDb().execute(svc.sql`select username from users where id = ${oma.id}`)) as unknown as { username: string }[];
+      expect(await svc.users.authenticate(row.username, "irgendwas")).toMatchObject({ kind: "invalid" });
+      expect((await svc.users.listUsers(actor(a))).some((u) => u.id === oma.id)).toBe(false);
+      await expect(svc.guests.deleteGuest(a.id, g.id, oma.id)).rejects.toMatchObject({ code: "guest_has_data" });
+      await svc.guests.deleteGuest(a.id, g.id, leer.id);
+      await svc.guests.renameGuest(a.id, g.id, oma.id, "Oma Erna");
+      expect((await svc.groups.getGroup(a.id, g.id)).members.find((m) => m.id === oma.id)?.name).toBe("Oma Erna (Gast)");
+      const outsider = await mkUser(a, "dora");
+      await expect(svc.guests.addGuest(outsider.id, g.id, "x")).rejects.toMatchObject({ status: 404 });
+      await expect(svc.guests.createGuestLink(outsider.id, g.id, oma.id)).rejects.toMatchObject({ status: 404 });
+      const friend = await svc.groups.createGroup(a.id, { name: "direct", defaultCurrency: "EUR", kind: "direct" });
+      await expect(svc.guests.addGuest(a.id, friend.id, "x")).rejects.toMatchObject({ code: "direct_group" });
+    });
+
+    it("Gast übernehmen: neues Mitglied erbt alles, bestehendes Mitglied wird zusammengeführt, Link nur einmal", async () => {
+      const { a, b, c, g } = await setup();
+      const oma = await svc.guests.addGuest(a.id, g.id, "Oma");
+      // Ausgabe 1: Oma und Ben zahlen gemeinsam, Anteile Oma 40 %, Ben 30 %, Anna 30 %
+      await svc.expenses.createExpense(a.id, g.id, base({
+        amountMinor: 1000,
+        payers: [{ userId: oma.id, amountMinor: 600 }, { userId: b.id, amountMinor: 400 }],
+        split: { type: "percent", entries: [{ userId: oma.id, bp: 4000 }, { userId: b.id, bp: 3000 }, { userId: a.id, bp: 3000 }] },
+      }));
+      // Ausgabe 2: Einzelposten mit Oma
+      await svc.expenses.createExpense(a.id, g.id, base({
+        amountMinor: 500, payers: [{ userId: a.id, amountMinor: 500 }],
+        split: { type: "items", items: [{ name: "Kuchen", amountMinor: 500, participants: [oma.id, b.id] }], taxMinor: 0, tipMinor: 0 },
+      }));
+      await svc.payments.createPayment(a.id, g.id, { fromUser: b.id, toUser: oma.id, amountMinor: 100, currency: "EUR", date: "2026-01-05" });
+      await svc.recurring.createRecurring(a.id, g.id, { title: "Abo", amountMinor: 900, currency: "EUR", category: "other", payers: [{ userId: oma.id, amountMinor: 900 }], split: { type: "equal", participants: [oma.id, b.id] }, unit: "month", every: 1, startDate: "2099-01-01" });
+      const before = (await svc.balances.getGroupBalances(a.id, g.id)).net.EUR;
+      const sum = (before[oma.id] ?? 0) + (before[b.id] ?? 0);
+
+      const link = await svc.guests.createGuestLink(a.id, g.id, oma.id);
+      expect((await svc.groups.previewInvite(link.code))?.guestName).toBe("Oma");
+      await svc.groups.acceptInvite(b.id, link.code); // Ben (schon Mitglied) übernimmt
+      await expect(svc.groups.acceptInvite(c.id, link.code)).rejects.toMatchObject({ code: "invite_invalid" });
+
+      const after = (await svc.balances.getGroupBalances(a.id, g.id)).net.EUR;
+      expect(after[oma.id] ?? 0).toBe(0);
+      expect(after[b.id]).toBe(sum); // Salden zusammengeführt, Summe bleibt
+      expect(Object.values(after).reduce((x, y) => x + y, 0)).toBe(0);
+      const list = await svc.expenses.listExpenses(a.id, g.id);
+      const e1 = list.find((e) => e.amountMinor === 1000)!;
+      expect(e1.payers).toEqual([expect.objectContaining({ userId: b.id, amountMinor: 1000 })]);
+      expect(e1.shares.find((s) => s.userId === b.id)).toMatchObject({ amountMinor: 700, input: 7000 });
+      const e2 = list.find((e) => e.amountMinor === 500)!;
+      expect(JSON.stringify(e2.items)).not.toContain(oma.id);
+      expect((await svc.payments.listPayments(a.id, g.id)).length).toBe(0); // Ben→Oma wurde Ben→Ben: aufgehoben
+      const tpl = (await svc.recurring.listRecurring(a.id, g.id)).items[0].template;
+      expect(tpl.payers).toEqual([{ userId: b.id, amountMinor: 900 }]);
+      expect(tpl.split).toEqual({ type: "equal", participants: [b.id] });
+      expect((await svc.groups.getGroup(a.id, g.id)).members.some((m) => m.id === oma.id)).toBe(false);
+      const hist = await svc.expenses.expenseHistoryFor(a.id, g.id, e1.id);
+      expect(JSON.stringify(hist)).not.toContain(oma.id);
+    });
+
+    it("Gast übernehmen durch ein neues Konto macht es zum Mitglied; Gruppe löschen entfernt Gäste", async () => {
+      const { a, g } = await setup();
+      const opa = await svc.guests.addGuest(a.id, g.id, "Opa");
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, opa.id] } }));
+      const dora = await mkUser(a, "dora");
+      const link = await svc.guests.createGuestLink(a.id, g.id, opa.id);
+      const res = await svc.groups.acceptInvite(dora.id, link.code);
+      expect(res.groupId).toBe(g.id);
+      expect((await svc.balances.getGroupBalances(a.id, g.id)).net.EUR[dora.id]).toBe(-1500);
+      const opa2 = await svc.guests.addGuest(a.id, g.id, "Opa 2");
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: opa2.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, opa2.id] } }));
+      await svc.groups.deleteGroup(a.id, g.id);
+      const [{ n }] = (await svc.getDb().execute(svc.sql`select count(*)::int as n from users where kind = 'guest'`)) as unknown as { n: number }[];
+      expect(n).toBe(0);
     });
   });
 

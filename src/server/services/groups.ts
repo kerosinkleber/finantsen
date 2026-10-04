@@ -5,6 +5,7 @@ import { groupMembers, groups, invites, users } from "../schema";
 import { ApiError, forbidden, notFound } from "../http";
 import { memberIds, requireMember } from "./access";
 import type { DefaultSplit } from "@/lib/schemas";
+import { normalizeLocale, translate } from "@/i18n";
 import { groupBalances } from "./balances";
 
 export type GroupSummary = {
@@ -13,15 +14,30 @@ export type GroupSummary = {
   kind: string;
   defaultCurrency: string;
   role: string;
-  members: { id: string; name: string; isTest: boolean }[];
+  members: { id: string; name: string; isTest: boolean; isGuest: boolean }[];
+  /** Vom Nutzer in seiner Übersicht archiviert */
+  archived: boolean;
   /** Anzeigename: bei Freunden der Name der anderen Person */
   displayName: string;
 };
 
+async function viewerLocale(userId: string) {
+  try {
+    const { getLocale } = await import("@/i18n/server");
+    return await getLocale();
+  } catch {
+    const [viewer] = await getDb().select({ locale: users.locale }).from(users).where(eq(users.id, userId));
+    return normalizeLocale(viewer?.locale) ?? "de";
+  }
+}
+
 export async function listGroups(userId: string): Promise<GroupSummary[]> {
   const db = getDb();
+  // Gäste (Mitglieder ohne Konto) werden in der Sprache der angezeigten Seite gekennzeichnet;
+  // außerhalb einer Anfrage (Tests, Hintergrund) gilt die gespeicherte Sprache des Kontos.
+  const guestLabel = translate(await viewerLocale(userId), "guest.label");
   const mine = await db
-    .select({ group: groups, role: groupMembers.role })
+    .select({ group: groups, role: groupMembers.role, archivedAt: groupMembers.archivedAt })
     .from(groupMembers)
     .innerJoin(groups, eq(groups.id, groupMembers.groupId))
     .where(eq(groupMembers.userId, userId))
@@ -33,8 +49,10 @@ export async function listGroups(userId: string): Promise<GroupSummary[]> {
     .from(groupMembers)
     .innerJoin(users, eq(users.id, groupMembers.userId))
     .where(inArray(groupMembers.groupId, ids));
-  return mine.map(({ group, role }) => {
-    const members = mem.filter((m) => m.groupId === group.id).map(({ id, name, kind }) => ({ id, name: kind === "test" ? `${name} (Test)` : name, isTest: kind === "test" }));
+  return mine.map(({ group, role, archivedAt }) => {
+    const members = mem
+      .filter((m) => m.groupId === group.id)
+      .map(({ id, name, kind }) => ({ id, name: kind === "test" ? `${name} (Test)` : kind === "guest" ? `${name} (${guestLabel})` : name, isTest: kind === "test", isGuest: kind === "guest" }));
     const other = members.find((m) => m.id !== userId);
     return {
       id: group.id,
@@ -42,6 +60,7 @@ export async function listGroups(userId: string): Promise<GroupSummary[]> {
       kind: group.kind,
       defaultCurrency: group.defaultCurrency,
       role,
+      archived: !!archivedAt,
       members,
       displayName: group.kind === "direct" ? (other?.name ?? group.name) : group.name,
     };
@@ -92,6 +111,15 @@ export async function updateGroup(
   return g;
 }
 
+/** Gruppe in der eigenen Übersicht archivieren oder zurückholen (betrifft nur dieses Mitglied, Salden zählen weiter). */
+export async function setArchived(userId: string, groupId: string, archived: boolean) {
+  await requireMember(userId, groupId);
+  await getDb()
+    .update(groupMembers)
+    .set({ archivedAt: archived ? new Date() : null })
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
+}
+
 export async function deleteGroup(userId: string, groupId: string) {
   const { role } = await requireMember(userId, groupId);
   if (role !== "owner") throw forbidden();
@@ -112,6 +140,12 @@ export async function removeMember(actorId: string, groupId: string, targetId: s
       .where(eq(groupMembers.groupId, groupId));
     const next = others.find((o) => o.userId !== actorId);
     if (next) await getDb().update(groupMembers).set({ role: "owner" }).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, next.userId)));
+  }
+  const [target] = await getDb().select({ kind: users.kind }).from(users).where(eq(users.id, targetId));
+  if (target?.kind === "guest") {
+    // Gäste gehören nur zu dieser Gruppe: entfernen heißt löschen (nur ohne Daten)
+    const { deleteGuest } = await import("./guests");
+    return deleteGuest(actorId, groupId, targetId);
   }
   await getDb().delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, targetId)));
 }
@@ -150,7 +184,12 @@ async function loadValidInvite(code: string) {
 export async function previewInvite(code: string) {
   const r = await loadValidInvite(code);
   if (!r) return null;
-  return { kind: r.group.kind, groupName: r.group.kind === "direct" ? null : r.group.name, inviter: r.inviter, groupId: r.group.id };
+  let guestName: string | null = null;
+  if (r.invite.guestId) {
+    const [g] = await getDb().select({ name: users.name }).from(users).where(eq(users.id, r.invite.guestId));
+    guestName = g?.name ?? null;
+  }
+  return { kind: r.group.kind, groupName: r.group.kind === "direct" ? null : r.group.name, inviter: r.inviter, groupId: r.group.id, guestName };
 }
 
 export async function isInviteValid(code: string) {
@@ -168,6 +207,11 @@ export async function acceptInvite(userId: string, code: string): Promise<{ grou
       .limit(1);
     const r = rows[0];
     if (!r || r.invite.expiresAt < new Date() || r.invite.uses >= r.invite.maxUses) throw new ApiError(410, "invite_invalid");
+    if (r.invite.guestId) {
+      // Verknüpfungs-Link: Konto übernimmt den Gast (auch wenn es schon Mitglied ist)
+      const { claimGuest } = await import("./guests");
+      return claimGuest(tx, userId, r.group.id, r.invite.guestId);
+    }
     const members = await tx.select({ userId: groupMembers.userId }).from(groupMembers).where(eq(groupMembers.groupId, r.group.id));
     if (members.some((m) => m.userId === userId)) return { groupId: r.group.id };
     if (r.group.kind === "direct" && members.length >= 2) throw new ApiError(410, "invite_invalid");

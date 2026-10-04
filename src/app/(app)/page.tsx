@@ -10,7 +10,26 @@ export default async function Dashboard() {
   const { t, locale } = await getT();
   const [groups, overall] = await Promise.all([listGroups(user.id), overallBalances(user.id)]);
   const realGroups = groups.filter((g) => g.kind === "group");
+  const active = realGroups.filter((g) => !g.archived);
+  const archived = realGroups.filter((g) => g.archived);
   const totals = Object.entries(overall.totals);
+  const row = (g: (typeof realGroups)[number]) => {
+    const bal = overall.perGroup[g.id] ?? {};
+    return (
+      <li key={g.id}>
+        <Link href={`/groups/${g.id}`} className="card flex items-center justify-between hover:border-brand" data-testid="group-row">
+          <span className="font-medium">{g.name}</span>
+          <span className="text-sm">
+            {Object.entries(bal).length === 0 ? (
+              <span className="muted">{t("dash.allSettled")}</span>
+            ) : (
+              Object.entries(bal).map(([cur, v]) => <Money key={cur} minor={v} currency={cur} locale={locale} signed />)
+            )}
+          </span>
+        </Link>
+      </li>
+    );
+  };
 
   return (
     <>
@@ -45,26 +64,14 @@ export default async function Dashboard() {
           <h2 className="text-lg font-semibold">{t("dash.groups")}</h2>
           <Link href="/groups/new" className="btn">{t("dash.newGroup")}</Link>
         </div>
-        {realGroups.length === 0 && <p className="muted">{t("dash.noGroups")}</p>}
-        <ul className="flex flex-col gap-2">
-          {realGroups.map((g) => {
-            const bal = overall.perGroup[g.id] ?? {};
-            return (
-              <li key={g.id}>
-                <Link href={`/groups/${g.id}`} className="card flex items-center justify-between hover:border-brand">
-                  <span className="font-medium">{g.name}</span>
-                  <span className="text-sm">
-                    {Object.entries(bal).length === 0 ? (
-                      <span className="muted">{t("dash.allSettled")}</span>
-                    ) : (
-                      Object.entries(bal).map(([cur, v]) => <Money key={cur} minor={v} currency={cur} locale={locale} signed />)
-                    )}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        {active.length === 0 && <p className="muted">{t("dash.noGroups")}</p>}
+        <ul className="flex flex-col gap-2">{active.map(row)}</ul>
+        {archived.length > 0 && (
+          <details className="card" data-testid="archive">
+            <summary className="cursor-pointer font-medium">{t("archive.title", { n: archived.length })}</summary>
+            <ul className="mt-3 flex flex-col gap-2">{archived.map(row)}</ul>
+          </details>
+        )}
       </section>
     </>
   );

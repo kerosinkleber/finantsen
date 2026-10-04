@@ -298,7 +298,7 @@ export async function deleteTestUser(actor: SessionUser, id: string) {
         union select e.group_id, h.user_id from expense_history h join expenses e on e.id = h.expense_id where e.group_id in (${list})
         union select group_id, created_by from invites where group_id in (${list})
         union select group_id, created_by from recurring_expenses where group_id in (${list})
-      ) x join users usr on usr.id = x.u where usr.kind <> 'test'`);
+      ) x join users usr on usr.id = x.u where usr.kind = 'user'`);
     const names = await db.select({ id: groups.id, name: groups.name, kind: groups.kind }).from(groups).where(inArray(groups.id, ids));
     for (const g of names) {
       const real = [...new Set(involved.filter((r) => r.g === g.id).map((r) => r.name))];

@@ -977,3 +977,76 @@ test("recurring expenses: create with past start books missed dates, shown as au
   await page.getByTestId("recurring-policy").uncheck();
   await ctx.close();
 });
+
+test("members without an account: add guest, use in expense, link to an account; archive; CSV and JSON export", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto(`${groupUrl}?tab=members`);
+  await page.getByTestId("guests").getByLabel("Name").fill("Grandma");
+  await page.getByTestId("guest-add").click();
+  await expect(page.getByTestId("guest-item")).toContainText("Grandma");
+
+  // Gast zahlt eine Ausgabe
+  await page.goto(`${groupUrl}/expenses/new`);
+  await page.getByLabel("Title").fill("Cake");
+  await page.getByLabel("Amount").fill("20");
+  await page.getByLabel("Paid by").selectOption({ label: "Grandma (guest)" });
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Cake" })).toContainText("Grandma (guest) paid");
+
+  // Löschen geht nicht, solange Daten da sind
+  await page.goto(`${groupUrl}?tab=members`);
+  await page.getByTestId("guest-delete").click();
+  await page.getByTestId("confirm-yes").click();
+  await expect(page.getByTestId("guests").getByTestId("error")).toContainText("still has expenses");
+
+  // Verknüpfungs-Link: ein neues Konto übernimmt den Gast
+  await page.getByTestId("guest-link").click();
+  const linkUrl = await page.getByTestId("guest-link-url").inputValue();
+  await expect(page.getByTestId("guests").getByTestId("qr")).toBeVisible();
+  await page.goto("/admin/users");
+  await form(page).getByLabel("Username", { exact: true }).fill("gina");
+  await form(page).getByLabel("I set the password").check();
+  await form(page).getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await form(page).getByLabel("Require a password change at first sign-in").uncheck();
+  await form(page).getByRole("button", { name: "Create account" }).click();
+  await expect(card(page, "gina")).toBeVisible();
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const gp = await ctx.newPage();
+  await login(gp, "gina");
+  await gp.goto(new URL(linkUrl).pathname);
+  await expect(gp.getByText("take over the role of Grandma")).toBeVisible();
+  await gp.getByRole("button", { name: "Accept invitation" }).click();
+  await expect(gp).toHaveURL(new RegExp(groupUrl));
+  await expect(gp.getByTestId("expense-item").filter({ hasText: "Cake" })).toContainText("You paid");
+  await ctx.close();
+  await page.goto(`${groupUrl}?tab=members`);
+  await expect(page.getByTestId("guest-item")).toHaveCount(0);
+
+  // CSV-Export
+  const csv = await page.request.get(`/api${groupUrl}/export`, { headers: { "accept-language": "en-US" } }); // wie der Browser beim Download
+  expect(csv.status()).toBe(200);
+  expect(csv.headers()["content-type"]).toContain("text/csv");
+  const text = await csv.text();
+  expect(text).toContain("Type,Date,Title");
+  expect(text).toContain("Cake");
+  expect(text).toContain("gina paid");
+  await expect(page.getByTestId("export-csv")).toBeVisible();
+  // JSON-Export
+  const json = await page.request.get("/api/account/export");
+  expect(json.status()).toBe(200);
+  const data = await json.json();
+  expect(data.format).toBe("finantsen-export/1");
+  expect(JSON.stringify(data)).not.toMatch(/passwordHash|totpSecret/);
+
+  // Archiv: nur für mich
+  await page.getByTestId("archive-toggle").click();
+  await page.goto("/");
+  await expect(page.getByTestId("archive")).toBeVisible();
+  await expect(page.getByTestId("archive")).toContainText("Ski trip");
+  await page.getByTestId("archive").locator("summary").click();
+  await page.getByTestId("archive").getByText("Ski trip").click();
+  await page.goto(`${groupUrl}?tab=members`);
+  await page.getByTestId("archive-toggle").click();
+  await page.goto("/");
+  await expect(page.getByTestId("archive")).toHaveCount(0);
+});
