@@ -64,3 +64,14 @@ Antwort / Anmerkung:
 3. Ein Konto, das bereits Mitglied der Gruppe ist, kann einen Gast trotzdem übernehmen; seine und die Daten des Gasts werden zusammengeführt.
 4. Der Verknüpfungs-Link gilt 7 Tage und nur einmal.
 5. Die CSV enthält Beträge als Dezimalzahl in der Ausgabenwährung und zusätzlich in der Gruppenwährung; gelöschte Ausgaben sind nicht enthalten.
+
+---
+
+## Umsetzung (von Claude ergänzt)
+
+Gebaut nach den Empfehlungen (der Fragebogen war zum Zeitpunkt des Baus noch nicht beantwortet; Abweichungen ändere ich nach deiner Antwort):
+
+1. **Gäste:** `users.kind = 'guest'`, gehören zu genau einer Gruppe (werden mit ihr gelöscht), Kennzeichnung „(Gast)“ bzw. „(guest)“ in der Sprache der Seite, keine Benachrichtigungen, nicht in der Nutzerverwaltung, nie anmeldbar. Jedes Mitglied darf Gäste anlegen, umbenennen und löschen; Löschen nur ohne Ausgaben, Zahlungen und Vorlagen. „Mitglied entfernen“ bei einem Gast bedeutet Löschen.
+2. **Verknüpfen:** Link (7 Tage, einmalig, ältere Links des Gasts werden ungültig, mit QR-Code). Beim Einlösen gehen Zahler- und Anteilszeilen, Einzelposten, Zahlungen, wiederkehrende Vorlagen und Verlaufs-Snapshots auf das Konto über. Ist das Konto schon Mitglied, werden Beträge, Prozente und Gewichte zusammengefasst (Summen bleiben gleich). Zahlungen zwischen Gast und diesem Konto heben sich dann auf und werden als gelöscht markiert.
+3. **Archiv:** je Mitglied (`group_members.archived_at`), nur Anzeige; Salden zählen weiter.
+4. **Export:** CSV je Gruppe (Sprache der Seite bestimmt Trennzeichen und Dezimalkomma; Formel-Schutz gegen CSV-Injection) und Konto-Export als JSON (ohne Passwörter, 2FA-Geheimnisse, Passkeys).

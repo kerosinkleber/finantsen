@@ -72,6 +72,14 @@ Zum Ausprobieren legt der Admin unter *Konto → Nutzer verwalten → Testnutzer
 - **Löschen:** Gruppen, Ausgaben und Zahlungen, an denen nur Testnutzer beteiligt sind, werden mitgelöscht. Hängen Daten des Testnutzers in einer Gruppe mit echten Nutzern, wird **nichts** gelöscht und die App nennt die betroffenen Gruppen. Bloße Mitgliedschaften werden aufgelöst.
 - **Schalter „Testfunktionen“:** Im lokalen Test (`docker-compose.local.yml`) standardmäßig an. **Im produktiven Stack ist er standardmäßig aus**, weil dort `TEST_FEATURES_DEFAULT` nicht gesetzt ist. Eine bewusste Wahl im Admin-Bereich hat Vorrang. Siehe `docs/release-checkliste.md`.
 
+### Mitglieder ohne Konto (Gäste)
+In einer Gruppe unter *Mitglieder → Mitglieder ohne Konto* legt jedes Mitglied Personen ohne eigenes Konto an (z. B. Kinder, Großeltern). Sie zahlen, bekommen Anteile und haben einen Saldo wie alle anderen, sind mit „(Gast)“ gekennzeichnet, bekommen keine Benachrichtigungen und können sich nie anmelden. Später erzeugt ein Mitglied einen **Verknüpfungs-Link** (7 Tage, einmalig, mit QR-Code): Wer ihn mit seinem Konto einlöst, übernimmt alle Ausgaben, Zahlungen und Salden des Gasts. War das Konto schon Mitglied, werden die Beträge zusammengefasst. Löschen geht nur, solange ein Gast keine Ausgaben oder Zahlungen hat.
+
+### Archiv und Export
+- **Gruppe archivieren** (*Mitglieder → Gruppe archivieren*): nur für dich; die Gruppe steht dann unten in der Übersicht im Bereich „Archiv“. Salden zählen weiter, andere Mitglieder merken nichts.
+- **CSV-Export je Gruppe** (*Mitglieder → Als CSV exportieren*): eine Zeile je Ausgabe und Zahlung, je Person „bezahlt“ und „Anteil“, am Ende die Salden. Deutsche Oberfläche: `;` und Dezimalkomma, englische: `,` und Punkt. Formeln in Titeln werden entschärft.
+- **Konto-Export** (*Konto → Meine Daten exportieren*): alle eigenen Gruppen mit Ausgaben, Zahlungen und Salden als JSON, ohne Passwörter, 2FA-Geheimnisse oder Passkeys.
+
 ### Wiederkehrende Ausgaben
 In jeder Gruppe unter den Ausgaben („Wiederkehrende Ausgaben“): Vorlage mit Rhythmus (alle N Tage/Wochen/Monate/Jahre), erstem Termin und optionalem Enddatum. Die App bucht zum Termin automatisch eine normale Ausgabe (Kurs zum Buchungstag, andere Mitglieder werden benachrichtigt) und holt verpasste Termine nach, auch nach einem Neustart. Der Gruppenbesitzer kann die Verwaltung auf Besitzer beschränken. Der Zeitplaner läuft im App-Prozess (beim Start und alle 15 Minuten); mit `SCHEDULER=off` ist er abgeschaltet.
 

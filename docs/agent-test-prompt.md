@@ -23,7 +23,7 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - Wenn etwas unklar oder gefährlich wirkt, frage nach, statt zu raten.
 
 ### 2. Vorbereitung
-1. Lies `docs/tester-guide.md` im Projektordner vollständig. Sie ist deine **Testspezifikation**: Jede Checkbox ist ein Testfall mit erwartetem Ergebnis. Arbeite alle Abschnitte 2 bis 9 ab. Abschnitt 1 der Anleitung (Start der App) entfällt, die App läuft bereits.
+1. Lies `docs/tester-guide.md` im Projektordner vollständig. Sie ist deine **Testspezifikation**: Jede Checkbox ist ein Testfall mit erwartetem Ergebnis. Arbeite alle Abschnitte ab 2 ab (auch die Unterabschnitte wie „Members without an account“, 7b und 7c). Abschnitt 1 der Anleitung (Start der App) entfällt, die App läuft bereits.
 2. Du testest das **sichtbare Verhalten**. Lies keinen Quellcode, um Tests zu „erraten“.
 3. Für mehrere Personen brauchst du **getrennte Sitzungen**, damit sich Cookies nicht mischen: je Person ein eigenes privates Fenster bzw. ein eigenes Profil/Browser-Kontext. Melde dich in einem Kontext ab, bevor du ihn für eine andere Person nutzt.
 4. Wenn dein Werkzeug Screenshots kann, mache bei Fehlern welche. Sonst beschreibe den Bildschirm genau.
@@ -32,6 +32,11 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - Anmeldung als Admin: Knopf „Als admin anmelden (Entwicklung)“ (kein Passwort).
 - Passwort für alle erfundenen Konten: `Correct-Horse-Battery-9!` (erfüllt die Regeln, enthält aber **nicht** den Nutzernamen; wähle Nutzernamen entsprechend, z. B. `qa-lena`, `qa-ben`, `qa-cleo`).
 - Lege früh drei bis vier Konten über *Konto → Nutzer verwalten* an (zwei per Einmal-Link, zwei mit gesetztem Passwort, davon eins mit Pflicht zum Passwortwechsel), damit du Abschnitte 3 bis 6 mit mehreren Personen testen kannst.
+- **Passwörter eingeben:** Wenn dein Werkzeug dir das Eingeben neuer Zugangsdaten verbietet, **bitte mich an genau dieser Stelle, zu übernehmen** (ich tippe das Passwort `Correct-Horse-Battery-9!` ein), und mach danach weiter. Lehne ich ab, markiere die betroffenen Fälle als BLOCKED.
+- **Bestätigungen** (Löschen, Deaktivieren usw.) erscheinen als Fenster **innerhalb der Seite** mit den Knöpfen „Bestätigen“/„Abbrechen“ (keine Browser-Dialoge mehr).
+- **Zwei-Faktor (7b) und Passkeys (7c):** brauchen eine Authenticator-App bzw. einen Fingerabdruck-/PIN-Dialog des Systems. Kann dein Werkzeug das nicht, bitte mich an dieser Stelle um Übernahme oder markiere BLOCKED. Teste 2FA nie am Admin-Konto, nur an einem Wegwerfkonto.
+- **Wiederkehrende Ausgaben:** Termine in der Zukunft werden automatisch gebucht (Prüfung alle 15 Minuten). Teste das über einen ersten Termin in der Vergangenheit oder heute, nicht durch Warten.
+- **Exporte (CSV/JSON)** werden als Datei heruntergeladen. Kannst du Downloads nicht öffnen, prüfe nur, dass der Download startet, und notiere den Rest als BLOCKED.
 - Teste **Sperren nach Fehlversuchen nur mit einem Wegwerfkonto** (nicht mit dem Admin), und warte die angezeigte Wartezeit ab.
 - Rechne bei Beträgen **selbst nach** und vergleiche mit der App. Beispiele:
   - 10,00 € gleichmäßig auf 3 Personen: Anteile müssen sich zu exakt 10,00 € addieren (z. B. 3,34 / 3,33 / 3,33).
@@ -51,7 +56,7 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - **Sicherheits-Stichproben** (Abschnitt 9 der Anleitung), alle im Browser: fremde Gruppen-URLs, Admin-Seiten als normaler Nutzer (`/admin/users`, `/admin/test-users`), im **abgemeldeten** Kontext die Adresse `http://localhost:3000/api/groups` öffnen (muss einen Fehler „unauthorized“ zeigen, keine Daten), HTML in Titeln/Kommentaren (muss als Text erscheinen), sehr lange und absurde Eingaben.
 - **Offline (optional):** Nur wenn dein Werkzeug das Netzwerk abschalten kann: Seiten besuchen, offline gehen, neu laden. Bereits besuchte Seiten sollen lesbar bleiben, nie besuchte die Offline-Seite zeigen. Sonst als „nicht getestet“ vermerken.
 - Wenn ein Testfall scheitert: Beleg (Screenshot oder genaue Beschreibung), exakte **Schritte zur Reproduktion**, erwartetes und tatsächliches Ergebnis notieren, dann **weitermachen** (nicht hängen bleiben). Versuche einmal zu wiederholen, um sicher zu sein, dass es reproduzierbar ist.
-- Bekannte Lücken (**keine Fehler**, nur mit „SKIPPED – bekannt“ vermerken): TOTP/Zwei-Faktor, Passkeys, QR-Codes, E-Mail-Versand, Mitglieder ohne Konto, Wiederherstellen gelöschter Ausgaben, Push lokal, Belegscan (ohne API-Key).
+- Bekannte Lücken (**keine Fehler**, nur mit „SKIPPED – bekannt“ vermerken): QR-Codes **in der App scannen** (Anzeigen geht), E-Mail-Versand, Push lokal, Belegscan (ohne API-Key).
 
 ### 5. Bericht
 Schreibe `test-report/bericht-<Datum>.md` (Deutsch; lege den Ordner `test-report/` dafür an, das ist das Einzige, was du schreiben darfst) mit:

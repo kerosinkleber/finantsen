@@ -10,6 +10,7 @@ Vor dem Produktivbetrieb abhaken.
 - [ ] Testnutzer und Testdaten aufgeräumt (Testnutzer löschen, solange die Funktion noch an ist). Danach ausschalten.
 - [ ] Zwei-Faktor gewünscht? Unter *Nutzer verwalten → Einstellungen* „für alle verpflichtend“ und Anzahl Wiederherstellungscodes festlegen. Der erste Admin richtet sein TOTP vorher selbst ein (sonst wird er beim nächsten Login dazu gezwungen).
 - [ ] **Domain festlegen, bevor Passkeys eingerichtet werden:** Ein Passkey gilt nur für die Domain, unter der er angelegt wurde (und braucht HTTPS). Bei späterem Domainwechsel muss jeder seine Passkeys neu einrichten (Passwort und TOTP bleiben gültig). Passkeys, die lokal auf `localhost` angelegt wurden, funktionieren produktiv nicht.
+- [ ] **Zeitplaner** für wiederkehrende Ausgaben läuft im App-Prozess (nicht `SCHEDULER=off` setzen). Bei mehreren App-Instanzen ist Doppelbuchung durch die Datenbank ausgeschlossen.
 - [ ] Selbstregistrierung gewünscht? Standard ist aus.
 - [ ] Optional: `VAPID_*` (Push), `ANTHROPIC_API_KEY` (Belegscan), `EXCHANGE_RATE_PROVIDER`.
 

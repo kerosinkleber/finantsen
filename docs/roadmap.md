@@ -3,6 +3,9 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **Mitglieder ohne Konto (Gäste)**: anlegen, mitrechnen, per Link (mit QR) mit einem Konto verknüpfen; alle Daten wandern mit, Beträge werden zusammengeführt.
+- **Gruppen archivieren** (je Mitglied) und **Export** (CSV je Gruppe, Konto-Export als JSON).
+- **Release-Reife**: Sicherheits-Header, Backup- und Restore-Check-Skripte, Docker-Prüfung.
 - **Admin-Testfunktionen**: Testnutzer (kein Passwort, nie anmeldbar), eine Bearbeitungsseite für Profil, Gruppen, Rollen und Freundschaften, „Handeln als“ mit Banner und Nachvollziehbarkeit, geschütztes Löschen, Schalter (lokal an, produktiv aus), Release-Checkliste.
 - **Phase 0 und 1**: Grundgerüst, Gruppen und Freunde, Ausgaben mit allen Aufteilungsarten, Salden, Schuldenvereinfachung, Zahlungen, Soft Delete mit Verlauf.
 - **Phase 2**: Kommentare, Suche und Filter, Standard-Aufteilung, Benachrichtigungen und Web Push, Auswertungen.
@@ -15,9 +18,10 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 - **Konten Etappe A**: Einrichtung des ersten Admins, Anmeldung mit Nutzername oder E-Mail, Admin legt Konten an (Einmal-Link oder Passwort), Selbstregistrierung optional mit Freigabe, Passwortrichtlinie, Admin-Nutzerverwaltung.
 
 ## Aktuelle Priorität
-- Kontenplan abgeschlossen (Etappen A bis C und Passkeys). B, C und Passkeys warten auf den Test; danach freie Priorisierung der Ideen unten.
-
-## Danach (Reihenfolge wie vereinbart)
+- **Alle vereinbarten Funktionen sind gebaut.** Nächster Schritt: Test durch den Auftraggeber bzw. den Test-Agenten (`docs/tester-guide.md`), Funde abarbeiten, dann Release nach `docs/release-checkliste.md`.
 
 ## Ideen ohne Termin
-Mitglieder ohne Konto, weitere Belegscan-Anbieter, SMTP (E-Mail-Versand, nachrüstbar über `linkUrl` in `services/accounts.ts`).
+- QR-Codes in der App scannen (Anzeige gibt es; die Handy-Kamera öffnet Links ohnehin).
+- E-Mail-Versand (SMTP) für Einmal-Links und Benachrichtigungen, nachrüstbar über `linkUrl` in `services/accounts.ts` (bewusst nicht gebaut).
+- Weitere Belegscan-Anbieter.
+- Next.js-Hauptversions-Update (behebt die PostCSS-Warnung von `npm audit`, betrifft nur den Build).

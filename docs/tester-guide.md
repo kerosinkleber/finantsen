@@ -2,7 +2,7 @@
 
 Finantsen is a self-hosted web app for sharing expenses (think Splitwise). It works in the browser, is built mobile-first and can be installed as an app. You are testing an **early version**. Please try to break things and tell us what you find.
 
-Rough time needed: 45–90 minutes for everything, 20 minutes for the core (sections 2–5).
+Rough time needed: 90–150 minutes for everything, 20 minutes for the core (sections 2–5).
 
 ---
 
@@ -24,7 +24,7 @@ The first build takes a few minutes. When the log shows `migrations applied` and
 
 **Test password** that satisfies the rules: `Correct-Horse-Battery-9!`
 
-**Not available in this version** (please do not report these as bugs): scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), members without an account, push notifications on a local setup, receipt scanning (needs an API key).
+**Not available in this version** (please do not report these as bugs): scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), push notifications on a local setup, receipt scanning (needs an API key).
 
 ---
 
@@ -61,12 +61,20 @@ Create people first, you need at least two accounts to test sharing.
 
 - [ ] **Create a group** (name, default currency).
 - [ ] **Invite someone:** group → *Members* → *Invite a member* → copy the link. Open it while signed in as another user and click *Accept invitation*.
-  Expected: they are now a member. If not signed in, the link asks to sign in first.
+  Expected: they are now a member. If not signed in, the link asks to sign in first. A **QR code** of the link is shown below it; scanning it with a phone camera opens the same link.
 - [ ] **Friends:** *Friends* tab → *Add friend* → open the link as another user. Expected: a two-person space appears for both.
 - [ ] **Default split:** group → *Members* → *Default split*, choose percent or shares for specific people and save. New expenses are pre-filled accordingly.
 - [ ] **Simplify debts** switch (group → *Members*, group owner only): changes how balances are shown (fewest transfers vs. every single debt).
 - [ ] **Leaving / removing members:** possible only when the person's balance is zero, otherwise a clear message.
 - [ ] **Delete group** (owner only). Expected: asks for confirmation, everything in it is gone.
+- [ ] **Archive a group** (group → *Members* → *Archive group (just for me)*). Expected: on the overview the group moves into a collapsible "Archive (n)" box at the bottom; other members still see it normally; your balance still counts in the totals. *Restore from archive* brings it back.
+
+### Members without an account (guests)
+- [ ] Group → *Members* → **Members without an account** → enter a name (e.g. `qa-grandma`) → *Add guest*. Expected: the guest appears with "(guest)" behind the name everywhere (member list, expense form, balances).
+- [ ] Use the guest in an expense as **payer** and as **participant**. Balances include the guest. The guest never gets notifications.
+- [ ] **Delete** a guest that has expenses: refused with an explanation. A guest without any expenses can be deleted. *Edit* renames a guest.
+- [ ] **Link to an account:** *Link to an account* shows a link (and QR code), valid 7 days, once. Open it while signed in as another (real) account and accept. Expected: the text says you take over the guest's role; afterwards the guest is gone and all their expenses, payments and balances belong to that account (if that account was already a member, the amounts are combined, e.g. "paid 6 + 4" becomes "paid 10"). Opening the link a second time: "invalid".
+- [ ] Guests cannot sign in (there is no way to) and do not show up in *Manage users*. Friendships (two-person spaces) have no guests.
 
 ---
 
@@ -95,6 +103,7 @@ Use at least three people in one group so the results are interesting.
 
 - [ ] **Recurring expenses** (below the expense list, button "Recurring expenses"): create a template (e.g. monthly rent) with the first date in the past. Expected: a confirmation names how many bookings are created at once; they appear as normal expenses with an "automatic" badge, balances are updated, the other members get a notification. Try pause/resume, an end date, "every 2 weeks", editing a template (only future bookings change) and deleting it (already booked expenses stay).
 - [ ] **Owner-only switch** (Members tab): when on, other members can still see the templates but not create or change them.
+- [ ] Later dates are booked automatically (the app checks every 15 minutes and right after a restart). To see it without waiting, create a template whose first date is today: it is booked immediately.
 
 ---
 
@@ -105,6 +114,8 @@ Use at least three people in one group so the results are interesting.
 - [ ] **Overview page** ("Overview"): your total balance, per person across all groups, per group.
 - [ ] Settle everything: "All settled up".
 - [ ] **Statistics tab:** totals by category, by month and by person (paid vs. share), optional date range. Check that deleted expenses are not counted.
+- [ ] **CSV export** (group → *Members* → *Export as CSV*): open the file in Excel/LibreOffice. Expected: one row per expense and payment, per person "paid" and "share" columns, a "Balance" row at the end that matches the balances tab. German interface → `;` and decimal comma; English → `,` and decimal point. A title starting with `=` is shown as text, not as a formula.
+- [ ] **Export my data (JSON)** (Account page): downloads a file with your groups, expenses, payments and balances; it contains no passwords or 2FA secrets.
 
 ---
 

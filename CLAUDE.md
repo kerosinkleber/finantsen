@@ -66,6 +66,11 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Scheduler: `startRecurringScheduler` aus `instrumentation.ts` (beim Start + alle 15 Minuten, `SCHEDULER=off` schaltet ab). Anlegen/Ändern/Fortsetzen bucht Fälliges sofort. Rhythmus/Start ändern = Folge beginnt neu; nur Inhalt ändern behält sie.
 - UI: Gruppenansicht `?tab=recurring` (Link unter den Filtern, kein eigener Reiter wegen der Breite), Formular = `ExpenseForm` mit Prop `recurring` (ohne Belegscan/manuellen Kurs), Seiten `groups/[id]/recurring/new|[rid]`. Testnutzer: Löschschutz berücksichtigt Vorlagen.
 
+## Gäste, Archiv, Export
+- Fragebogen `docs/fragen/06-mitglieder-ohne-konto-und-archiv.md`. **Gäste**: `users.kind = 'guest'` mit `guest_group_id` (FK auf Gruppe, kaskadiert), nie anmeldbar (alle Login-Funktionen filtern weiter auf `kind = 'user'`), keine Benachrichtigungen (`notifyGroup` filtert), Kennzeichnung in `listGroups` über `guest.label` in der **Sprache der Seite** (`getLocale`, Fallback Kontosprache). `services/guests.ts`: `addGuest/renameGuest/deleteGuest` (nur ohne Daten; `removeMember` auf einen Gast = löschen), `createGuestLink` (Einladung mit `invites.guest_id`, 7 Tage, einmalig), `claimGuest` läuft in `acceptInvite`: Zahler/Anteile zusammenführen (Beträge, `input` addiert), Einzelposten/Vorlagen über `lib/merge.ts`, Verlaufs-Snapshots per Text-Ersatz der UUID, Zahlungen umhängen (Selbstzahlungen soft löschen), Mitgliedschaft anlegen, Gast löschen. UI `components/Guests.tsx` (Mitglieder-Reiter).
+- **Archiv**: `group_members.archived_at` (je Mitglied), `setArchived`, Übersicht mit „Archiv (n)“.
+- **Export**: `lib/csv.ts` (Quoting, CSV-Injection-Schutz, Dezimalformat), `services/export.ts` (`groupCsv` je Sprache der Seite, `accountExport` JSON ohne Geheimnisse), Routen `api/groups/[id]/export`, `api/account/export`.
+
 ## Entwicklungs-Admin und Anzeigename
 - `DEV_ADMIN=true` (nur `docker-compose.local.yml`; produktiv nie durchgereicht): `ensureDevAdmin` (Start, `instrumentation.ts`) legt bei **leerer** Datenbank genau einen Admin `admin` ohne Passwort an (`name` = Nutzername); `/api/dev/login` + Knopf auf der Anmeldeseite + rotes Banner. `devLogin` gilt nur, solange Variable gesetzt, Konto `admin` echtes Konto (`kind user`), Admin, aktiv und **ohne Passwort**; sonst 404. Normaler Login bleibt für passwortlose Konten immer zu. Release: `docs/release-checkliste.md`.
 - Anzeigename optional: Schemas (`displayName` preprocess leer → undefined), Services setzen `name = username`, wenn leer (`insertUser`, `insertTest`). DB-Spalte bleibt `NOT NULL`.
@@ -93,6 +98,7 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 - Neue UI-Texte: Schlüssel in `de.ts` UND `en.ts` (Test prüft Gleichheit).
 - Keine Secrets im Repo, Konfiguration über `.env` (siehe `.env.example`).
 - Jeder sinnvolle Schritt = eigener Commit.
+- Neue Funktion = Eintrag in README, CLAUDE.md, `docs/roadmap.md` und eine Testanleitung in `docs/tester-guide.md` (ggf. Hinweis in `docs/agent-test-prompt.md`).
 
 ## Roadmap
-Siehe `docs/roadmap.md` (maßgeblich, mit Reihenfolge). Kurz: Phase 0–3 und Konten-Etappen A, B (TOTP) und C (QR) sind fertig. **Aktuell vorgezogen: Admin-Testfunktionen** (Testnutzer ohne Passwort, vom Admin steuerbar; Fragebogen `docs/fragen/02-testnutzer.md`). Etappe C (QR-Anzeige) fertig, zuletzt Passkeys.
+Siehe `docs/roadmap.md` (maßgeblich). Alle vereinbarten Funktionen sind gebaut (Phasen 0–3, Konten A–C, Passkeys, Testnutzer, Papierkorb, wiederkehrende Ausgaben, Gäste, Archiv, Export, Release-Reife). Nächster Schritt: Tests durch Auftraggeber/Test-Agent (`docs/tester-guide.md`, `docs/agent-test-prompt.md`), Funde abarbeiten, Release nach `docs/release-checkliste.md`. **Jede neue Funktion braucht einen Abschnitt im Tester-Guide** (Testanleitung für den Agenten).
