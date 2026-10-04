@@ -1,3 +1,4 @@
+import { LocalTime } from "@/components/LocalTime";
 import Link from "next/link";
 import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
@@ -23,7 +24,7 @@ export default async function NotificationsPage() {
               data-testid="notification"
             >
               <p className="text-sm">{renderNotification(locale, n.type, n.data as NotificationData)}</p>
-              <p className="muted">{n.createdAt.toLocaleString(locale)}</p>
+              <p className="muted"><LocalTime iso={n.createdAt.toISOString()} locale={locale} /></p>
             </Link>
           </li>
         ))}

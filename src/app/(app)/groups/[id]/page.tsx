@@ -138,8 +138,8 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
                 <span className="muted">{e.date} · {t(`cat.${e.category}` as MessageKey)}</span>
                 <span className="block truncate font-medium">{e.title}</span>
                 <span className="muted block">
-                  {t("group.paidBy", {
-                    name: e.payers.length > 1 ? e.payers.map((p) => names.get(p.userId) ?? "?").join(", ") : (names.get(e.payers[0]?.userId ?? "") ?? "?"),
+                  {t(e.payers.length > 1 ? "group.paidByMany" : e.payers[0]?.userId === userId ? "group.paidByYou" : "group.paidBy", {
+                    name: e.payers.map((p) => names.get(p.userId) ?? "?").join(", "),
                     amount: formatMoney(e.amountMinor, e.currency, locale),
                   })}
                   {e.currency !== e.baseCurrency && (
@@ -151,7 +151,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
                 {involved ? (
                   <>
                     <span className="muted block">{net >= 0 ? t("group.lent") : t("group.borrowed")}</span>
-                    <Money minor={net} currency={e.baseCurrency} locale={locale} />
+                    <Money minor={net} currency={e.baseCurrency} locale={locale} absolute />
                   </>
                 ) : (
                   <span className="muted">{t("group.notInvolved")}</span>
@@ -182,7 +182,7 @@ async function BalancesTab({ groupId, userId, names, locale, t }: { groupId: str
               {(b.transfers[cur] ?? []).map((tr, i) => (
                 <li key={i} className="flex items-center justify-between gap-2 text-sm">
                   <span>
-                    {t("balances.owes", {
+                    {t(tr.from === userId ? "balances.youOwe" : tr.to === userId ? "balances.owesYou" : "balances.owes", {
                       from: names.get(tr.from) ?? "?",
                       to: names.get(tr.to) ?? "?",
                       amount: formatMoney(tr.amount, cur, locale),

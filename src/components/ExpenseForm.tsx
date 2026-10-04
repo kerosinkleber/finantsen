@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client-api";
+import { useConfirm } from "./useConfirm";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { CurrencySelect } from "./CurrencySelect";
@@ -45,6 +46,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   defaultSplit?: DefaultSplit | null;
 }) {
   const { t, locale } = useI18n();
+  const { ask, dialog } = useConfirm();
   const router = useRouter();
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -193,7 +195,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   }
 
   async function remove() {
-    if (!initial || !confirm(t("expense.deleteConfirm"))) return;
+    if (!initial || !(await ask(t("expense.deleteConfirm")))) return;
     setBusy(true);
     try {
       await api("DELETE", `/api/groups/${groupId}/expenses/${initial.id}`);
@@ -207,6 +209,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      {dialog}
       {!initial && <ReceiptScan fallbackCurrency={defaultCurrency} onResult={applyScan} />}
       <div className="card flex flex-col gap-4">
         <div>

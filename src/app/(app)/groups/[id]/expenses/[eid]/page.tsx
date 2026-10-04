@@ -1,3 +1,4 @@
+import { LocalTime } from "@/components/LocalTime";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
@@ -70,7 +71,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
               <li key={h.id} className="text-sm">
                 <p>
                   <span className="font-medium">{t(`expense.action.${h.action}` as MessageKey)}</span> · {h.userName}{h.actedByName ? <span data-testid="acted-by"> ({t("test.byAdmin", { name: h.actedByName })})</span> : null} ·{" "}
-                  <time className="muted" dateTime={h.createdAt.toISOString()}>{h.createdAt.toLocaleString(locale)}</time>
+                  <LocalTime className="muted" iso={h.createdAt.toISOString()} locale={locale} />
                 </p>
                 <p className="muted">
                   {s.title} · {formatMoney(s.amountMinor, s.currency, locale)} ·{" "}

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client-api";
+import { useConfirm } from "./useConfirm";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { useActAs } from "./TestUsersAdmin";
@@ -18,6 +19,7 @@ type BlockedGroup = { id: string; name: string; users: string[] };
 
 export function TestUserEditor({ detail }: { detail: TestUserDetail }) {
   const { t } = useI18n();
+  const { ask, dialog } = useConfirm();
   const router = useRouter();
   const actAs = useActAs();
   const u = detail.user;
@@ -41,11 +43,11 @@ export function TestUserEditor({ detail }: { detail: TestUserDetail }) {
     } catch (e) {
       if (e instanceof ApiClientError && e.code === "needs_confirmation") {
         const names = ((e.data?.realMembers ?? []) as string[]).join(", ");
-        if (confirm(t("test.confirmReal", { names }))) return membership({ ...body, confirmed: true });
+        if (await ask(t("test.confirmReal", { names }))) return membership({ ...body, confirmed: true });
         return;
       }
       if (e instanceof ApiClientError && e.code === "balance_not_zero" && e.data?.needsConfirmation) {
-        if (confirm(t("test.confirmBalance"))) return membership({ ...body, confirmed: true });
+        if (await ask(t("test.confirmBalance"))) return membership({ ...body, confirmed: true });
         return;
       }
       setError(e);
@@ -65,7 +67,7 @@ export function TestUserEditor({ detail }: { detail: TestUserDetail }) {
   }
 
   async function remove() {
-    if (!confirm(t("test.confirmDelete"))) return;
+    if (!(await ask(t("test.confirmDelete")))) return;
     setError(null);
     setBlocked(null);
     try {
@@ -81,6 +83,7 @@ export function TestUserEditor({ detail }: { detail: TestUserDetail }) {
   const label = "label";
   return (
     <div className="flex flex-col gap-4">
+      {dialog}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">
           {u.name} <span className="muted">@{u.username}</span>

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client-api";
+import { useConfirm } from "./useConfirm";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { PasswordField } from "./PasswordField";
@@ -135,6 +136,7 @@ function CreateUser({ onCreated }: { onCreated: (link: LinkInfo | null) => void 
 
 function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; onChanged: () => void; onLink: (l: LinkInfo) => void }) {
   const { t } = useI18n();
+  const { ask, dialog } = useConfirm();
   const [error, setError] = useState<unknown>(null);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState("");
@@ -178,7 +180,7 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
           </button>
         )}
         {u.totpEnabled && (
-          <button className={btn} data-testid="reset-totp" onClick={() => confirm(t("admin.confirmResetTotp")) && act({ action: "resetTotp" })}>
+          <button className={btn} data-testid="reset-totp" onClick={async () => (await ask(t("admin.confirmResetTotp"))) && act({ action: "resetTotp" })}>
             {t("admin.action.resetTotp")}
           </button>
         )}
@@ -187,7 +189,7 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
           <button className={btn} onClick={() => act({ action: "enable" })}>{t("admin.action.enable")}</button>
         ) : (
           u.id !== meId && (
-            <button className="btn-danger !min-h-9 !px-3" onClick={() => confirm(t("admin.confirmDisable")) && act({ action: "disable" })}>
+            <button className="btn-danger !min-h-9 !px-3" onClick={async () => (await ask(t("admin.confirmDisable"))) && act({ action: "disable" })}>
               {t("admin.action.disable")}
             </button>
           )
@@ -214,6 +216,7 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
           </button>
         </div>
       )}
+      {dialog}
       <ErrorMessage error={error} />
     </li>
   );

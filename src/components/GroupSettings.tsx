@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client-api";
+import { useConfirm } from "./useConfirm";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 
@@ -14,6 +15,7 @@ export function GroupSettings({ groupId, simplify, isOwner, isDirect, members, m
   meId: string;
 }) {
   const { t } = useI18n();
+  const { ask, dialog } = useConfirm();
   const router = useRouter();
   const [error, setError] = useState<unknown>(null);
 
@@ -30,6 +32,7 @@ export function GroupSettings({ groupId, simplify, isOwner, isDirect, members, m
 
   return (
     <div className="flex flex-col gap-4">
+      {dialog}
       <ErrorMessage error={error} />
       {isOwner && (
         <label className="card flex items-start gap-3">
@@ -63,7 +66,7 @@ export function GroupSettings({ groupId, simplify, isOwner, isDirect, members, m
       {isOwner && (
         <button
           className="btn-danger"
-          onClick={() => confirm(t("group.deleteGroupConfirm")) && run(() => api("DELETE", `/api/groups/${groupId}`), () => { router.replace("/"); router.refresh(); })}
+          onClick={async () => (await ask(t("group.deleteGroupConfirm"))) && run(() => api("DELETE", `/api/groups/${groupId}`), () => { router.replace("/"); router.refresh(); })}
         >
           {t("group.deleteGroup")}
         </button>

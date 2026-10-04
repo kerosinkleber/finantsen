@@ -127,7 +127,7 @@ test("add expense, see balances, settle up", async ({ page, browser, baseURL }) 
   await expect(page.getByTestId("expense-item")).toContainText("Dinner");
 
   await page.getByRole("tab", { name: "Balances" }).click();
-  await expect(page.getByTestId("transfers-EUR")).toContainText("Ben owes You");
+  await expect(page.getByTestId("transfers-EUR")).toContainText("Ben owes you");
   await expect(page.getByTestId("transfers-EUR")).toContainText("15.00");
 
   await page.goto("/");
@@ -171,8 +171,13 @@ test("percent split validates sum; edit shows history; delete is soft", async ({
   await page.getByTestId("expense-item").filter({ hasText: "Rent January" }).click();
   await expect(page.getByTestId("history")).toContainText("Created");
   await expect(page.getByTestId("history")).toContainText("Changed");
-  page.once("dialog", (d) => d.accept());
+  // Bestätigung im Seitenfenster: Abbrechen löscht nichts, Bestätigen schon
   await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByTestId("confirm-no").click();
+  await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
+  await expect(page.getByTestId("history")).toBeVisible();
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByTestId("confirm-yes").click();
   await expect(page.getByTestId("expense-item").filter({ hasText: "Rent January" })).toHaveCount(0);
 });
 
@@ -489,7 +494,7 @@ test("disable ends sessions and blocks login; last admin cannot be removed", asy
   await gp.getByRole("button", { name: "Sign in" }).click();
   await expect(gp).toHaveURL("/");
 
-  page.once("dialog", (d) => d.accept());
+  await page.addLocatorHandler(page.getByTestId("confirm-yes"), (l) => l.click()); // Bestätigungsfenster annehmen
   await card(page, "gast").getByRole("button", { name: "Disable" }).click();
   await expect(card(page, "gast").getByTestId("status")).toHaveText("Disabled");
   expect((await gp.request.get("/api/groups")).status()).toBe(401); // Sitzung sofort beendet
@@ -578,7 +583,7 @@ test("one-time reset link for an active user sets a new password and ends his se
 // ---------------------------------------------------------------- Admin-Testfunktionen
 
 test("test users: create, edit memberships on one page, act as them, banner and audit trail", async ({ page }) => {
-  page.on("dialog", (d) => d.accept()); // Warnungen („echte Mitglieder“) bestätigen
+  await page.addLocatorHandler(page.getByTestId("confirm-yes"), (l) => l.click()); // Warnungen („echte Mitglieder“) bestätigen
   await login(page, "anna");
   await page.goto("/admin/users");
   await page.getByTestId("test-users-link").click();
@@ -675,7 +680,7 @@ test("test users: cannot sign in, never reachable as real accounts, only real ad
 });
 
 test("test users: delete is blocked while data sits in groups with real users, otherwise cleans up", async ({ page }) => {
-  page.on("dialog", (d) => d.accept());
+  await page.addLocatorHandler(page.getByTestId("confirm-yes"), (l) => l.click()); // Bestätigungsfenster annehmen
   await login(page, "anna");
   await page.goto("/admin/test-users");
   // test-2 hat nur eine Freundschaft mit test-1 (keine Daten): löschbar
@@ -824,7 +829,7 @@ test("two-factor: admin requires it, user must set it up, signs in with code and
   await expect(tp).toHaveURL("/");
   await page.reload();
   await expect(card(page, "tom").getByTestId("badge-totp")).toBeVisible();
-  page.once("dialog", (d) => d.accept());
+  await page.addLocatorHandler(page.getByTestId("confirm-yes"), (l) => l.click()); // Bestätigungsfenster annehmen
   await card(page, "tom").getByTestId("reset-totp").click();
   await expect(card(page, "tom").getByTestId("badge-totp")).toHaveCount(0);
   expect((await tp.request.get("/api/groups")).status()).toBe(401);
