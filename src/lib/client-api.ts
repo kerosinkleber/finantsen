@@ -3,6 +3,8 @@ export class ApiClientError extends Error {
     public status: number,
     public code: string,
     public detail?: string,
+    /** Vollständiger JSON-Body der Fehlerantwort (z. B. Kontoliste bei choose_account) */
+    public data?: Record<string, unknown>,
   ) {
     super(code);
   }
@@ -21,6 +23,6 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
     throw new ApiClientError(0, "offline");
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiClientError(res.status, data.error ?? "internal", data.message);
+  if (!res.ok) throw new ApiClientError(res.status, data.error ?? "internal", data.message, data);
   return data as T;
 }

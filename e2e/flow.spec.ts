@@ -339,3 +339,55 @@ test("receipt scan (mocked API): photo is uploaded downscaled and pre-fills an e
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByTestId("expense-item").filter({ hasText: "Trattoria Roma" })).toContainText("€23.00");
 });
+
+async function inviteCode(page: Page): Promise<string> {
+  const res = await page.request.post(`/api${groupUrl}/invites`);
+  return (await res.json()).code;
+}
+
+test("same email can be used for several accounts; login asks which one; admin can switch it off", async ({ page, browser, baseURL }) => {
+  await login(page, "anna@example.com");
+  const registerDup = async (code: string, name: string) => {
+    const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+    const p = await ctx.newPage();
+    await register(p, name, "ben@example.com", `/register?invite=${code}`);
+    return { ctx, p };
+  };
+
+  // erlaubt (Standard): zweites Konto mit der E-Mail von Ben
+  const first = await registerDup(await inviteCode(page), "Ben Zwo");
+  await expect(first.p).toHaveURL(groupUrl);
+  await first.ctx.close();
+
+  // Login mit E-Mail + Passwort -> Kontoauswahl
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const lp = await ctx.newPage();
+  await lp.goto("/login");
+  await lp.getByLabel("Email").fill("ben@example.com");
+  await lp.getByLabel("Password").fill(PASSWORD);
+  await lp.getByRole("button", { name: "Sign in" }).click();
+  const picker = lp.getByTestId("account-picker");
+  await expect(picker).toContainText("Ben Zwo");
+  await expect(picker).toContainText("Ben");
+  await picker.getByText("Ben Zwo").click();
+  await lp.getByRole("button", { name: "Sign in" }).click();
+  await expect(lp).toHaveURL("/");
+  await lp.goto("/settings");
+  await expect(lp.getByText("Ben Zwo")).toBeVisible();
+  await expect(lp.getByTestId("admin-settings")).toHaveCount(0); // kein Admin
+  expect((await lp.request.get("/api/admin/settings")).status()).toBe(403);
+  await ctx.close();
+
+  // Admin schaltet ab
+  await page.goto("/settings");
+  const box = page.getByTestId("admin-settings");
+  await expect(box.getByLabel("Allow multiple accounts per email address")).toBeChecked();
+  await box.getByLabel("Allow multiple accounts per email address").uncheck();
+  await expect(box.getByRole("status")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Allow multiple accounts per email address")).not.toBeChecked();
+
+  const second = await registerDup(await inviteCode(page), "Ben Drei");
+  await expect(second.p.getByTestId("error")).toContainText("already registered");
+  await second.ctx.close();
+});

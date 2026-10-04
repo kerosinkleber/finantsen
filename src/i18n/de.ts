@@ -235,6 +235,11 @@ const de = {
   "scan.failed": "Der Beleg konnte nicht gelesen werden.",
   "scan.mismatch": "Hinweis: Die Summe der erkannten Positionen weicht vom Belegtotal ({total}) ab.",
   "scan.privacy": "Das Foto wird zur Auswertung an den KI-Dienst gesendet und nicht gespeichert.",
+  "auth.chooseAccount": "Mit dieser E-Mail und diesem Passwort gibt es mehrere Konten. Welches möchtest du verwenden?",
+  "auth.accountCreated": "angelegt am {date}",
+  "admin.title": "Administration",
+  "admin.allowDuplicateEmails": "Mehrere Konten pro E-Mail-Adresse erlauben",
+  "admin.allowDuplicateEmailsHelp": "Wenn aus, kann sich jede E-Mail-Adresse nur einmal registrieren. Bereits bestehende Konten bleiben unverändert.",
 } as const;
 export default de;
 export type MessageKey = keyof typeof de;

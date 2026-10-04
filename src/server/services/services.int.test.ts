@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.REGISTRATION_ENABLED = "false";
-    const [{ getDb, closeDb }, { runMigrations }, users, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./users"),
@@ -24,8 +24,9 @@ d("services (PostgreSQL)", () => {
       import("./notifications"),
       import("./stats"),
       import("../rates"),
+      import("./settings"),
     ]);
-    return { getDb, closeDb, runMigrations, users, groups, expenses, balances, payments, sql, comments, notifications, stats, rates };
+    return { getDb, closeDb, runMigrations, users, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings };
   }
 
   beforeAll(async () => {
@@ -63,13 +64,14 @@ d("services (PostgreSQL)", () => {
     await expect(svc.users.registerUser({ email: "A@X.de", name: "Z", password: "password1", inviteCode: "nope" })).rejects.toMatchObject({ code: "invite_invalid" });
   });
 
-  it("E-Mail ist eindeutig (case-insensitive) und Login funktioniert", async () => {
+  it("E-Mail-Eindeutigkeit (case-insensitive) gilt, wenn der Admin Duplikate abschaltet; Login funktioniert", async () => {
     const { a } = await setup();
+    await svc.settings.updateAdminSettings({ allowDuplicateEmails: false });
     const inv = await svc.groups.createInvite(a.id, (await svc.groups.listGroups(a.id))[0].id);
     await expect(svc.users.registerUser({ email: "A@x.de", name: "X", password: "password1", inviteCode: inv.code })).rejects.toMatchObject({ code: "email_taken" });
-    expect(await svc.users.authenticate("a@x.de", "password1")).not.toBeNull();
-    expect(await svc.users.authenticate("a@x.de", "wrong")).toBeNull();
-    expect(await svc.users.authenticate("nobody@x.de", "password1")).toBeNull();
+    expect(await svc.users.authenticate("a@x.de", "password1")).toHaveLength(1);
+    expect(await svc.users.authenticate("a@x.de", "wrong")).toHaveLength(0);
+    expect(await svc.users.authenticate("nobody@x.de", "password1")).toHaveLength(0);
   });
 
   it("Nicht-Mitglieder sehen und ändern nichts (404)", async () => {
@@ -333,6 +335,43 @@ d("services (PostgreSQL)", () => {
       }));
       expect(e.baseAmountMinor).toBe(1000);
       expect(e.shares.reduce((x, y) => x + y.baseAmountMinor, 0)).toBe(1000);
+    });
+  });
+
+  describe("Mehrere Konten pro E-Mail", () => {
+    it("ist standardmäßig erlaubt; Login liefert alle Konten mit passendem Passwort", async () => {
+      expect(await svc.settings.allowDuplicateEmails()).toBe(true);
+      const { a, g } = await setup();
+      const mk = async (name: string, password: string) => {
+        const inv = await svc.groups.createInvite(a.id, g.id);
+        return svc.users.registerUser({ email: "Zwilling@X.de", name, password, inviteCode: inv.code });
+      };
+      const z1 = await mk("Zwilling Eins", "password1");
+      const z2 = await mk("Zwilling Zwei", "password1");
+      const z3 = await mk("Zwilling Drei", "anderes-pw-123");
+      expect(new Set([z1.id, z2.id, z3.id]).size).toBe(3);
+      const same = await svc.users.authenticate("zwilling@x.de", "password1");
+      expect(same.map((u) => u.name)).toEqual(["Zwilling Eins", "Zwilling Zwei"]);
+      const other = await svc.users.authenticate("zwilling@x.de", "anderes-pw-123");
+      expect(other.map((u) => u.name)).toEqual(["Zwilling Drei"]);
+      expect(await svc.users.authenticate("zwilling@x.de", "falsch")).toHaveLength(0);
+    });
+
+    it("Admin kann es abschalten (nur neue Registrierungen betroffen) und wieder einschalten", async () => {
+      const { a, g } = await setup();
+      const reg = async (email: string) => {
+        const inv = await svc.groups.createInvite(a.id, g.id);
+        return svc.users.registerUser({ email, name: "N", password: "password1", inviteCode: inv.code });
+      };
+      await reg("dup@x.de");
+      await reg("dup@x.de"); // erlaubt
+      await svc.settings.updateAdminSettings({ allowDuplicateEmails: false });
+      await expect(reg("DUP@x.de")).rejects.toMatchObject({ status: 409, code: "email_taken" });
+      await reg("neu@x.de"); // andere E-Mail geht weiterhin
+      expect(await svc.users.authenticate("dup@x.de", "password1")).toHaveLength(2); // Bestand bleibt
+      await svc.settings.updateAdminSettings({ allowDuplicateEmails: true });
+      await reg("dup@x.de");
+      expect(await svc.users.authenticate("dup@x.de", "password1")).toHaveLength(3);
     });
   });
 });

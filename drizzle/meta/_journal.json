@@ -22,6 +22,13 @@
       "when": 1791046082384,
       "tag": "0002_solid_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791101647696,
+      "tag": "0003_amusing_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

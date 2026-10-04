@@ -55,6 +55,9 @@ Der Anbieter ist per `EXCHANGE_RATE_PROVIDER` wählbar: `fawazahmed0` (Standard,
 ### Belegscan (optional)
 Mit `ANTHROPIC_API_KEY` in `.env` erscheint beim Anlegen einer Ausgabe der Button „Beleg scannen“: Foto aufnehmen oder hochladen, das Vision-Modell liest Positionen, Steuer, Trinkgeld und Total aus und füllt das Formular für die Einzelposten vor. **Es wird nie automatisch gespeichert**, alle Werte sind vor dem Speichern editierbar, bei abweichender Summe erscheint ein Hinweis. Das Foto wird im Browser verkleinert, an die Anthropic-API gesendet und **nicht gespeichert**. Das Modell lässt sich mit `RECEIPT_SCAN_MODEL` ändern (Standard `claude-opus-5-5`; ein günstigeres Modell reicht für Belege oft). Pro Nutzer sind 30 Scans pro Stunde erlaubt.
 
+### Konten und E-Mail-Adressen
+Standardmäßig dürfen mehrere Konten dieselbe E-Mail-Adresse nutzen (z. B. für Familienmitglieder mit gemeinsamem Postfach). Beim Login prüft die App alle Konten mit dieser E-Mail; passt das Passwort zu mehreren, wählt man das Konto aus. Der Admin kann das unter *Konto → Administration* abschalten: Dann kann sich jede E-Mail nur noch einmal registrieren (bestehende Konten bleiben unverändert). E-Mail-Adressen werden nicht verifiziert.
+
 ### Als App installieren
 iOS (Safari): Teilen → „Zum Home-Bildschirm“. Android (Chrome): Menü → „App installieren“. Voraussetzung ist HTTPS.
 

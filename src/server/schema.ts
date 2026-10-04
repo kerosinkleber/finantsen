@@ -29,7 +29,8 @@ export const users = pgTable(
     locale: varchar("locale", { length: 5 }).notNull().default("de"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("users_email_idx").on(sql`lower(${t.email})`)],
+  // Nicht eindeutig: Mehrere Konten pro E-Mail sind erlaubt, solange der Admin es nicht abschaltet (settings).
+  (t) => [index("users_email_idx").on(sql`lower(${t.email})`)],
 );
 
 export const sessions = pgTable(

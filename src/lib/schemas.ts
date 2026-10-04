@@ -23,6 +23,8 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(320),
   password: z.string().min(1).max(200),
+  /** Nur nötig, wenn mehrere Konten dieselbe E-Mail und dasselbe Passwort haben */
+  userId: z.string().uuid().optional(),
 });
 
 export const groupCreateSchema = z.object({

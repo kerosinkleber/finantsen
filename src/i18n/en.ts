@@ -237,5 +237,10 @@ const en: Record<MessageKey, string> = {
   "scan.failed": "The receipt could not be read.",
   "scan.mismatch": "Note: the detected items do not add up to the receipt total ({total}).",
   "scan.privacy": "The photo is sent to the AI service for analysis and is not stored.",
+  "auth.chooseAccount": "Several accounts match this email and password. Which one do you want to use?",
+  "auth.accountCreated": "created on {date}",
+  "admin.title": "Administration",
+  "admin.allowDuplicateEmails": "Allow multiple accounts per email address",
+  "admin.allowDuplicateEmailsHelp": "When off, each email address can only be registered once. Existing accounts stay unchanged.",
 };
 export default en;
