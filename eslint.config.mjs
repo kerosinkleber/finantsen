@@ -1,7 +1,9 @@
-import { FlatCompat } from "@eslint/eslintrc";
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
 const config = [
-  { ignores: [".next/**", "node_modules/**", "drizzle/**", "public/sw.js", "next-env.d.ts"] },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  { ignores: [".next/**", "node_modules/**", "drizzle/**", "public/sw.js", "next-env.d.ts", "test-results/**", "playwright-report/**"] },
+  ...nextVitals,
+  ...nextTs,
 ];
 export default config;

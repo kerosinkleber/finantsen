@@ -18,7 +18,7 @@ Vor dem Produktivbetrieb abhaken.
 - [ ] Admin-Konto über `/setup` eingerichtet, **bevor** die Domain weitergegeben wurde (wer die Seite zuerst aufruft, wird Admin).
 - [ ] HTTPS aktiv (Caddy holt das Zertifikat automatisch, DNS muss auf den Server zeigen, Port 80/443 offen).
 - [ ] Backup eingerichtet (`scripts/backup.sh` per Cron, siehe README), `APP_SECRET` getrennt gesichert, und einmal mit `scripts/restore-check.sh` geprüft.
-- [ ] `npm audit --omit=dev` angesehen (bekannt: PostCSS in Next.js, nur Build-Zeit).
+- [ ] `npm audit --omit=dev` angesehen (Stand Next.js 16: keine bekannten Schwachstellen).
 
 ## Prüfen
 - Zuletzt im Sandbox-Container geprüft (Build, alle 8 Migrationen, Sicherheits-Header, Health, TOTP- und Passkey-Endpunkte): Stand Passkeys + Release-Reife.

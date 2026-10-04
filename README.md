@@ -99,7 +99,7 @@ Einfacher mit den Skripten: `scripts/backup.sh` legt einen Dump in `./backups` a
 **Sichere zusätzlich `APP_SECRET` aus der `.env`** (getrennt vom Dump): Ohne ihn sind eingerichtete TOTP-Konten nach einer Wiederherstellung unbenutzbar. Sichere die Dumps außerhalb des Servers (z. B. per Cron + `rclone`/`rsync`).
 
 ### Sicherheits-Header
-Die App sendet `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` und (produktiv) eine Content-Security-Policy (nur eigene Herkunft, kein Einbetten); Caddy ergänzt HSTS. `npm audit` meldet derzeit eine PostCSS-Warnung innerhalb von Next.js. Sie betrifft nur das Verarbeiten eigener CSS-Dateien beim Build, nicht den Betrieb; die Behebung braucht ein Next-Hauptversions-Update und ist vorgemerkt.
+Die App sendet `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` und (produktiv) eine Content-Security-Policy (nur eigene Herkunft, kein Einbetten); Caddy ergänzt HSTS. `npm audit --omit=dev` meldet keine bekannten Schwachstellen (Stand Next.js 16).
 
 ## Entwicklung
 ```bash

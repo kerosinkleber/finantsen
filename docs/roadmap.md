@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **Next.js 16**: Update von 15 (Turbopack-Build, neue ESLint-Konfiguration), `npm audit` ohne Befund, Docker geprüft.
 - **Mitglieder ohne Konto (Gäste)**: anlegen, mitrechnen, per Link (mit QR) mit einem Konto verknüpfen; alle Daten wandern mit, Beträge werden zusammengeführt.
 - **Gruppen archivieren** (je Mitglied) und **Export** (CSV je Gruppe, Konto-Export als JSON).
 - **Release-Reife**: Sicherheits-Header, Backup- und Restore-Check-Skripte, Docker-Prüfung.
@@ -24,4 +25,3 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 - QR-Codes in der App scannen (Anzeige gibt es; die Handy-Kamera öffnet Links ohnehin).
 - E-Mail-Versand (SMTP) für Einmal-Links und Benachrichtigungen, nachrüstbar über `linkUrl` in `services/accounts.ts` (bewusst nicht gebaut).
 - Weitere Belegscan-Anbieter.
-- Next.js-Hauptversions-Update (behebt die PostCSS-Warnung von `npm audit`, betrifft nur den Build).

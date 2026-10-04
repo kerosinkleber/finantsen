@@ -9,6 +9,8 @@ export function LogoutButton({ className = "btn-secondary" }: { className?: stri
   async function logout() {
     await api("POST", "/api/auth/logout").catch(() => {});
     await clearOfflineCaches();
+    // Bewusst ein vollständiges Neuladen (kein Client-Routing): verwirft allen Client-Zustand des alten Kontos
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/login";
   }
   return (

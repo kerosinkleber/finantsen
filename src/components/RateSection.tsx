@@ -7,6 +7,8 @@ import type { MessageKey } from "@/i18n";
 
 type Preview = { rate: string; date: string };
 type State = { status: "loading" } | { status: "ok"; data: Preview } | { status: "error"; code: string };
+/** Ergebnis gehört immer zu einer Anfrage (Währungspaar + Datum); passt es nicht zur aktuellen, gilt „lädt“. */
+type Result = { key: string; state: State };
 
 /** Zeigt den Kurs zum Buchungsdatum (automatisch) und erlaubt, ihn manuell zu überschreiben. */
 export function RateSection({ from, to, date, amountMinor, stored, manual, setManual }: {
@@ -20,19 +22,20 @@ export function RateSection({ from, to, date, amountMinor, stored, manual, setMa
   setManual: (v: string | null) => void;
 }) {
   const { t, locale } = useI18n();
-  const [state, setState] = useState<State>({ status: "loading" });
+  const key = `${from}|${to}|${date}`;
+  const [result, setResult] = useState<Result | null>(null);
+  const state: State = result?.key === key ? result.state : { status: "loading" };
   const useStored = !!stored && stored.currency === from && stored.date === date && stored.source !== "same";
 
   useEffect(() => {
     if (from === to || useStored) return;
     let alive = true;
-    setState({ status: "loading" });
     const h = setTimeout(async () => {
       try {
         const r = await api<Preview>("GET", `/api/rates?from=${from}&to=${to}&date=${date}`);
-        if (alive) setState({ status: "ok", data: r });
+        if (alive) setResult({ key: `${from}|${to}|${date}`, state: { status: "ok", data: r } });
       } catch (e) {
-        if (alive) setState({ status: "error", code: e instanceof ApiClientError ? e.code : "internal" });
+        if (alive) setResult({ key: `${from}|${to}|${date}`, state: { status: "error", code: e instanceof ApiClientError ? e.code : "internal" } });
       }
     }, 300);
     return () => {

@@ -3,7 +3,7 @@
 Selbst gehostete Web-App zum Teilen von Ausgaben (Splitwise-Alternative), mobile-first, als PWA installierbar.
 
 ## Stack
-Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzle ORM + PostgreSQL (`postgres.js`), Zod, argon2 (`@node-rs/argon2`), Vitest, Playwright. Deployment: Docker Compose (app, db, caddy).
+Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-Config direkt aus `eslint-config-next`), React 19, Tailwind 3, Drizzle ORM + PostgreSQL (`postgres.js`), Zod, argon2 (`@node-rs/argon2`), Vitest, Playwright. Deployment: Docker Compose (app, db, caddy).
 
 ## Befehle
 - `npm run dev` – Dev-Server (braucht `DATABASE_URL`, Migrationen laufen beim Start via `src/instrumentation.ts`)
