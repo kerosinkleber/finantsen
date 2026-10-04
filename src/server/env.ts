@@ -22,6 +22,16 @@ export const env = {
   get devAdmin() {
     return process.env.DEV_ADMIN === "true";
   },
+  /**
+   * Geheimer Schlüssel der Instanz (mind. 16 Zeichen, z. B. `openssl rand -hex 32`). Daraus werden TOTP-Geheimnisse
+   * verschlüsselt, Wiederherstellungscodes gehasht und Login-Zwischenschritte signiert. Ändert man ihn, funktionieren
+   * vorhandene TOTP-Einrichtungen nicht mehr (Admin muss sie zurücksetzen).
+   */
+  get appSecret(): string {
+    const v = process.env.APP_SECRET ?? "";
+    if (v.length < 16) throw new Error("APP_SECRET fehlt oder ist zu kurz (mindestens 16 Zeichen, z. B. `openssl rand -hex 32`)");
+    return v;
+  },
   get secureCookies() {
     return this.appUrl.startsWith("https://");
   },
