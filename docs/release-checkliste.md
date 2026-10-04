@@ -20,5 +20,6 @@ Vor dem Produktivbetrieb abhaken.
 - [ ] `npm audit --omit=dev` angesehen (bekannt: PostCSS in Next.js, nur Build-Zeit).
 
 ## Prüfen
+- Zuletzt im Sandbox-Container geprüft (Build, alle 8 Migrationen, Sicherheits-Header, Health, TOTP- und Passkey-Endpunkte): Stand Passkeys + Release-Reife.
 - [ ] `docker compose up -d --build`, `https://<DOMAIN>/api/health` liefert `ok`.
 - [ ] Anmelden, Gruppe anlegen, Ausgabe buchen.
