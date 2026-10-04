@@ -40,6 +40,9 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 ## Lizenz
 Proprietär (`LICENSE`, `package.json` → `UNLICENSED`). Keine Open-Source-Lizenz, keine Copyleft-Abhängigkeiten hinzufügen (aktuell nur MIT/Apache/Unlicense/MPL-2.0). Neue Dateien brauchen keinen Lizenzkopf.
 
+## Zusammenarbeit
+Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs/fragen/NN-thema.md` bereitgestellt (Checkboxen, Empfehlung markiert, Abschnitt „Schon entschieden“ und „Meine Annahmen“), nicht als lange Chat-Liste. Kein PDF/Formular-Tool.
+
 ## Konventionen / Regeln
 - Geld IMMER als Ganzzahl in Minor-Units (`bigint` mode number), Währung je Ausgabe/Zahlung. Nie Float.
 - Summe der Anteile == Gesamtbetrag (Rundung deterministisch: Rest nach größtem Nachkommarest, Gleichstand nach `id`-Reihenfolge).
