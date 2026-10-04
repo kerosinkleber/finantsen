@@ -51,12 +51,12 @@ export async function listGroups(userId: string): Promise<GroupSummary[]> {
 export async function getGroup(
   userId: string,
   groupId: string,
-): Promise<GroupSummary & { simplifyDebts: boolean; defaultSplit: DefaultSplit | null }> {
+): Promise<GroupSummary & { simplifyDebts: boolean; defaultSplit: DefaultSplit | null; recurringPolicy: "members" | "owner" }> {
   const { group } = await requireMember(userId, groupId);
   const all = await listGroups(userId);
   const g = all.find((x) => x.id === group.id);
   if (!g) throw notFound();
-  return { ...g, simplifyDebts: group.simplifyDebts, defaultSplit: (group.defaultSplit as DefaultSplit | null) ?? null };
+  return { ...g, simplifyDebts: group.simplifyDebts, defaultSplit: (group.defaultSplit as DefaultSplit | null) ?? null, recurringPolicy: group.recurringPolicy as "members" | "owner" };
 }
 
 export async function createGroup(
@@ -76,7 +76,7 @@ export async function createGroup(
 export async function updateGroup(
   userId: string,
   groupId: string,
-  data: { name?: string; defaultCurrency?: string; simplifyDebts?: boolean; defaultSplit?: DefaultSplit | null },
+  data: { name?: string; defaultCurrency?: string; simplifyDebts?: boolean; defaultSplit?: DefaultSplit | null; recurringPolicy?: "members" | "owner" },
 ) {
   const { role, group } = await requireMember(userId, groupId);
   if (role !== "owner" && group.kind === "group") throw forbidden();

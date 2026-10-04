@@ -93,6 +93,9 @@ Use at least three people in one group so the results are interesting.
 - [ ] **Set the rate manually** (checkbox) and watch the preview change. After saving, the list shows the converted amount, balances are in the group currency, and re-opening the expense keeps the stored rate.
 - [ ] If the rate cannot be loaded, the app asks you to enter one manually.
 
+- [ ] **Recurring expenses** (below the expense list, button "Recurring expenses"): create a template (e.g. monthly rent) with the first date in the past. Expected: a confirmation names how many bookings are created at once; they appear as normal expenses with an "automatic" badge, balances are updated, the other members get a notification. Try pause/resume, an end date, "every 2 weeks", editing a template (only future bookings change) and deleting it (already booked expenses stay).
+- [ ] **Owner-only switch** (Members tab): when on, other members can still see the templates but not create or change them.
+
 ---
 
 ## 5. Balances and settling up

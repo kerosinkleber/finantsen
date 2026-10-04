@@ -134,6 +134,8 @@ export const groups = pgTable("groups", {
   simplifyDebts: boolean("simplify_debts").notNull().default(true),
   /** Standard-Aufteilung für neue Ausgaben: { type: "equal"|"percent"|"shares", entries: [{ userId, value }] } */
   defaultSplit: jsonb("default_split"),
+  /** Wer wiederkehrende Ausgaben verwalten darf: members (alle Mitglieder) | owner (nur Besitzer) */
+  recurringPolicy: varchar("recurring_policy", { length: 10 }).notNull().default("members"),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id),
@@ -191,6 +193,8 @@ export const expenses = pgTable(
     rateSource: varchar("rate_source", { length: 10 }).notNull().default("same"),
     /** Einzelposten bei splitType "items": { items: [{ name, amountMinor, participants }], taxMinor, tipMinor } */
     items: jsonb("items"),
+    /** Gesetzt, wenn die Ausgabe automatisch aus einer wiederkehrenden Vorlage entstanden ist */
+    recurringId: uuid("recurring_id"),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),
@@ -198,7 +202,43 @@ export const expenses = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (t) => [index("expenses_group_idx").on(t.groupId, t.date)],
+  (t) => [
+    index("expenses_group_idx").on(t.groupId, t.date),
+    // Pro Vorlage und Datum höchstens eine automatische Buchung (Schutz gegen Doppelbuchung)
+    uniqueIndex("expenses_recurring_date_idx").on(t.recurringId, t.date).where(sql`${t.recurringId} is not null`),
+  ],
+);
+
+/** Wiederkehrende Ausgaben: Vorlage (Ausgaben-Body ohne Datum) plus Rhythmus. Jede Buchung ist eine normale Ausgabe. */
+export const recurringExpenses = pgTable(
+  "recurring_expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    /** Gilt als Ersteller der automatischen Buchungen */
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    title: varchar("title", { length: 200 }).notNull(),
+    /** ExpenseBody ohne date und rate (title, amountMinor, currency, category, payers, split) */
+    template: jsonb("template").notNull(),
+    /** day | week | month | year, alle `every` Einheiten */
+    unit: varchar("unit", { length: 5 }).notNull(),
+    every: integer("every").notNull().default(1),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }),
+    /** Index des nächsten Termins (0 = Startdatum) und dessen Datum */
+    nextIndex: integer("next_index").notNull().default(0),
+    nextDate: date("next_date", { mode: "string" }).notNull(),
+    paused: boolean("paused").notNull().default(false),
+    /** Letzter Fehler beim Buchen (z. B. member_left, rate_unavailable); leer, wenn alles in Ordnung ist */
+    lastError: varchar("last_error", { length: 40 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("recurring_group_idx").on(t.groupId), index("recurring_due_idx").on(t.nextDate)],
 );
 
 export const expensePayers = pgTable(

@@ -929,3 +929,51 @@ test("passkeys: add with password, sign in without password or code, mandatory 2
   await expect(pp).toHaveURL(/two-factor/);
   await ctx.close();
 });
+
+test("recurring expenses: create with past start books missed dates, shown as automatic; pause; owner-only policy", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto(`${groupUrl}?tab=recurring`);
+  await expect(page.getByTestId("recurring-empty")).toBeVisible();
+  await page.getByTestId("recurring-new").click();
+  await page.getByLabel("Title").fill("Gym");
+  await page.getByLabel("Amount").fill("30");
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - 2);
+  await page.getByLabel("First date").fill(d.toISOString().slice(0, 10));
+  await expect(page.getByTestId("schedule")).toBeVisible();
+  await page.getByRole("button", { name: "Save" }).click();
+  // verpasste Termine: erst bestätigen
+  await expect(page.getByTestId("confirm-dialog")).toContainText("3 bookings");
+  await page.getByTestId("confirm-yes").click();
+  await expect(page).toHaveURL(/tab=recurring/);
+  await expect(page.getByTestId("recurring-item")).toContainText("Gym");
+  await expect(page.getByTestId("recurring-item")).toContainText("every 1 month(s)");
+
+  await page.goto(`${groupUrl}?tab=expenses`);
+  const gym = page.getByTestId("expense-item").filter({ hasText: "Gym" });
+  await expect(gym).toHaveCount(3);
+  await expect(gym.first().getByTestId("auto-badge")).toBeVisible();
+  await gym.first().click();
+  await expect(page.getByTestId("auto-note")).toBeVisible();
+
+  // Pausieren und Fortsetzen
+  await page.goto(`${groupUrl}?tab=recurring`);
+  await page.getByTestId("recurring-toggle").click();
+  await expect(page.getByTestId("recurring-paused")).toBeVisible();
+  await page.getByTestId("recurring-toggle").click();
+  await expect(page.getByTestId("recurring-paused")).toHaveCount(0);
+
+  // Nur Besitzer: Ben sieht die Liste, aber keinen Knopf zum Anlegen
+  await page.goto(`${groupUrl}?tab=members`);
+  await page.getByTestId("recurring-policy").check();
+  await expect(page.getByTestId("recurring-policy")).toBeChecked();
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const bp = await ctx.newPage();
+  await login(bp, "ben");
+  await bp.goto(`${groupUrl}?tab=recurring`);
+  await expect(bp.getByTestId("recurring-item")).toContainText("Gym");
+  await expect(bp.getByTestId("recurring-new")).toHaveCount(0);
+  await page.getByTestId("recurring-policy").uncheck();
+  await ctx.close();
+});

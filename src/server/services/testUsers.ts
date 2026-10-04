@@ -268,7 +268,8 @@ export async function deleteTestUser(actor: SessionUser, id: string) {
         union select group_id from payments where from_user = ${id} or to_user = ${id} or created_by = ${id}
         union select e.group_id from expense_comments c join expenses e on e.id = c.expense_id where c.user_id = ${id}
         union select e.group_id from expense_history h join expenses e on e.id = h.expense_id where h.user_id = ${id}
-        union select group_id from invites where created_by = ${id}`)
+        union select group_id from invites where created_by = ${id}
+        union select group_id from recurring_expenses where created_by = ${id}`)
     ).map((r) => r.g),
   );
   // Gruppen ohne Daten des Testnutzers: Mitgliedschaft lösen und Ersteller-Verweis auf ein anderes Mitglied umhängen
@@ -296,6 +297,7 @@ export async function deleteTestUser(actor: SessionUser, id: string) {
         union select e.group_id, c.user_id from expense_comments c join expenses e on e.id = c.expense_id where e.group_id in (${list})
         union select e.group_id, h.user_id from expense_history h join expenses e on e.id = h.expense_id where e.group_id in (${list})
         union select group_id, created_by from invites where group_id in (${list})
+        union select group_id, created_by from recurring_expenses where group_id in (${list})
       ) x join users usr on usr.id = x.u where usr.kind <> 'test'`);
     const names = await db.select({ id: groups.id, name: groups.name, kind: groups.kind }).from(groups).where(inArray(groups.id, ids));
     for (const g of names) {

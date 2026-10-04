@@ -12,11 +12,14 @@ export type NotificationData = {
   amountMinor?: number;
   currency?: string;
   excerpt?: string;
+  auto?: boolean;
 };
 
 /** Legt In-App-Benachrichtigungen für alle anderen Gruppenmitglieder an und stößt Web Push an. */
 export async function notifyGroup(opts: {
   type: "expense_created" | "expense_restored" | "comment";
+  /** Automatische Buchung aus einer wiederkehrenden Vorlage */
+  auto?: boolean;
   groupId: string;
   expenseId: string;
   actorId: string;
@@ -44,6 +47,7 @@ export async function notifyGroup(opts: {
       amountMinor: opts.amountMinor,
       currency: opts.currency,
       excerpt: opts.excerpt,
+      auto: opts.auto,
     };
     await db.insert(notifications).values(
       others.map((r) => ({ userId: r.id, type: opts.type, groupId: opts.groupId, expenseId: opts.expenseId, data })),
@@ -66,7 +70,7 @@ export async function notifyGroup(opts: {
 export function renderNotification(locale: "de" | "en", type: string, d: NotificationData): string {
   if (type === "comment")
     return translate(locale, "notif.comment", { actor: d.actorName, title: d.title, excerpt: d.excerpt ?? "" });
-  return translate(locale, type === "expense_restored" ? "notif.expense_restored" : "notif.expense_created", {
+  return translate(locale, type === "expense_restored" ? "notif.expense_restored" : d.auto ? "notif.expense_auto" : "notif.expense_created", {
     actor: d.actorName,
     title: d.title,
     group: d.groupName,

@@ -50,6 +50,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   return (
     <>
       <h1 className="text-xl font-semibold">{expense.deletedAt ? `${expense.title} (${t("expense.deleted")})` : t("expense.edit")}</h1>
+      {expense.recurringId && <p className="muted" data-testid="auto-note">{t("recurring.auto")}</p>}
       {expense.deletedAt ? (
         <section className="card">
           <p className="muted">{t("expense.deleted")}</p>

@@ -7,6 +7,7 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 - **Phase 0 und 1**: Grundgerüst, Gruppen und Freunde, Ausgaben mit allen Aufteilungsarten, Salden, Schuldenvereinfachung, Zahlungen, Soft Delete mit Verlauf.
 - **Phase 2**: Kommentare, Suche und Filter, Standard-Aufteilung, Benachrichtigungen und Web Push, Auswertungen.
 - **Phase 3**: Währungsumrechnung, Belegscan, Einzelposten.
+- **Wiederkehrende Ausgaben**: Vorlagen mit Rhythmus (täglich bis jährlich, frei einstellbar), Enddatum, Pause, Nachbuchen verpasster Termine, Benachrichtigung „automatisch“, Verwaltung optional nur durch Gruppenbesitzer.
 - **Papierkorb**: gelöschte Ausgaben lassen sich von jedem Gruppenmitglied wiederherstellen (Verlauf „Wiederhergestellt“, Benachrichtigung).
 - **Passkeys**: mehrere benannte Passkeys, ersetzen Passwort und TOTP bei der Anmeldung, zählen für den TOTP-Zwang.
 - **Konten Etappe C**: QR-Code zu Gruppen-/Freundschaftslinks und Aktivierungslinks (Anzeige; Scanner in der App bewusst später).
@@ -19,4 +20,4 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 ## Danach (Reihenfolge wie vereinbart)
 
 ## Ideen ohne Termin
-Mitglieder ohne Konto, wiederkehrende Ausgaben, weitere Belegscan-Anbieter, SMTP (E-Mail-Versand, nachrüstbar über `linkUrl` in `services/accounts.ts`).
+Mitglieder ohne Konto, weitere Belegscan-Anbieter, SMTP (E-Mail-Versand, nachrüstbar über `linkUrl` in `services/accounts.ts`).

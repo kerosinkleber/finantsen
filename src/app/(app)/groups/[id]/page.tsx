@@ -14,18 +14,20 @@ import { GroupSettings } from "@/components/GroupSettings";
 import { DefaultSplitForm } from "@/components/DefaultSplitForm";
 import { FilterForm } from "@/components/FilterForm";
 import { StatsTab } from "@/components/StatsTab";
+import { RecurringList } from "@/components/RecurringList";
+import { listRecurring } from "@/server/services/recurring";
 import { parseExpenseFilter } from "@/server/filter";
 import type { MessageKey } from "@/i18n";
 import { formatMoney } from "@/lib/money";
 
-type Tab = "expenses" | "balances" | "stats" | "members";
+type Tab = "expenses" | "balances" | "stats" | "members" | "recurring";
 
 export default async function GroupPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
   const { id } = await params;
   const sp = await searchParams;
   const tabParam = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
-  const tab: Tab = tabParam === "balances" || tabParam === "members" || tabParam === "stats" ? tabParam : "expenses";
+  const tab: Tab = tabParam === "balances" || tabParam === "members" || tabParam === "stats" || tabParam === "recurring" ? tabParam : "expenses";
   const { t, locale } = await getT();
   let group;
   try {
@@ -62,6 +64,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
       {tab === "expenses" && (
         <ExpensesTab groupId={id} userId={user.id} names={names} locale={locale} t={t} group={group} sp={sp} />
       )}
+      {tab === "recurring" && <RecurringTab groupId={id} userId={user.id} isOwner={group.role === "owner"} />}
       {tab === "stats" && <StatsTab groupId={id} userId={user.id} names={names} locale={locale} t={t} sp={sp} />}
       {tab === "balances" && <BalancesTab groupId={id} userId={user.id} names={names} locale={locale} t={t} />}
       {tab === "members" && (
@@ -77,6 +80,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
           <GroupSettings
             groupId={id}
             simplify={group.simplifyDebts}
+            recurringOnlyOwner={group.recurringPolicy === "owner"}
             isOwner={group.role === "owner"}
             isDirect={isDirect}
             members={group.members}
@@ -87,6 +91,11 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
       )}
     </>
   );
+}
+
+async function RecurringTab({ groupId, userId, isOwner }: { groupId: string; userId: string; isOwner: boolean }) {
+  const { policy, items } = await listRecurring(userId, groupId);
+  return <RecurringList groupId={groupId} items={items} canManage={policy === "members" || isOwner} />;
 }
 
 type TFn = (key: MessageKey, params?: Record<string, string | number>) => string;
@@ -126,10 +135,11 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
     ...expenses.map((e) => ({ kind: "e" as const, date: e.date, at: +e.createdAt, e })),
     ...payments.map((p) => ({ kind: "p" as const, date: p.date, at: +p.createdAt, p })),
   ].sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1));
-  if (items.length === 0) return <>{form}<p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
+  if (items.length === 0) return <>{form}<Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link><p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
   return (
     <>
     {form}
+    <Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link>
     <ul className="flex flex-col gap-2">
       {items.map((it) => {
         if (it.kind === "p") {
@@ -154,7 +164,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
             <Link href={`/groups/${groupId}/expenses/${e.id}`} className="card flex items-center justify-between gap-3 hover:border-brand" data-testid="expense-item">
               <span className="min-w-0">
                 <span className="muted">{e.date} · {t(`cat.${e.category}` as MessageKey)}</span>
-                <span className="block truncate font-medium">{e.title}</span>
+                <span className="block truncate font-medium">{e.title}{e.recurringId && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 align-middle text-xs font-normal text-sky-900" data-testid="auto-badge">{t("recurring.auto")}</span>}</span>
                 <span className="muted block">
                   {t(e.payers.length > 1 ? "group.paidByMany" : e.payers[0]?.userId === userId ? "group.paidByYou" : "group.paidBy", {
                     name: e.payers.map((p) => names.get(p.userId) ?? "?").join(", "),

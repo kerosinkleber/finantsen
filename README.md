@@ -72,6 +72,9 @@ Zum Ausprobieren legt der Admin unter *Konto → Nutzer verwalten → Testnutzer
 - **Löschen:** Gruppen, Ausgaben und Zahlungen, an denen nur Testnutzer beteiligt sind, werden mitgelöscht. Hängen Daten des Testnutzers in einer Gruppe mit echten Nutzern, wird **nichts** gelöscht und die App nennt die betroffenen Gruppen. Bloße Mitgliedschaften werden aufgelöst.
 - **Schalter „Testfunktionen“:** Im lokalen Test (`docker-compose.local.yml`) standardmäßig an. **Im produktiven Stack ist er standardmäßig aus**, weil dort `TEST_FEATURES_DEFAULT` nicht gesetzt ist. Eine bewusste Wahl im Admin-Bereich hat Vorrang. Siehe `docs/release-checkliste.md`.
 
+### Wiederkehrende Ausgaben
+In jeder Gruppe unter den Ausgaben („Wiederkehrende Ausgaben“): Vorlage mit Rhythmus (alle N Tage/Wochen/Monate/Jahre), erstem Termin und optionalem Enddatum. Die App bucht zum Termin automatisch eine normale Ausgabe (Kurs zum Buchungstag, andere Mitglieder werden benachrichtigt) und holt verpasste Termine nach, auch nach einem Neustart. Der Gruppenbesitzer kann die Verwaltung auf Besitzer beschränken. Der Zeitplaner läuft im App-Prozess (beim Start und alle 15 Minuten); mit `SCHEDULER=off` ist er abgeschaltet.
+
 ### Als App installieren
 iOS (Safari): Teilen → „Zum Home-Bildschirm“. Android (Chrome): Menü → „App installieren“. Voraussetzung ist HTTPS.
 

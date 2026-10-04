@@ -28,6 +28,8 @@ export type ExpenseDetail = {
   rate: string;
   rateSource: string;
   items: ItemsData | null;
+  /** Gesetzt bei automatischen Buchungen aus einer wiederkehrenden Vorlage */
+  recurringId: string | null;
   payers: { userId: string; amountMinor: number; baseAmountMinor: number }[];
   shares: { userId: string; amountMinor: number; baseAmountMinor: number; input: number | null }[];
 };
@@ -94,6 +96,7 @@ async function hydrate(rows: (typeof expenses.$inferSelect)[]): Promise<ExpenseD
     rate: r.rate,
     rateSource: r.rateSource,
     items: (r.items as ItemsData | null) ?? null,
+    recurringId: r.recurringId,
     payers: payers
       .filter((p) => p.expenseId === r.id)
       .map((p) => ({ userId: p.userId, amountMinor: p.amountMinor, baseAmountMinor: p.baseAmountMinor })),
@@ -182,6 +185,17 @@ async function resolveRate(
   return { rate: r.rate, source: "provider" };
 }
 
+/** Prüft eine Ausgaben-Vorlage ohne Kurs und ohne zu speichern (Zahler, Aufteilung, Mitgliedschaft). */
+export async function validateTemplate(groupId: string, body: Omit<ExpenseBody, "date" | "rate">) {
+  const members = new Set(await memberIds(groupId));
+  const payerList = body.payers.map((p) => ({ id: p.userId, amount: p.amountMinor })).sort((a, b) => (a.id < b.id ? -1 : 1));
+  validatePayers(body.amountMinor, payerList);
+  const shares = computeShares(body.amountMinor, toSplitInput(body.split));
+  const involved = [...payerList.map((p) => p.id), ...shares.map((s) => s.id)];
+  if (involved.some((u) => !members.has(u))) throw new ApiError(400, "not_a_member");
+  return { involved: [...new Set(involved)] };
+}
+
 /** Validiert Teilnehmer/Zahler, berechnet Anteile und rechnet alles in die Abrechnungswährung um. */
 async function prepare(groupId: string, body: ExpenseBody, baseCurrency: string, reuse?: Parameters<typeof resolveRate>[2]) {
   const members = new Set(await memberIds(groupId));
@@ -238,7 +252,7 @@ function snapshot(e: ExpenseDetail) {
   };
 }
 
-export async function createExpense(userId: string, groupId: string, body: ExpenseBody, actedBy: string | null = null) {
+export async function createExpense(userId: string, groupId: string, body: ExpenseBody, actedBy: string | null = null, opts: { recurringId?: string } = {}) {
   const { group } = await requireMember(userId, groupId);
   const p = await prepare(groupId, body, group.defaultCurrency);
   const id = await getDb().transaction(async (tx) => {
@@ -257,6 +271,7 @@ export async function createExpense(userId: string, groupId: string, body: Expen
         rate: p.rate,
         rateSource: p.source,
         items: p.itemsData,
+        recurringId: opts.recurringId ?? null,
         createdBy: userId,
       })
       .returning();
@@ -267,6 +282,7 @@ export async function createExpense(userId: string, groupId: string, body: Expen
   await getDb().insert(expenseHistory).values({ expenseId: id, userId, actedBy, action: "create", snapshot: snapshot(detail) });
   await notifyGroup({
     type: "expense_created",
+    auto: !!opts.recurringId,
     groupId,
     expenseId: id,
     actorId: userId,

@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -30,8 +30,10 @@ d("services (PostgreSQL)", () => {
       import("./totp"),
       import("../totp"),
       import("./passkeys"),
+      import("./recurring"),
+      import("@/lib/recurrence"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence };
   }
 
   beforeAll(async () => {
@@ -1075,6 +1077,168 @@ d("services (PostgreSQL)", () => {
       expect(hist.map((h) => h.action)).toEqual(["restore", "delete", "create"]);
       const notes = await svc.notifications.listNotifications(c.id);
       expect(notes.some((n) => n.type === "expense_restored")).toBe(true);
+    });
+  });
+
+  describe("Wiederkehrende Ausgaben", () => {
+    const monthsAgo = (n: number) => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - n);
+      return d.toISOString().slice(0, 10);
+    };
+    const tpl = (a: U, b: U, over: Record<string, unknown> = {}) => ({
+      title: "Miete",
+      amountMinor: 90000,
+      currency: "EUR",
+      category: "other" as const,
+      payers: [{ userId: a.id, amountMinor: 90000 }],
+      split: { type: "equal" as const, participants: [a.id, b.id] },
+      unit: "month" as const,
+      every: 1,
+      startDate: monthsAgo(3),
+      ...over,
+    });
+    const countExpenses = async (rid: string) =>
+      Number(((await svc.getDb().execute(svc.sql`select count(*)::int as n from expenses where recurring_id = ${rid}`)) as unknown as { n: number }[])[0].n);
+
+    it("Anlegen bucht verpasste Termine sofort, mit Vorlagen-Ersteller, Kennzeichnung und Benachrichtigung; zweiter Lauf bucht nichts doppelt", async () => {
+      const { a, b, g } = await setup();
+      const r = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b));
+      expect(r.booked).toBe(4); // vor 3 Monaten bis heute, monatlich
+      expect(await countExpenses(r.id)).toBe(4);
+      const list = await svc.expenses.listExpenses(a.id, g.id);
+      expect(list.every((e) => e.recurringId === r.id && e.createdBy === a.id)).toBe(true);
+      expect(new Set(list.map((e) => e.date)).size).toBe(4);
+      expect(await svc.recurring.runDueRecurring()).toBe(0);
+      const notes = await svc.notifications.listNotifications(b.id);
+      expect(notes).toHaveLength(4);
+      expect((notes[0].data as { auto?: boolean }).auto).toBe(true);
+      expect(svc.notifications.renderNotification("de", notes[0].type, notes[0].data as never)).toContain("automatisch");
+      // Zeit läuft weiter: ein Monat später ist ein weiterer Termin fällig
+      const later = new Date();
+      later.setUTCMonth(later.getUTCMonth() + 1);
+      expect(await svc.recurring.runDueRecurring(later)).toBe(1);
+    });
+
+    it("parallele Läufe buchen jeden Termin genau einmal", async () => {
+      const { a, b, g } = await setup();
+      const created = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { startDate: monthsAgo(-2), paused: true }));
+      await svc.recurring.setRecurringPaused(a.id, g.id, created.id, false); // nichts fällig
+      const later = new Date();
+      later.setUTCMonth(later.getUTCMonth() + 5);
+      const res = await Promise.all([svc.recurring.bookDue(created.id, later), svc.recurring.bookDue(created.id, later), svc.recurring.runDueRecurring(later)]);
+      const total = res.reduce((x, y) => x + y, 0);
+      expect(await countExpenses(created.id)).toBe(total);
+      expect(total).toBe(4); // +2 bis +5 Monate
+      const dates = (await svc.expenses.listExpenses(a.id, g.id)).map((e) => e.date);
+      expect(new Set(dates).size).toBe(dates.length);
+    });
+
+    it("Enddatum begrenzt, Pause stoppt, Fortsetzen holt nach, Löschen lässt Buchungen stehen", async () => {
+      const { a, b, g } = await setup();
+      const r = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { startDate: monthsAgo(5), endDate: monthsAgo(3) }));
+      expect(r.booked).toBe(3); // -5, -4, -3
+      const v = await svc.recurring.getRecurring(a.id, g.id, r.id);
+      expect(v.finished).toBe(true);
+      const p = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { title: "Abo", startDate: monthsAgo(2), paused: true }));
+      expect(p.booked).toBe(0);
+      const resumed = await svc.recurring.setRecurringPaused(a.id, g.id, p.id, false);
+      expect(resumed.booked).toBe(3);
+      await svc.recurring.deleteRecurring(a.id, g.id, p.id);
+      expect(await countExpenses(p.id)).toBe(3);
+      expect((await svc.recurring.listRecurring(a.id, g.id)).items.map((i) => i.title)).toEqual(["Miete"]);
+    });
+
+    it("Rechte: Besitzer-Richtlinie, Nichtmitglieder (404), Leser dürfen nur lesen", async () => {
+      const { a, b, g } = await setup();
+      const outsider = await mkUser(a, "dora");
+      await expect(svc.recurring.createRecurring(outsider.id, g.id, tpl(a, b))).rejects.toMatchObject({ status: 404 });
+      await expect(svc.recurring.listRecurring(outsider.id, g.id)).rejects.toMatchObject({ status: 404 });
+      await svc.recurring.setRecurringPolicy(a.id, g.id, "owner");
+      await expect(svc.recurring.createRecurring(b.id, g.id, tpl(b, a))).rejects.toMatchObject({ status: 403 });
+      expect((await svc.recurring.listRecurring(b.id, g.id)).policy).toBe("owner"); // lesen geht
+      await expect(svc.recurring.setRecurringPolicy(b.id, g.id, "members")).rejects.toMatchObject({ status: 403 });
+      const ok = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { startDate: monthsAgo(-1) }));
+      await expect(svc.recurring.setRecurringPaused(b.id, g.id, ok.id, true)).rejects.toMatchObject({ status: 403 });
+      await expect(svc.recurring.deleteRecurring(b.id, g.id, ok.id)).rejects.toMatchObject({ status: 403 });
+      await svc.recurring.setRecurringPolicy(a.id, g.id, "members");
+      await svc.recurring.setRecurringPaused(b.id, g.id, ok.id, true);
+    });
+
+    it("Validierung beim Anlegen: Nichtmitglied in der Aufteilung, Summe der Zahler, Enddatum vor Start", async () => {
+      const { a, b, g } = await setup();
+      const outsider = await mkUser(a, "dora");
+      await expect(svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { split: { type: "equal", participants: [a.id, outsider.id] } }))).rejects.toMatchObject({ code: "not_a_member" });
+      await expect(svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { payers: [{ userId: a.id, amountMinor: 1 }] }))).rejects.toBeTruthy();
+      await expect(svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { endDate: monthsAgo(9) }))).rejects.toMatchObject({ code: "end_before_start" });
+    });
+
+    it("Ausgetretenes Mitglied: Vorlage pausiert mit Hinweis, nichts wird gebucht; nach Anpassung geht es weiter", async () => {
+      const { a, b, g } = await setup();
+      const r = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { startDate: monthsAgo(-1) }));
+      await svc.getDb().execute(svc.sql`delete from group_members where group_id = ${g.id} and user_id = ${b.id}`);
+      const later = new Date();
+      later.setUTCMonth(later.getUTCMonth() + 2);
+      expect(await svc.recurring.runDueRecurring(later)).toBe(0);
+      const v = await svc.recurring.getRecurring(a.id, g.id, r.id);
+      expect(v).toMatchObject({ paused: true, lastError: "member_left" });
+      expect(await countExpenses(r.id)).toBe(0);
+      // anpassen (nur noch Anna) und fortsetzen
+      const fixed = tpl(a, b, { startDate: monthsAgo(-1), split: { type: "equal", participants: [a.id] }, paused: false });
+      await svc.recurring.updateRecurring(a.id, g.id, r.id, fixed);
+      expect((await svc.recurring.getRecurring(a.id, g.id, r.id)).lastError).toBeNull();
+    });
+
+    it("Kursdienst nicht erreichbar: nicht pausiert, nicht fortgeschritten, später erneut; kein geratener Kurs", async () => {
+      const { a, b, g } = await setup();
+      svc.rates.setRateProvider({ name: "down", historical: true, fetchRates: async () => { throw new Error("offline"); } });
+      try {
+        const r = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { currency: "USD", startDate: monthsAgo(1) }));
+        expect(r.booked).toBe(0);
+        const v = await svc.recurring.getRecurring(a.id, g.id, r.id);
+        expect(v).toMatchObject({ paused: false, lastError: "rate_unavailable", startDate: monthsAgo(1), nextDate: monthsAgo(1) });
+        svc.rates.setRateProvider({ name: "ok", historical: true, fetchRates: async () => ({ USD: 1.25, EUR: 1 }) });
+        expect(await svc.recurring.runDueRecurring()).toBe(2);
+        expect((await svc.recurring.getRecurring(a.id, g.id, r.id)).lastError).toBeNull();
+        const e = (await svc.expenses.listExpenses(a.id, g.id))[0];
+        expect(e.rateSource).toBe("provider");
+      } finally {
+        svc.rates.setRateProvider(null);
+      }
+    });
+
+    it("Ändern: nur Betrag behält die Folge, neuer Rhythmus beginnt neu; Fehler beim Starten laufen nicht ins Leere", async () => {
+      const { a, b, g } = await setup();
+      const r = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { startDate: monthsAgo(2) }));
+      expect(r.booked).toBe(3);
+      const before = (await svc.recurring.getRecurring(a.id, g.id, r.id)).nextDate;
+      const res = await svc.recurring.updateRecurring(a.id, g.id, r.id, tpl(a, b, { startDate: monthsAgo(2), amountMinor: 100000, payers: [{ userId: a.id, amountMinor: 100000 }] }));
+      expect(res.booked).toBe(0);
+      expect((await svc.recurring.getRecurring(a.id, g.id, r.id)).nextDate).toBe(before);
+      // neuer Start in der Zukunft: Folge beginnt neu, bereits gebuchte Termine bleiben
+      const future = monthsAgo(-2);
+      await svc.recurring.updateRecurring(a.id, g.id, r.id, tpl(a, b, { startDate: future }));
+      expect((await svc.recurring.getRecurring(a.id, g.id, r.id)).nextDate).toBe(future);
+      expect(await countExpenses(r.id)).toBe(3);
+    });
+
+    it("Testnutzer kann Vorlagen anlegen; Löschen des Testnutzers wird bei Vorlagen in gemischten Gruppen blockiert", async () => {
+      const { a, b, g } = await setup();
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: true });
+      const [created] = await svc.testUsers.createTestUsers(actor(a), { name: "QA T", username: "qa-t" });
+      const tid = (created as { id: string }).id;
+      await svc.testUsers.addToGroup(actor(a), tid, g.id, { role: "member", confirmed: true });
+      await svc.recurring.createRecurring(tid, g.id, tpl({ id: tid } as U, b, { startDate: monthsAgo(-1), split: { type: "equal", participants: [tid, b.id] }, payers: [{ userId: tid, amountMinor: 90000 }] }));
+      await expect(svc.testUsers.deleteTestUser(actor(a), tid)).rejects.toMatchObject({ code: "test_user_in_real_group" });
+    });
+
+    it("Frei einstellbarer Rhythmus: alle 2 Wochen", async () => {
+      const { a, b, g } = await setup();
+      const start = new Date(Date.now() - 29 * 86400_000).toISOString().slice(0, 10);
+      const r = await svc.recurring.createRecurring(a.id, g.id, tpl(a, b, { unit: "week", every: 2, startDate: start }));
+      expect(r.booked).toBe(3); // Tag 0, 14, 28
+      expect(svc.recurrence.occurrence(start, "week", 2, 1)).toBe(new Date(Date.parse(start) + 14 * 86400_000).toISOString().slice(0, 10));
     });
   });
 

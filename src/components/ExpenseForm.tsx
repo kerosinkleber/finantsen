@@ -13,6 +13,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { formatMoney, normalizeRate, parseAmount, toDecimalString } from "@/lib/money";
 import type { MessageKey } from "@/i18n";
 import type { DefaultSplit } from "@/lib/schemas";
+import { dueOccurrences, UNITS, type Unit } from "@/lib/recurrence";
 
 type Member = { id: string; name: string };
 type SplitType = "equal" | "percent" | "exact" | "shares" | "items" | "full";
@@ -35,7 +36,10 @@ export type ExpenseInitial = {
 
 const SPLITS: SplitType[] = ["equal", "percent", "exact", "shares", "items", "full"];
 
-export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurrency, initial, defaultSplit }: {
+/** Modus „wiederkehrend“: dasselbe Formular legt eine Vorlage mit Rhythmus an (ohne Belegscan und manuellen Kurs). */
+export type RecurringInit = { id?: string; unit: Unit; every: number; endDate: string | null; paused: boolean };
+
+export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurrency, initial, defaultSplit, recurring }: {
   groupId: string;
   members: Member[];
   meId: string;
@@ -44,6 +48,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   baseCurrency: string;
   initial?: ExpenseInitial;
   defaultSplit?: DefaultSplit | null;
+  recurring?: RecurringInit;
 }) {
   const { t, locale } = useI18n();
   const { ask, dialog } = useConfirm();
@@ -56,6 +61,10 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   const [amount, setAmount] = useState(initial ? toDecimalString(initial.amountMinor, initial.currency) : "");
   const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState(initial?.category ?? "other");
+  const [unit, setUnit] = useState<Unit>(recurring?.unit ?? "month");
+  const [every, setEvery] = useState(String(recurring?.every ?? 1));
+  const [endDate, setEndDate] = useState(recurring?.endDate ?? "");
+  const [paused] = useState(recurring?.paused ?? false);
   const usableDefault =
     !initial && defaultSplit && defaultSplit.entries.every((e) => members.some((m) => m.id === e.userId)) ? defaultSplit : null;
   const [splitType, setSplitType] = useState<SplitType>(initial?.splitType ?? usableDefault?.type ?? "equal");
@@ -175,6 +184,11 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
       if (!normalizeRate(manualRate)) throw new ApiClientError(400, "invalid_rate");
       rate = manualRate;
     }
+    if (recurring) {
+      const n = Number(every);
+      if (!Number.isInteger(n) || n < 1 || n > 365) throw new ApiClientError(400, "validation");
+      return { title, amountMinor: total, currency, category, payers, split, unit, every: n, startDate: date, endDate: endDate || null, paused };
+    }
     return { title, amountMinor: total, currency, date, category, payers, split, rate };
   }
 
@@ -184,6 +198,19 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
     setError(null);
     try {
       const body = buildBody();
+      if (recurring) {
+        // Liegt der erste Termin in der Vergangenheit, werden verpasste Termine sofort gebucht: vorher bestätigen lassen.
+        const missed = dueOccurrences({ start: date, unit, every: Number(every) || 1, from: 0, until: new Date().toISOString().slice(0, 10), end: endDate || null }).length;
+        if (missed > 1 && !paused && !(await ask(t("recurring.confirmBackfill", { n: missed })))) {
+          setBusy(false);
+          return;
+        }
+        if (recurring.id) await api("PUT", `/api/groups/${groupId}/recurring/${recurring.id}`, body);
+        else await api("POST", `/api/groups/${groupId}/recurring`, body);
+        router.replace(`/groups/${groupId}?tab=recurring`);
+        router.refresh();
+        return;
+      }
       if (initial) await api("PUT", `/api/groups/${groupId}/expenses/${initial.id}`, body);
       else await api("POST", `/api/groups/${groupId}/expenses`, body);
       router.replace(`/groups/${groupId}`);
@@ -195,10 +222,15 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   }
 
   async function remove() {
-    if (!initial || !(await ask(t("expense.deleteConfirm")))) return;
+    if (!initial || !(await ask(t(recurring ? "recurring.confirmDelete" : "expense.deleteConfirm")))) return;
     setBusy(true);
     try {
-      await api("DELETE", `/api/groups/${groupId}/expenses/${initial.id}`);
+      await api("DELETE", recurring ? `/api/groups/${groupId}/recurring/${initial.id}` : `/api/groups/${groupId}/expenses/${initial.id}`);
+      if (recurring) {
+        router.replace(`/groups/${groupId}?tab=recurring`);
+        router.refresh();
+        return;
+      }
       router.replace(`/groups/${groupId}`);
       router.refresh();
     } catch (err) {
@@ -210,7 +242,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       {dialog}
-      {!initial && <ReceiptScan fallbackCurrency={defaultCurrency} onResult={applyScan} />}
+      {!initial && !recurring && <ReceiptScan fallbackCurrency={defaultCurrency} onResult={applyScan} />}
       <div className="card flex flex-col gap-4">
         <div>
           <label className="label" htmlFor="title">{t("expense.title")}</label>
@@ -239,7 +271,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label" htmlFor="date">{t("expense.date")}</label>
+            <label className="label" htmlFor="date">{t(recurring ? "recurring.start" : "expense.date")}</label>
             <input id="date" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
           <div>
@@ -251,9 +283,28 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
             </select>
           </div>
         </div>
+        {recurring && (
+          <div className="flex flex-col gap-3" data-testid="schedule">
+            <div>
+              <label className="label" htmlFor="every">{t("recurring.every")}</label>
+              <div className="flex gap-2">
+                <input id="every" className="input !w-24" inputMode="numeric" value={every} onChange={(e) => setEvery(e.target.value)} required />
+                <select aria-label={t("recurring.every")} className="input" value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
+                  {UNITS.map((u) => (
+                    <option key={u} value={u}>{t(`recurring.unit.${u}` as MessageKey)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="label" htmlFor="end">{t("recurring.end")}</label>
+              <input id="end" type="date" className="input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+          </div>
+        )}
       </div>
 
-      <RateSection
+      {!recurring && <RateSection
         from={currency}
         to={baseCurrency}
         date={date}
@@ -261,7 +312,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         stored={initial ? { rate: initial.rate, source: initial.rateSource, currency: initial.currency, date: initial.date } : null}
         manual={manualRate}
         setManual={setManualRate}
-      />
+      />}
 
       <fieldset className="card flex flex-col gap-3">
         <legend className="sr-only">{t("expense.paidBy")}</legend>

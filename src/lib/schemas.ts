@@ -83,6 +83,7 @@ export const groupUpdateSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   defaultCurrency: currencySchema.optional(),
   simplifyDebts: z.boolean().optional(),
+  recurringPolicy: z.enum(["members", "owner"]).optional(),
 });
 
 export const splitSchema = z.discriminatedUnion("type", [
@@ -130,6 +131,16 @@ export const expenseSchema = z.object({
   rate: z.string().trim().max(40).optional(),
 });
 export type ExpenseBody = z.infer<typeof expenseSchema>;
+
+/** Wiederkehrende Ausgabe: Ausgaben-Vorlage (ohne Datum und manuellen Kurs) plus Rhythmus. */
+export const recurringSchema = expenseSchema.omit({ date: true, rate: true }).extend({
+  unit: z.enum(["day", "week", "month", "year"]),
+  every: z.number().int().min(1).max(365).default(1),
+  startDate: isoDate,
+  endDate: isoDate.nullable().optional(),
+  paused: z.boolean().optional(),
+});
+export type RecurringBody = z.infer<typeof recurringSchema>;
 
 export const paymentSchema = z.object({
   fromUser: id,

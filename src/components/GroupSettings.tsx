@@ -6,9 +6,10 @@ import { useConfirm } from "./useConfirm";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 
-export function GroupSettings({ groupId, simplify, isOwner, isDirect, members, meId }: {
+export function GroupSettings({ groupId, simplify, recurringOnlyOwner, isOwner, isDirect, members, meId }: {
   groupId: string;
   simplify: boolean;
+  recurringOnlyOwner: boolean;
   isOwner: boolean;
   isDirect: boolean;
   members: { id: string; name: string }[];
@@ -45,6 +46,21 @@ export function GroupSettings({ groupId, simplify, isOwner, isDirect, members, m
           <span>
             <span className="font-medium">{t("group.simplify")}</span>
             <span className="muted block">{t("group.simplifyHelp")}</span>
+          </span>
+        </label>
+      )}
+      {isOwner && (
+        <label className="card flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-5 w-5"
+            data-testid="recurring-policy"
+            defaultChecked={recurringOnlyOwner}
+            onChange={(e) => run(() => api("PATCH", `/api/groups/${groupId}`, { recurringPolicy: e.target.checked ? "owner" : "members" }))}
+          />
+          <span>
+            <span className="font-medium">{t("recurring.policy")}</span>
+            <span className="muted block">{t("recurring.policyHelp")}</span>
           </span>
         </label>
       )}
