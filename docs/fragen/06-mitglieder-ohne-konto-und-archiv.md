@@ -69,7 +69,7 @@ Antwort / Anmerkung:
 
 ## Umsetzung (von Claude ergänzt)
 
-Gebaut nach den Empfehlungen (der Fragebogen war zum Zeitpunkt des Baus noch nicht beantwortet; Abweichungen ändere ich nach deiner Antwort):
+Gebaut nach den Empfehlungen. **Der Auftraggeber hat alle Empfehlungen bestätigt** (Fragebogen unverändert zurück); es sind keine Änderungen nötig.
 
 1. **Gäste:** `users.kind = 'guest'`, gehören zu genau einer Gruppe (werden mit ihr gelöscht), Kennzeichnung „(Gast)“ bzw. „(guest)“ in der Sprache der Seite, keine Benachrichtigungen, nicht in der Nutzerverwaltung, nie anmeldbar. Jedes Mitglied darf Gäste anlegen, umbenennen und löschen; Löschen nur ohne Ausgaben, Zahlungen und Vorlagen. „Mitglied entfernen“ bei einem Gast bedeutet Löschen.
 2. **Verknüpfen:** Link (7 Tage, einmalig, ältere Links des Gasts werden ungültig, mit QR-Code). Beim Einlösen gehen Zahler- und Anteilszeilen, Einzelposten, Zahlungen, wiederkehrende Vorlagen und Verlaufs-Snapshots auf das Konto über. Ist das Konto schon Mitglied, werden Beträge, Prozente und Gewichte zusammengefasst (Summen bleiben gleich). Zahlungen zwischen Gast und diesem Konto heben sich dann auf und werden als gelöscht markiert.
