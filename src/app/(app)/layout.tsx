@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   if (user.mustChangePassword) redirect("/change-password");
+  if (user.totpSetupRequired) redirect("/two-factor");
   const unread = await unreadCount(user.id);
   const { t } = await getT();
   return (

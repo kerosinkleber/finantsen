@@ -61,6 +61,9 @@ export const adminUserActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("makeAdmin") }),
   z.object({ action: z.literal("removeAdmin") }),
   z.object({ action: z.literal("link") }),
+  z.object({ action: z.literal("resetTotp") }),
+  z.object({ action: z.literal("requireTotp") }),
+  z.object({ action: z.literal("unrequireTotp") }),
   z.object({ action: z.literal("setPassword"), password: passwordInput, mustChange: z.boolean().default(true) }),
 ]);
 

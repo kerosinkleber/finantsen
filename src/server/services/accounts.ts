@@ -130,6 +130,8 @@ export function publicUser(u: UserRow) {
     mustChangePassword: u.mustChangePassword,
     createdAt: u.createdAt,
     lockedUntil: u.lockedUntil,
+    totpEnabled: !!u.totpSecret,
+    totpRequired: u.totpRequired,
   };
 }
 
@@ -302,7 +304,7 @@ async function otherActiveAdmins(tx: Tx, exceptId: string): Promise<number> {
 }
 
 export type AdminAction =
-  | { action: "approve" | "disable" | "enable" | "makeAdmin" | "removeAdmin" | "link" }
+  | { action: "approve" | "disable" | "enable" | "makeAdmin" | "removeAdmin" | "link" | "resetTotp" | "requireTotp" | "unrequireTotp" }
   | { action: "setPassword"; password: string; mustChange: boolean };
 
 export async function adminAction(actor: SessionUser, userId: string, a: AdminAction) {
@@ -311,6 +313,12 @@ export async function adminAction(actor: SessionUser, userId: string, a: AdminAc
     const u = await getDb().transaction((tx) => target(tx, userId));
     if (!["active", "invited"].includes(u.status)) throw new ApiError(409, "invalid_state");
     return { link: await issueLink(u, actor.id) };
+  }
+  if (a.action === "resetTotp") {
+    const u = await getDb().transaction((tx) => target(tx, userId));
+    const { resetTotp } = await import("./totp");
+    await resetTotp(u.id);
+    return { user: publicUser((await getDb().select().from(users).where(eq(users.id, u.id)))[0]) };
   }
   let passwordHash: string | null = null;
   if (a.action === "setPassword") {
@@ -333,6 +341,10 @@ export async function adminAction(actor: SessionUser, userId: string, a: AdminAc
       case "enable":
         if (u.status !== "disabled") throw new ApiError(409, "invalid_state");
         return (await set({ status: u.passwordHash ? "active" : "invited" }))[0];
+      case "requireTotp":
+        return (await set({ totpRequired: true }))[0];
+      case "unrequireTotp":
+        return (await set({ totpRequired: false }))[0];
       case "makeAdmin":
         return (await set({ isAdmin: true }))[0];
       case "removeAdmin":

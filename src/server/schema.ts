@@ -40,11 +40,33 @@ export const users = pgTable(
     /** Login-Schutz: zunehmende Wartezeit nach Fehlversuchen */
     failedAttempts: integer("failed_attempts").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    /** TOTP: Geheimnis verschlüsselt (APP_SECRET); null = nicht eingerichtet */
+    totpSecret: text("totp_secret"),
+    /** Geheimnis während der Einrichtung, noch nicht bestätigt */
+    totpPendingSecret: text("totp_pending_secret"),
+    totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+    /** Zuletzt akzeptierter Zeitschritt (Replay-Schutz) */
+    totpLastStep: bigint("totp_last_step", { mode: "number" }),
+    /** Admin verlangt TOTP für dieses Konto */
+    totpRequired: boolean("totp_required").notNull().default(false),
+    totpFailedAttempts: integer("totp_failed_attempts").notNull().default(0),
+    totpLockedUntil: timestamp("totp_locked_until", { withTimezone: true }),
     locale: varchar("locale", { length: 5 }).notNull().default("de"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("users_username_idx").on(t.username), index("users_email_idx").on(sql`lower(${t.email})`)],
 );
+
+/** Wiederherstellungscodes für TOTP; gespeichert wird nur der HMAC. */
+export const recoveryCodes = pgTable("recovery_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /** Einmal-Links (Konto aktivieren / Passwort neu setzen); gespeichert wird nur der SHA-256 des Tokens. */
 export const userTokens = pgTable(

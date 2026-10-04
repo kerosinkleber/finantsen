@@ -8,7 +8,11 @@ const KEYS = {
   allowDuplicateEmails: "allow_duplicate_emails",
   linkValidityHours: "link_validity_hours",
   testFeatures: "test_features_enabled",
+  totpRequiredAll: "totp_required_all",
+  recoveryCodeCount: "recovery_code_count",
 } as const;
+
+export const RECOVERY_CODES_MAX = 20;
 
 export const LINK_VALIDITY_MIN = 1;
 export const LINK_VALIDITY_MAX = 720; // 30 Tage
@@ -31,6 +35,16 @@ export async function linkValidityHours(): Promise<number> {
   return Number.isInteger(n) && n >= LINK_VALIDITY_MIN && n <= LINK_VALIDITY_MAX ? n : 72;
 }
 
+/** TOTP für alle Konten verpflichtend (Standard aus). */
+export const totpRequiredAll = async () => (await get(KEYS.totpRequiredAll)) === "true";
+/** Anzahl Wiederherstellungscodes je Einrichtung/Neuerzeugung, 0–20, Standard 1. */
+export async function recoveryCodeCount(): Promise<number> {
+  const raw = await get(KEYS.recoveryCodeCount);
+  if (raw === null) return 1;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 && n <= RECOVERY_CODES_MAX ? n : 1;
+}
+
 /**
  * Admin-Testfunktionen (Testnutzer, "Handeln als"). Der Standardwert kommt aus TEST_FEATURES_DEFAULT
  * (nur "true" schaltet ein); ohne die Variable ist die Funktion aus, so auch im produktiven Compose-Stack.
@@ -48,6 +62,8 @@ export async function getAdminSettings() {
     allowDuplicateEmails: await allowDuplicateEmails(),
     linkValidityHours: await linkValidityHours(),
     testFeaturesEnabled: await testFeaturesEnabled(),
+    totpRequiredAll: await totpRequiredAll(),
+    recoveryCodeCount: await recoveryCodeCount(),
   };
 }
 
@@ -56,10 +72,14 @@ export async function updateAdminSettings(data: {
   allowDuplicateEmails?: boolean;
   linkValidityHours?: number;
   testFeaturesEnabled?: boolean;
+  totpRequiredAll?: boolean;
+  recoveryCodeCount?: number;
 }) {
   if (data.registrationEnabled !== undefined) await set(KEYS.registrationEnabled, String(data.registrationEnabled));
   if (data.allowDuplicateEmails !== undefined) await set(KEYS.allowDuplicateEmails, String(data.allowDuplicateEmails));
   if (data.linkValidityHours !== undefined) await set(KEYS.linkValidityHours, String(data.linkValidityHours));
   if (data.testFeaturesEnabled !== undefined) await set(KEYS.testFeatures, String(data.testFeaturesEnabled));
+  if (data.totpRequiredAll !== undefined) await set(KEYS.totpRequiredAll, String(data.totpRequiredAll));
+  if (data.recoveryCodeCount !== undefined) await set(KEYS.recoveryCodeCount, String(data.recoveryCodeCount));
   return getAdminSettings();
 }

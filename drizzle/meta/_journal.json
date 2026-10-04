@@ -43,6 +43,13 @@
       "when": 1791110602040,
       "tag": "0005_luxuriant_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791113709494,
+      "tag": "0006_petite_zarek",
+      "breakpoints": true
     }
   ]
 }

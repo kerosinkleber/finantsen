@@ -17,6 +17,8 @@ export type AdminUser = {
   isAdmin: boolean;
   mustChangePassword: boolean;
   lockedUntil: string | null;
+  totpEnabled: boolean;
+  totpRequired: boolean;
 };
 type LinkInfo = { url: string; expiresAt: string; for: string };
 
@@ -158,6 +160,8 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
         <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs dark:bg-slate-700" data-testid="status">{t(`admin.status.${u.status}` as MessageKey)}</span>
         {u.isAdmin && <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-white">{t("admin.badge.admin")}</span>}
         {u.mustChangePassword && <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs text-amber-900">{t("admin.badge.mustChange")}</span>}
+        {u.totpEnabled && <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs text-emerald-900" data-testid="badge-totp">{t("admin.badge.totp")}</span>}
+        {u.totpRequired && <span className="rounded-full bg-sky-200 px-2 py-0.5 text-xs text-sky-900" data-testid="badge-totp-required">{t("admin.badge.totpRequired")}</span>}
         {locked && <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs text-red-900">{t("admin.badge.locked")}</span>}
       </div>
       {u.email && <p className="muted">{u.email}</p>}
@@ -166,6 +170,16 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
         {(u.status === "active" || u.status === "invited") && (
           <button className={btn} onClick={() => act({ action: "link" }, (r) => onLink({ ...(r.link as { url: string; expiresAt: string }), for: u.name }))}>
             {t("admin.action.link")}
+          </button>
+        )}
+        {u.status !== "disabled" && (
+          <button className={btn} data-testid="toggle-totp-required" onClick={() => act({ action: u.totpRequired ? "unrequireTotp" : "requireTotp" })}>
+            {t(u.totpRequired ? "admin.action.unrequireTotp" : "admin.action.requireTotp")}
+          </button>
+        )}
+        {u.totpEnabled && (
+          <button className={btn} data-testid="reset-totp" onClick={() => confirm(t("admin.confirmResetTotp")) && act({ action: "resetTotp" })}>
+            {t("admin.action.resetTotp")}
           </button>
         )}
         {u.status !== "disabled" && <button className={btn} onClick={() => setPwOpen((o) => !o)}>{t("admin.action.setPassword")}</button>}

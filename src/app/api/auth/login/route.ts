@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { route, parseBody, ApiError } from "@/server/http";
 import { loginSchema } from "@/lib/schemas";
 import { authenticate } from "@/server/services/accounts";
+import { issueChallenge } from "@/server/services/totp";
 import { clearRateLimit, createSession, rateLimit } from "@/server/auth";
 
 export const POST = route(
@@ -26,6 +27,8 @@ export const POST = route(
       );
     }
     clearRateLimit(key);
+    // Mit TOTP wird noch keine Sitzung angelegt: erst der zweite Schritt (Code) schließt die Anmeldung ab.
+    if (user.totpSecret) return { totpRequired: true, challenge: issueChallenge(user.id) };
     await createSession(user.id);
     return { user: { id: user.id, username: user.username, name: user.name, isAdmin: user.isAdmin, mustChangePassword: user.mustChangePassword } };
   },

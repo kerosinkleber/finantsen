@@ -52,6 +52,8 @@ d("services (PostgreSQL)", () => {
     mustChangePassword: false,
     real: { id: u.id, name: u.username, isAdmin: u.isAdmin },
     impersonating: false,
+    totpEnabled: false,
+    totpSetupRequired: false,
   });
 
   /** Legt über den Admin ein Konto mit Passwort an (ohne Passwortwechsel-Pflicht). */

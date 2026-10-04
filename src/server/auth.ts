@@ -22,6 +22,10 @@ export type SessionUser = {
   kind: "user" | "test";
   /** Muss vor allem anderen sein Passwort ändern (gilt für das echte Konto) */
   mustChangePassword: boolean;
+  /** Das echte Konto hat TOTP eingerichtet */
+  totpEnabled: boolean;
+  /** Das echte Konto muss TOTP einrichten, bevor es etwas anderes tun darf */
+  totpSetupRequired: boolean;
   /** Der angemeldete (echte) Nutzer; entspricht dem effektiven Nutzer, wenn niemand als Testnutzer handelt */
   real: { id: string; name: string; isAdmin: boolean };
   /** Ein Admin handelt gerade als Testnutzer */
@@ -81,6 +85,11 @@ export async function resolveSession(token: string): Promise<SessionUser | null>
       impersonating = true;
     }
   }
+  const { totpRequiredAll } = await import("./services/settings");
+  const totpEnabled = !!r.real.totpSecret;
+  // Der passwortlose Entwicklungs-Admin ist ausgenommen (DEV_ADMIN)
+  const devExempt = env.devAdmin && !r.real.passwordHash;
+  const totpSetupRequired = !totpEnabled && !devExempt && (r.real.totpRequired || (await totpRequiredAll()));
   return {
     id: eff.id,
     username: eff.username,
@@ -90,6 +99,8 @@ export async function resolveSession(token: string): Promise<SessionUser | null>
     locale: eff.locale,
     kind: eff.kind as "user" | "test",
     mustChangePassword: r.real.mustChangePassword,
+    totpEnabled,
+    totpSetupRequired,
     real,
     impersonating,
   };

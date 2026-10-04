@@ -16,6 +16,7 @@ export default async function SettingsPage() {
         {user.isAdmin && <p className="muted mt-2">{t("settings.admin")}</p>}
       </div>
       {!user.impersonating && <Link href="/change-password" className="btn-secondary">{t("password.link")}</Link>}
+      {!user.impersonating && <Link href="/two-factor" className="btn-secondary" data-testid="two-factor-link">{t("totp.link")}</Link>}
       {user.isAdmin && <Link href="/admin/users" className="btn-secondary" data-testid="admin-link">{t("admin.usersLink")}</Link>}
       <PushToggle />
       <SettingsPanel />

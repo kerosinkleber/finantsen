@@ -124,8 +124,8 @@ export function ActivateForm({ token, name, username, purpose }: { token: string
     if (password !== repeat) return setError(new ApiClientError(400, "password_mismatch"));
     setBusy(true);
     try {
-      await api("POST", `/api/activate/${token}`, { password });
-      router.replace("/");
+      const r = await api<{ loginRequired?: boolean }>("POST", `/api/activate/${token}`, { password });
+      router.replace(r.loginRequired ? "/login" : "/");
       router.refresh();
     } catch (err) {
       setError(err);

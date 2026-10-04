@@ -29,7 +29,7 @@ type Ctx<P> = { params: Promise<P> };
  */
 export function route<P = Record<string, string>>(
   handler: (args: { req: Request; user: SessionUser; params: P }) => Promise<Response | object | null>,
-  opts: { auth?: boolean; allowMustChange?: boolean } = { auth: true },
+  opts: { auth?: boolean; allowMustChange?: boolean; allowTotpSetup?: boolean } = { auth: true },
 ) {
   return async (req: Request, ctx: Ctx<P>) => {
     try {
@@ -39,6 +39,8 @@ export function route<P = Record<string, string>>(
       const user = current as SessionUser;
       // Wer sein Passwort ändern muss, darf bis dahin nichts anderes tun.
       if (current?.mustChangePassword && !opts.allowMustChange) throw new ApiError(403, "password_change_required");
+      // Wer TOTP einrichten muss, darf bis dahin nichts anderes tun.
+      if (current?.totpSetupRequired && !opts.allowTotpSetup) throw new ApiError(403, "totp_setup_required");
       const params = (await ctx?.params) as P;
       const result = await handler({ req, user, params });
       if (result instanceof Response) return result;

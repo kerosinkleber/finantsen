@@ -21,6 +21,8 @@ export default async function AdminUsersPage() {
     isAdmin: u.isAdmin,
     mustChangePassword: u.mustChangePassword,
     lockedUntil: u.lockedUntil ? u.lockedUntil.toISOString() : null,
+    totpEnabled: u.totpEnabled,
+    totpRequired: u.totpRequired,
   }));
   return (
     <>

@@ -4,13 +4,14 @@ import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 
-type Settings = { registrationEnabled: boolean; allowDuplicateEmails: boolean; linkValidityHours: number; testFeaturesEnabled: boolean };
+type Settings = { registrationEnabled: boolean; allowDuplicateEmails: boolean; linkValidityHours: number; testFeaturesEnabled: boolean; totpRequiredAll: boolean; recoveryCodeCount: number };
 
 /** Instanz-Einstellungen, nur für Admins (der Server prüft die Berechtigung zusätzlich). */
 export function AdminSettings({ initial }: { initial: Settings }) {
   const { t } = useI18n();
   const [s, setS] = useState(initial);
   const [hours, setHours] = useState(String(initial.linkValidityHours));
+  const [codes, setCodes] = useState(String(initial.recoveryCodeCount));
   const [error, setError] = useState<unknown>(null);
   const [saved, setSaved] = useState(false);
 
@@ -52,6 +53,21 @@ export function AdminSettings({ initial }: { initial: Settings }) {
           <span className="muted block">{t("test.enableHelp")}</span>
         </span>
       </label>
+      <label className="flex items-start gap-3">
+        <input type="checkbox" className="mt-1 h-5 w-5" data-testid="totp-all" checked={s.totpRequiredAll} onChange={(e) => save({ totpRequiredAll: e.target.checked })} />
+        <span>
+          <span className="font-medium">{t("admin.totpRequiredAll")}</span>
+          <span className="muted block">{t("admin.totpRequiredAllHelp")}</span>
+        </span>
+      </label>
+      <div>
+        <label className="label" htmlFor="rcodes">{t("admin.recoveryCodeCount")}</label>
+        <div className="flex gap-2">
+          <input id="rcodes" className="input !w-28" inputMode="numeric" value={codes} onChange={(e) => setCodes(e.target.value)} />
+          <button className="btn-secondary" onClick={() => save({ recoveryCodeCount: Number(codes) })}>{t("admin.action.save")}</button>
+        </div>
+        <p className="muted mt-1">{t("admin.recoveryCodeCountHelp")}</p>
+      </div>
       <div>
         <label className="label" htmlFor="hours">{t("admin.linkValidity")}</label>
         <div className="flex gap-2">

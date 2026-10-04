@@ -21,6 +21,8 @@ export const POST = route<{ token: string }>(
     if (!rateLimit(`activate:${ip}`, 30)) throw new ApiError(429, "rate_limited");
     const body = await parseBody(req, activateSchema);
     const user = await redeemLink(params.token, body.password);
+    // Mit TOTP keine automatische Anmeldung: der Nutzer meldet sich regulär (Passwort + Code) an.
+    if (user.totpSecret) return { loginRequired: true };
     await createSession(user.id);
     return { user: { id: user.id, username: user.username, name: user.name, isAdmin: user.isAdmin } };
   },

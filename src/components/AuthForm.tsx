@@ -16,6 +16,24 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
   const [busy, setBusy] = useState(false);
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [userId, setUserId] = useState("");
+  const [challenge, setChallenge] = useState<string | null>(null);
+
+  async function submitCode(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ user: { mustChangePassword: boolean } }>("POST", "/api/auth/login/totp", { challenge, code: f.get("code") });
+      router.replace(r.user.mustChangePassword ? "/change-password" : next && next.startsWith("/") ? next : "/");
+      router.refresh();
+    } catch (err) {
+      // abgelaufene Challenge: zurück zum Passwortschritt
+      if (err instanceof ApiClientError && err.code === "challenge_invalid") setChallenge(null);
+      setError(err);
+      setBusy(false);
+    }
+  }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -23,11 +41,16 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ user: { mustChangePassword: boolean } }>("POST", "/api/auth/login", {
+      const r = await api<{ user: { mustChangePassword: boolean }; totpRequired?: boolean; challenge?: string }>("POST", "/api/auth/login", {
         identifier: f.get("identifier"),
         password: f.get("password"),
         userId: userId || undefined,
       });
+      if (r.totpRequired && r.challenge) {
+        setChallenge(r.challenge);
+        setBusy(false);
+        return;
+      }
       const target = r.user.mustChangePassword ? "/change-password" : next && next.startsWith("/") ? next : "/";
       router.replace(target);
       router.refresh();
@@ -58,6 +81,21 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
       setBusy(false);
     }
   }
+
+  if (challenge)
+    return (
+      <form onSubmit={submitCode} className="card flex flex-col gap-4" data-testid="totp-step">
+        <h2 className="text-xl font-semibold">{t("totp.loginTitle")}</h2>
+        <p className="muted">{t("totp.loginHelp")}</p>
+        <div>
+          <label className="label" htmlFor="code">{t("totp.code")}</label>
+          <input id="code" name="code" className="input" required autoFocus autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} />
+        </div>
+        <ErrorMessage error={error} />
+        <button className="btn" disabled={busy}>{t("totp.verify")}</button>
+        <button type="button" className="btn-secondary" onClick={() => { setChallenge(null); setError(null); }}>{t("common.back")}</button>
+      </form>
+    );
 
   return (
     <form onSubmit={submit} className="card flex flex-col gap-4">
