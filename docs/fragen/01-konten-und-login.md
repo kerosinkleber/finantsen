@@ -23,10 +23,10 @@ So füllst du ihn aus: Kreuze mit `[x]` an (bei Einfachauswahl nur eins) oder sc
 
 Du hast bei der Einrichtung "Nutzername und Passwort" geschrieben, bisher meldet man sich mit der E-Mail an. Da wir keine Mails versenden, braucht die App die E-Mail-Adresse eigentlich gar nicht.
 
-- [ ] **A: Nutzername** (eindeutig, Groß-/Kleinschreibung egal). Die E-Mail ist ein **optionales** Feld, mehrfach nutzbar, nur für später. (Empfehlung)
+- [x] **A: Nutzername** (eindeutig, Groß-/Kleinschreibung egal). Die E-Mail ist ein **optionales** Feld, mehrfach nutzbar, nur für später. (Empfehlung)
   - Folge: Die Kontoauswahl beim Login und der Schalter "Mehrere Konten pro E-Mail" entfallen, denn der Wunsch "viele Konten mit einer E-Mail" ist dann automatisch erfüllt. Das macht den Login einfacher.
 - [ ] **B: E-Mail** (wie jetzt). Die Auswahl bei mehreren Konten und der Schalter bleiben, Standard aus.
-- [ ] **C: Beides**: Login mit Nutzername oder E-Mail.
+- [x] **C: Beides**: Login mit Nutzername oder E-Mail.
 
 Antwort / Anmerkung:
 
@@ -37,7 +37,7 @@ Antwort / Anmerkung:
 Wie läuft es ab, wenn der Schalter an ist?
 
 - [ ] **A: Offen, Konto sofort aktiv.** Jeder mit dem Link zur Seite kann sich anlegen.
-- [ ] **B: Offen, aber Admin muss freigeben.** Das Konto ist angelegt, aber gesperrt, bis der Admin zustimmt. (Empfehlung)
+- [x] **B: Offen, aber Admin muss freigeben.** Das Konto ist angelegt, aber gesperrt, bis der Admin zustimmt. (Empfehlung)
 - [ ] **C: Nur mit Einladungscode** vom Admin (jemand ohne Code kann sich nicht registrieren).
 
 Hinweis: Die Passwortregeln und ein erzwungenes TOTP gelten auch bei Selbstregistrierung.
@@ -51,11 +51,11 @@ Antwort / Anmerkung:
 Beim ersten Aufruf ohne Admin erscheint der Einrichtungsablauf. Du sagst, das System geht erst online, wenn du eingerichtet hast. Zur Sicherheit könnten wir trotzdem verhindern, dass ein Fremder schneller ist (zum Beispiel bei einem Tippfehler in der Domain oder einem Neustart):
 
 - [ ] **A: Setup-Code.** Beim Start steht ein einmaliger Code im Server-Log (`docker compose logs app`), den du im Formular eingibst. (Empfehlung)
-- [ ] **B: Kein Schutz.** Wer die Seite zuerst aufruft, richtet den Admin ein.
+- [x] **B: Kein Schutz.** Wer die Seite zuerst aufruft, richtet den Admin ein.
 
 Und: Der Admin muss beim Einrichten **TOTP** anlegen. Das Passkey kommt später als Alternative dazu.
 - [ ] Einverstanden (Empfehlung)
-- [ ] Nein, TOTP für den Admin soll optional sein
+- [x] Nein, TOTP für den Admin soll optional sein
 
 Antwort / Anmerkung:
 
@@ -86,12 +86,12 @@ Antwort / Anmerkung:
 
 Standard ist 1 Code pro Nutzer, vom Admin einstellbar. Welche Grenzen soll der Admin einstellen können?
 
-- [ ] **0 bis 20** (0 = keine Codes, Geräteverlust nur über den Admin) (Empfehlung)
+- [x] **0 bis 20** (0 = keine Codes, Geräteverlust nur über den Admin) (Empfehlung)
 - [ ] 1 bis 10
 - [ ] Andere Grenzen:
 
 Wenn ein Code benutzt wurde, kann der Nutzer unter *Konto* neue erzeugen (die alten werden dann ungültig). Einverstanden?
-- [ ] Ja (Empfehlung)
+- [x] Ja (Empfehlung)
 - [ ] Nein, anders:
 
 Antwort / Anmerkung:
@@ -105,7 +105,7 @@ Machbar. Zwei Teile, mit sehr unterschiedlichem Aufwand:
 1. **QR-Code anzeigen**: der Code enthält denselben Einladungslink. Der andere scannt ihn mit der normalen Kamera-App und landet im Browser. Aufwand klein. Bei iPhones öffnet er Safari, nicht unbedingt die installierte App.
 2. **Scanner in der App**: Kamera direkt in der App. Braucht HTTPS, auf iPhones eine Zusatzbibliothek, und ist deutlich mehr Aufwand und Testarbeit.
 
-- [ ] **Nur QR anzeigen** jetzt, Scanner in der App später (Empfehlung)
+- [x] **Nur QR anzeigen** jetzt, Scanner in der App später (Empfehlung)
 - [ ] Beides jetzt
 - [ ] Gar nicht, nur Link
 
@@ -121,7 +121,7 @@ Das Ganze ist groß. Ich schlage Etappen vor, nach jeder hältst du an und teste
 - **Etappe B**: TOTP mit Zwang, Wiederherstellungscodes.
 - **Etappe C**: QR-Code für Einladungen.
 
-- [ ] **Drei Etappen** mit Test dazwischen (Empfehlung)
+- [x] **Drei Etappen** mit Test dazwischen (Empfehlung)
 - [ ] Alles auf einmal
 
 Antwort / Anmerkung:
@@ -133,7 +133,7 @@ Antwort / Anmerkung:
 - [ ] **72 Stunden** (Empfehlung)
 - [ ] 24 Stunden
 - [ ] 7 Tage
-- [ ] Im Admin-Bereich einstellbar (Standard 72 Stunden)
+- [x] Im Admin-Bereich einstellbar (Standard 72 Stunden)
 
 Antwort / Anmerkung:
 
@@ -152,3 +152,14 @@ Antwort / Anmerkung:
 9. `REGISTRATION_ENABLED` in der `.env` entfällt, der Schalter lebt im Admin-Bereich.
 10. Einladungslinks für Gruppen kann nur ein eingeloggtes Konto annehmen.
 11. Der lokale Docker-Test braucht danach keine Zugangsdaten in der Konfiguration, du richtest den Admin über die Einrichtungsseite ein (Starten mit `down -v` für frische Daten).
+
+---
+
+## Umsetzung (von Claude ergänzt)
+
+Auslegung der Antworten, wo sie sich überschnitten haben:
+
+1. **Frage 1** (A und C angekreuzt): Nutzername ist der eindeutige Anmeldename, die E-Mail ist optional, und der Login akzeptiert **beides**. Nutzernamen enthalten kein „@“, damit beides nie verwechselt wird. Die Kontoauswahl beim Login bleibt nur für den Fall, dass der Admin Duplikate von E-Mail-Adressen erlaubt (Standard: aus, wie in der Antwort zu Frage 6 des Vorgängerfragebogens).
+2. **Frage 3**: kein Setup-Code, und TOTP ist für den Admin **optional**. Das ersetzt die frühere Annahme „Admins immer“. Ein später eingeschalteter globaler TOTP-Zwang gilt dann für alle, auch für Admins (Etappe B).
+3. **Frage 8**: Gültigkeit der Links im Admin-Bereich einstellbar (1–720 Stunden, Standard 72).
+4. Etappe A ist umgesetzt. Etappe B (TOTP) und C (QR-Code) folgen nach deinem Test.

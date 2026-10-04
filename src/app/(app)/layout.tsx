@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth";
 import { Nav } from "@/components/Nav";
 import { getT } from "@/i18n/server";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  if (user.mustChangePassword) redirect("/change-password");
   const unread = await unreadCount(user.id);
   const { t } = await getT();
   return (

@@ -1,14 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const PASSWORD = "supersecret1";
+const PASSWORD = "Correct-Horse-Battery-9!";
 
-async function register(page: Page, name: string, email: string, url = "/register") {
-  await page.goto(url);
-  await page.getByLabel("Name").fill(name);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign up" }).click();
-}
+const form = (page: Page) => page.getByTestId("create-user");
+const card = (page: Page, username: string) => page.locator(`[data-username="${username}"]`);
 
 test.describe.configure({ mode: "serial" });
 
@@ -25,15 +20,44 @@ test("health endpoint and PWA assets", async ({ request }) => {
   expect((await request.get("/icons/icon-512.png")).ok()).toBeTruthy();
 });
 
-test("unauthenticated users are redirected to login", async ({ page, request }) => {
+test("without any account the app leads to the setup page; API stays closed", async ({ page, request }) => {
   await page.goto("/");
-  await expect(page).toHaveURL(/\/login/);
+  await expect(page).toHaveURL(/\/setup/);
+  await page.goto("/login");
+  await expect(page).toHaveURL(/\/setup/);
   expect((await request.get("/api/groups")).status()).toBe(401);
+  expect((await (await request.get("/api/setup")).json()).needsSetup).toBe(true);
 });
 
-test("first user becomes admin, creates group and invite", async ({ page }) => {
-  await register(page, "Anna", "anna@example.com");
+test("setup: password policy is shown live, admin account is created and signed in", async ({ page }) => {
+  await page.goto("/setup");
+  await page.getByLabel("Display name").fill("Anna");
+  await page.getByLabel("Username", { exact: true }).fill("anna");
+  await page.getByLabel("Email (optional)").fill("anna@example.com");
+  const save = page.getByRole("button", { name: "Create admin account" });
+  await page.getByLabel("Password", { exact: true }).fill("kurz");
+  await expect(page.locator('[data-rule="too_short"]')).toHaveAttribute("data-ok", "false");
+  await expect(save).toBeDisabled();
+  await page.getByLabel("Password", { exact: true }).fill("Abcdefghijklmnopqrstuvwxyz"); // keine Ziffer, kein Sonderzeichen
+  await expect(page.locator('[data-rule="too_short"]')).toHaveAttribute("data-ok", "true");
+  await expect(page.locator('[data-rule="no_digit"]')).toHaveAttribute("data-ok", "false");
+  await expect(page.locator('[data-rule="no_special"]')).toHaveAttribute("data-ok", "false");
+  await page.getByLabel("Password", { exact: true }).fill("anna-" + PASSWORD); // enthält den Nutzernamen
+  await expect(page.locator('[data-rule="contains_identity"]')).toHaveAttribute("data-ok", "false");
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await expect(page.locator('[data-ok="false"]')).toHaveCount(0);
+  await page.getByLabel("Repeat password").fill(PASSWORD + "x");
+  await expect(save).toBeDisabled();
+  await page.getByLabel("Repeat password").fill(PASSWORD);
+  await save.click();
   await expect(page).toHaveURL("/");
+  // danach ist die Einrichtung nicht mehr erreichbar
+  await page.goto("/setup");
+  await expect(page).not.toHaveURL(/\/setup/);
+});
+
+test("signed-in admin creates a group and an invite link", async ({ page }) => {
+  await login(page, "anna");
   await page.getByRole("link", { name: "New group" }).click();
   await page.getByLabel("Group name").fill("Ski trip");
   await page.getByRole("button", { name: "Create group" }).click();
@@ -46,22 +70,51 @@ test("first user becomes admin, creates group and invite", async ({ page }) => {
   expect(inviteLink).toContain("/join/");
 });
 
-test("second user registers via invite (registration is disabled otherwise)", async ({ page }) => {
-  await page.goto("/register");
-  await expect(page.getByText("Registration is disabled")).toBeVisible();
-  await page.goto(inviteLink);
-  await page.getByRole("link", { name: "Sign up" }).click();
-  await page.getByLabel("Name").fill("Ben");
-  await page.getByLabel("Email").fill("ben@example.com");
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign up" }).click();
-  await expect(page).toHaveURL(groupUrl);
-  await expect(page.getByRole("heading", { name: "Ski trip" })).toBeVisible();
+test("admin creates Ben with a one-time link; Ben sets his own password and joins the group", async ({ page, browser, baseURL }) => {
+  // Selbstregistrierung ist standardmäßig aus (anonym geprüft)
+  const anon = await browser.newContext({ baseURL, locale: "en-US" });
+  const ap = await anon.newPage();
+  await ap.goto("/register");
+  await expect(ap.getByTestId("register-disabled")).toBeVisible();
+  expect((await ap.request.post("/api/auth/register", { data: { name: "X", username: "xxx", password: PASSWORD } })).status()).toBe(403);
+  await anon.close();
+
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  await form(page).getByLabel("Display name").fill("Ben");
+  await form(page).getByLabel("Username", { exact: true }).fill("ben");
+  await form(page).getByLabel("Email (optional)").fill("ben@example.com");
+  await form(page).getByRole("button", { name: "Create account" }).click();
+  const link = await page.getByTestId("activation-link").inputValue();
+  expect(link).toContain("/activate/");
+  await expect(page.locator('[data-username="ben"] [data-testid="status"]')).toHaveText("Invitation open");
+
+  // Ben öffnet den Link (kein Konto, eigener Browserkontext), wählt sein Passwort und tritt per Einladung bei
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const bp = await ctx.newPage();
+  await bp.goto(link);
+  await expect(bp.getByText("Hello Ben!")).toBeVisible();
+  await bp.getByLabel("Password", { exact: true }).fill("ben-" + PASSWORD);
+  await expect(bp.getByRole("button", { name: "Save password and sign in" })).toBeDisabled(); // enthält Nutzernamen
+  await bp.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await bp.getByLabel("Repeat password").fill(PASSWORD);
+  await bp.getByRole("button", { name: "Save password and sign in" }).click();
+  await expect(bp).toHaveURL("/");
+  // Der Link ist verbraucht
+  await bp.context().clearCookies();
+  await bp.goto(link);
+  await expect(bp.getByTestId("link-invalid")).toBeVisible();
+  await login(bp, "ben@example.com"); // Anmeldung auch per E-Mail
+  await bp.goto(inviteLink);
+  await bp.getByRole("button", { name: "Accept invitation" }).click();
+  await expect(bp).toHaveURL(groupUrl);
+  await expect(bp.getByRole("heading", { name: "Ski trip" })).toBeVisible();
+  await ctx.close();
 });
 
 test("add expense, see balances, settle up", async ({ page, browser, baseURL }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("anna@example.com");
+  await page.getByLabel("Username or email").fill("anna@example.com");
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
@@ -83,7 +136,7 @@ test("add expense, see balances, settle up", async ({ page, browser, baseURL }) 
   const ben = await browser.newContext({ baseURL, locale: "en-US" });
   const bp = await ben.newPage();
   await bp.goto("/login");
-  await bp.getByLabel("Email").fill("ben@example.com");
+  await bp.getByLabel("Username or email").fill("ben@example.com");
   await bp.getByLabel("Password").fill(PASSWORD);
   await bp.getByRole("button", { name: "Sign in" }).click();
   await expect(bp).toHaveURL("/");
@@ -96,7 +149,7 @@ test("add expense, see balances, settle up", async ({ page, browser, baseURL }) 
 
 test("percent split validates sum; edit shows history; delete is soft", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("anna@example.com");
+  await page.getByLabel("Username or email").fill("anna@example.com");
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
@@ -124,7 +177,7 @@ test("percent split validates sum; edit shows history; delete is soft", async ({
 
 test("language can be switched to German", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("anna@example.com");
+  await page.getByLabel("Username or email").fill("anna@example.com");
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
@@ -143,7 +196,7 @@ test("non-members cannot access a group via API", async ({ browser, baseURL }) =
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Username or email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
@@ -340,54 +393,183 @@ test("receipt scan (mocked API): photo is uploaded downscaled and pre-fills an e
   await expect(page.getByTestId("expense-item").filter({ hasText: "Trattoria Roma" })).toContainText("€23.00");
 });
 
-async function inviteCode(page: Page): Promise<string> {
-  const res = await page.request.post(`/api${groupUrl}/invites`);
-  return (await res.json()).code;
-}
 
-test("same email can be used for several accounts; login asks which one; admin can switch it off", async ({ page, browser, baseURL }) => {
-  await login(page, "anna@example.com");
-  const registerDup = async (code: string, name: string) => {
-    const ctx = await browser.newContext({ baseURL, locale: "en-US" });
-    const p = await ctx.newPage();
-    await register(p, name, "ben@example.com", `/register?invite=${code}`);
-    return { ctx, p };
+test("admin sets a password with forced change: user must change it before anything else", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  await form(page).getByLabel("Display name").fill("Cleo");
+  await form(page).getByLabel("Username", { exact: true }).fill("cleo");
+  await form(page).getByLabel("I set the password").check();
+  await form(page).getByLabel("Password", { exact: true }).fill("Initial-Start-Passphrase-1!");
+  await form(page).getByRole("button", { name: "Create account" }).click();
+  await expect(card(page, "cleo").getByTestId("status")).toHaveText("Active");
+  await expect(card(page, "cleo")).toContainText("Password change required");
+
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const cp = await ctx.newPage();
+  await cp.goto("/login");
+  await cp.getByLabel("Username or email").fill("CLEO"); // Groß-/Kleinschreibung egal
+  await cp.getByLabel("Password").fill("Initial-Start-Passphrase-1!");
+  await cp.getByRole("button", { name: "Sign in" }).click();
+  await expect(cp).toHaveURL(/\/change-password/);
+  await expect(cp.getByTestId("must-change")).toBeVisible();
+  // bis zur Änderung ist alles andere gesperrt (Seiten und API)
+  await cp.goto("/");
+  await expect(cp).toHaveURL(/\/change-password/);
+  expect((await cp.request.get("/api/groups")).status()).toBe(403);
+  // Änderung: aktuelles Passwort nötig, neues muss sich unterscheiden
+  await cp.getByLabel("Current password").fill("Initial-Start-Passphrase-1!");
+  await cp.getByLabel("New password").fill("Initial-Start-Passphrase-1!");
+  await cp.getByLabel("Repeat password").fill("Initial-Start-Passphrase-1!");
+  await cp.getByRole("button", { name: "Change password" }).click();
+  await expect(cp.getByTestId("error")).toContainText("must differ");
+  await cp.getByLabel("New password").fill("My-Own-Fresh-Passphrase-2?");
+  await cp.getByLabel("Repeat password").fill("My-Own-Fresh-Passphrase-2?");
+  await cp.getByRole("button", { name: "Change password" }).click();
+  await expect(cp).toHaveURL("/");
+  expect((await cp.request.get("/api/groups")).status()).toBe(200);
+  await ctx.close();
+});
+
+test("self-registration: off by default; when enabled accounts wait for approval", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  const settings = page.getByTestId("admin-settings");
+  await expect(settings.getByLabel("Allow self-registration")).not.toBeChecked();
+  await settings.getByLabel("Allow self-registration").check();
+  await expect(settings.getByRole("status")).toBeVisible();
+
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const gp = await ctx.newPage();
+  await gp.goto("/login");
+  await gp.getByRole("link", { name: "Sign up" }).click();
+  await gp.getByLabel("Display name").fill("Gast");
+  await gp.getByLabel("Username", { exact: true }).fill("gast");
+  await gp.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await gp.getByLabel("Repeat password").fill(PASSWORD);
+  await gp.getByRole("button", { name: "Sign up" }).click();
+  await expect(gp.getByTestId("register-pending")).toBeVisible();
+  const tryLogin = async () => {
+    await gp.goto("/login");
+    await gp.getByLabel("Username or email").fill("gast");
+    await gp.getByLabel("Password").fill(PASSWORD);
+    await gp.getByRole("button", { name: "Sign in" }).click();
   };
+  await tryLogin();
+  await expect(gp.getByTestId("error")).toContainText("waiting for approval");
 
-  // erlaubt (Standard): zweites Konto mit der E-Mail von Ben
-  const first = await registerDup(await inviteCode(page), "Ben Zwo");
-  await expect(first.p).toHaveURL(groupUrl);
-  await first.ctx.close();
+  await page.reload();
+  await expect(card(page, "gast").getByTestId("status")).toHaveText("Awaiting approval");
+  await card(page, "gast").getByRole("button", { name: "Approve" }).click();
+  await expect(card(page, "gast").getByTestId("status")).toHaveText("Active");
+  await tryLogin();
+  await expect(gp).toHaveURL("/");
 
-  // Login mit E-Mail + Passwort -> Kontoauswahl
+  // wieder ausschalten: Seite zeigt Hinweis
+  await settings.getByLabel("Allow self-registration").uncheck();
+  await expect(settings.getByRole("status")).toBeVisible();
+  const anon = await browser.newContext({ baseURL, locale: "en-US" });
+  const ap = await anon.newPage();
+  await ap.goto("/register");
+  await expect(ap.getByTestId("register-disabled")).toBeVisible();
+  await ctx.close();
+  await anon.close();
+});
+
+test("disable ends sessions and blocks login; last admin cannot be removed", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  // Gast ist eingeloggt (eigener Kontext), dann deaktivieren
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const gp = await ctx.newPage();
+  await gp.goto("/login");
+  await gp.getByLabel("Username or email").fill("gast");
+  await gp.getByLabel("Password").fill(PASSWORD);
+  await gp.getByRole("button", { name: "Sign in" }).click();
+  await expect(gp).toHaveURL("/");
+
+  page.once("dialog", (d) => d.accept());
+  await card(page, "gast").getByRole("button", { name: "Disable" }).click();
+  await expect(card(page, "gast").getByTestId("status")).toHaveText("Disabled");
+  expect((await gp.request.get("/api/groups")).status()).toBe(401); // Sitzung sofort beendet
+  await gp.goto("/login");
+  await gp.getByLabel("Username or email").fill("gast");
+  await gp.getByLabel("Password").fill(PASSWORD);
+  await gp.getByRole("button", { name: "Sign in" }).click();
+  await expect(gp.getByTestId("error")).toContainText("disabled");
+  await card(page, "gast").getByRole("button", { name: "Enable" }).click();
+  await expect(card(page, "gast").getByTestId("status")).toHaveText("Active");
+  await ctx.close();
+
+  // eigenes Konto hat keinen "Disable"-Knopf; der letzte Admin kann sich nicht degradieren
+  await expect(card(page, "anna").getByRole("button", { name: "Disable" })).toHaveCount(0);
+  await card(page, "anna").getByRole("button", { name: "Remove admin rights" }).click();
+  await expect(card(page, "anna").getByTestId("error")).toContainText("At least one active administrator");
+});
+
+test("duplicate emails: refused by default; when allowed, login asks which account", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  const create = async (username: string) => {
+    await form(page).getByLabel("Display name").fill(username);
+    await form(page).getByLabel("Username", { exact: true }).fill(username);
+    await form(page).getByLabel("Email (optional)").fill("ben@example.com");
+    await form(page).getByLabel("I set the password").check();
+    await form(page).getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await form(page).getByLabel("Require a password change at first sign-in").uncheck();
+    await form(page).getByRole("button", { name: "Create account" }).click();
+  };
+  await create("ben2");
+  await expect(form(page).getByTestId("error")).toContainText("already registered");
+
+  const settings = page.getByTestId("admin-settings");
+  await settings.getByLabel("Allow multiple accounts per email address").check();
+  await expect(settings.getByRole("status")).toBeVisible();
+  await create("ben2");
+  await expect(card(page, "ben2")).toBeVisible();
+
   const ctx = await browser.newContext({ baseURL, locale: "en-US" });
   const lp = await ctx.newPage();
   await lp.goto("/login");
-  await lp.getByLabel("Email").fill("ben@example.com");
+  await lp.getByLabel("Username or email").fill("ben@example.com");
   await lp.getByLabel("Password").fill(PASSWORD);
   await lp.getByRole("button", { name: "Sign in" }).click();
   const picker = lp.getByTestId("account-picker");
-  await expect(picker).toContainText("Ben Zwo");
-  await expect(picker).toContainText("Ben");
-  await picker.getByText("Ben Zwo").click();
+  await expect(picker).toContainText("@ben2");
+  await expect(picker).toContainText("@ben");
+  await picker.getByText("@ben2").click();
   await lp.getByRole("button", { name: "Sign in" }).click();
   await expect(lp).toHaveURL("/");
   await lp.goto("/settings");
-  await expect(lp.getByText("Ben Zwo")).toBeVisible();
-  await expect(lp.getByTestId("admin-settings")).toHaveCount(0); // kein Admin
+  await expect(lp.getByText("@ben2")).toBeVisible();
+  await expect(lp.getByTestId("admin-link")).toHaveCount(0); // kein Admin
   expect((await lp.request.get("/api/admin/settings")).status()).toBe(403);
+  expect((await lp.request.get("/api/admin/users")).status()).toBe(403);
   await ctx.close();
+});
 
-  // Admin schaltet ab
-  await page.goto("/settings");
-  const box = page.getByTestId("admin-settings");
-  await expect(box.getByLabel("Allow multiple accounts per email address")).toBeChecked();
-  await box.getByLabel("Allow multiple accounts per email address").uncheck();
-  await expect(box.getByRole("status")).toBeVisible();
-  await page.reload();
-  await expect(page.getByLabel("Allow multiple accounts per email address")).not.toBeChecked();
+test("one-time reset link for an active user sets a new password and ends his sessions", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  await card(page, "cleo").getByRole("button", { name: "Create new one-time link" }).click();
+  const link = await page.getByTestId("activation-link").inputValue();
 
-  const second = await registerDup(await inviteCode(page), "Ben Drei");
-  await expect(second.p.getByTestId("error")).toContainText("already registered");
-  await second.ctx.close();
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const cp = await ctx.newPage();
+  await cp.goto("/login");
+  await cp.getByLabel("Username or email").fill("cleo");
+  await cp.getByLabel("Password").fill("My-Own-Fresh-Passphrase-2?");
+  await cp.getByRole("button", { name: "Sign in" }).click();
+  await expect(cp).toHaveURL("/");
+  const other = await browser.newContext({ baseURL });
+  const op = await other.newPage();
+  await op.goto(link);
+  await expect(op.getByRole("heading", { name: "Set a new password" })).toBeVisible();
+  await op.getByLabel("Password", { exact: true }).fill("Reset-By-Link-Passphrase-3#");
+  await op.getByLabel("Repeat password").fill("Reset-By-Link-Passphrase-3#");
+  await op.getByRole("button", { name: "Save password and sign in" }).click();
+  await expect(op).toHaveURL("/");
+  expect((await cp.request.get("/api/groups")).status()).toBe(401); // alte Sitzung beendet
+  await ctx.close();
+  await other.close();
 });

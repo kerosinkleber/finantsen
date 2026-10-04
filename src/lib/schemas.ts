@@ -14,18 +14,51 @@ const isoDate = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((s) => !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().startsWith(s), "invalid date");
 
-export const registerSchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(320),
-  name: z.string().trim().min(1).max(100),
-  password: z.string().min(8).max(200),
-  inviteCode: z.string().max(32).optional(),
-});
+/** Anmeldename: 3-32 Zeichen, a-z 0-9 . _ -, beginnt mit Buchstabe/Ziffer, kein "@" (damit er nie mit einer E-Mail verwechselt wird). */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9][a-z0-9._-]{2,31}$/, "invalid username");
+const displayName = z.string().trim().min(1).max(100);
+const optionalEmail = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().trim().toLowerCase().email().max(320).optional(),
+);
+const passwordInput = z.string().min(1).max(300); // die Richtlinie prüft der Server (lib/password)
+
+export const setupSchema = z.object({ name: displayName, username: usernameSchema, email: optionalEmail, password: passwordInput });
+/** Selbstregistrierung (nur wenn der Admin sie aktiviert hat); Konto wartet auf Freigabe. */
+export const registerSchema = setupSchema;
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(320),
-  password: z.string().min(1).max(200),
-  /** Nur nötig, wenn mehrere Konten dieselbe E-Mail und dasselbe Passwort haben */
+  /** Nutzername oder E-Mail */
+  identifier: z.string().trim().min(1).max(320),
+  password: z.string().min(1).max(300),
+  /** Nur nötig, wenn über die E-Mail mehrere Konten mit demselben Passwort passen */
   userId: z.string().uuid().optional(),
 });
+export const changePasswordSchema = z.object({ current: z.string().min(1).max(300), next: passwordInput });
+export const activateSchema = z.object({ password: passwordInput });
+
+export const adminCreateUserSchema = z.object({
+  name: displayName,
+  username: usernameSchema,
+  email: optionalEmail,
+  /** link = Nutzer wählt sein Passwort per Einmal-Link; password = Admin setzt es */
+  mode: z.enum(["link", "password"]),
+  password: passwordInput.optional(),
+  mustChange: z.boolean().default(true),
+  isAdmin: z.boolean().default(false),
+});
+export const adminUserActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("approve") }),
+  z.object({ action: z.literal("disable") }),
+  z.object({ action: z.literal("enable") }),
+  z.object({ action: z.literal("makeAdmin") }),
+  z.object({ action: z.literal("removeAdmin") }),
+  z.object({ action: z.literal("link") }),
+  z.object({ action: z.literal("setPassword"), password: passwordInput, mustChange: z.boolean().default(true) }),
+]);
 
 export const groupCreateSchema = z.object({
   name: z.string().trim().min(1).max(100),

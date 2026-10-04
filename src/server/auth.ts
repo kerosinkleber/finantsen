@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { hash, verify } from "@node-rs/argon2";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, ne, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import { env } from "./env";
 import { sessions, users } from "./schema";
@@ -9,9 +9,18 @@ import { sessions, users } from "./schema";
 export const SESSION_COOKIE = "fs_session";
 const SESSION_DAYS = 30;
 
-export type SessionUser = { id: string; email: string; name: string; isAdmin: boolean; locale: string };
+export type SessionUser = {
+  id: string;
+  username: string;
+  email: string | null;
+  name: string;
+  isAdmin: boolean;
+  locale: string;
+  /** Muss vor allem anderen sein Passwort ändern (vom Admin gesetzt oder zurückgesetzt) */
+  mustChangePassword: boolean;
+};
 
-const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 export const hashPassword = (pw: string) => hash(pw); // argon2id, sichere Defaults
 export const verifyPassword = (h: string, pw: string) => verify(h, pw).catch(() => false);
@@ -40,12 +49,33 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const rows = await getDb()
-    .select({ id: users.id, email: users.email, name: users.name, isAdmin: users.isAdmin, locale: users.locale })
+    .select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      name: users.name,
+      isAdmin: users.isAdmin,
+      locale: users.locale,
+      mustChangePassword: users.mustChangePassword,
+    })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, sql`now()`)))
+    .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, sql`now()`), eq(users.status, "active")))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** Hash der aktuellen Sitzung (um beim Passwortwechsel alle anderen zu beenden). */
+export async function currentSessionId(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? sha256(token) : null;
+}
+
+/** Beendet alle Sitzungen eines Nutzers, optional außer einer. */
+export async function endSessions(userId: string, exceptSessionId?: string | null) {
+  await getDb()
+    .delete(sessions)
+    .where(exceptSessionId ? and(eq(sessions.userId, userId), ne(sessions.id, exceptSessionId)) : eq(sessions.userId, userId));
 }
 
 /** Sehr einfacher In-Memory-Limiter gegen Brute Force (pro Prozess). */
@@ -69,4 +99,18 @@ export async function requireUser(): Promise<SessionUser> {
   const u = await getCurrentUser();
   if (!u) redirect("/login");
   return u as SessionUser;
+}
+
+export async function requireAdminUser(): Promise<SessionUser> {
+  const { redirect } = await import("next/navigation");
+  const u = await requireUser();
+  if (!u.isAdmin) redirect("/");
+  return u;
+}
+
+/** Legt eine Sitzung ohne Cookie an (nur für Tests). */
+export async function createSessionFor(userId: string) {
+  const token = randomBytes(32).toString("base64url");
+  await getDb().insert(sessions).values({ id: sha256(token), userId, expiresAt: new Date(Date.now() + SESSION_DAYS * 86400_000) });
+  return token;
 }

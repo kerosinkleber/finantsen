@@ -29,6 +29,13 @@
       "when": 1791101647696,
       "tag": "0003_amusing_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791105790934,
+      "tag": "0004_burly_greymalkin",
+      "breakpoints": true
     }
   ]
 }

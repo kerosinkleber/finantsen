@@ -8,6 +8,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message?: string,
+    /** Zusätzliche Felder für die JSON-Antwort (z. B. issues, retryAfter) */
+    public extra?: Record<string, unknown>,
   ) {
     super(message ?? code);
   }
@@ -24,7 +26,7 @@ type Ctx<P> = { params: Promise<P> };
  */
 export function route<P = Record<string, string>>(
   handler: (args: { req: Request; user: SessionUser; params: P }) => Promise<Response | object | null>,
-  opts: { auth?: boolean } = { auth: true },
+  opts: { auth?: boolean; allowMustChange?: boolean } = { auth: true },
 ) {
   return async (req: Request, ctx: Ctx<P>) => {
     try {
@@ -32,6 +34,8 @@ export function route<P = Record<string, string>>(
       const current = opts.auth === false ? null : await getCurrentUser();
       if (opts.auth !== false && !current) throw new ApiError(401, "unauthorized");
       const user = current as SessionUser;
+      // Wer sein Passwort ändern muss, darf bis dahin nichts anderes tun.
+      if (current?.mustChangePassword && !opts.allowMustChange) throw new ApiError(403, "password_change_required");
       const params = (await ctx?.params) as P;
       const result = await handler({ req, user, params });
       if (result instanceof Response) return result;
@@ -44,7 +48,10 @@ export function route<P = Record<string, string>>(
 
 export function errorResponse(err: unknown) {
   if (err instanceof ApiError)
-    return NextResponse.json({ error: err.code, message: err.message }, { status: err.status });
+    return NextResponse.json(
+      { error: err.code, message: err.message, ...err.extra },
+      { status: err.status, headers: typeof err.extra?.retryAfter === "number" ? { "Retry-After": String(err.extra.retryAfter) } : undefined },
+    );
   if (err instanceof ZodError)
     return NextResponse.json(
       { error: "validation", issues: err.issues.map((i) => ({ path: i.path.join("."), message: i.message })) },

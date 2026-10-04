@@ -14,7 +14,7 @@ Voraussetzung: Docker Desktop (oder Docker Engine + Compose) läuft. Keine Domai
 git clone <dieses-repo> finantsen && cd finantsen
 docker compose -f docker-compose.local.yml up --build
 ```
-Der erste Build dauert einige Minuten. Wenn im Log `migrations applied` und `Ready` erscheinen, öffne http://localhost:3000 und registriere dich (der erste Nutzer wird Admin). Zum Testen mit mehreren Personen einen zweiten Browser bzw. ein privates Fenster nehmen und über einen Einladungslink registrieren. Vom Handy im selben WLAN: `http://<IP-deines-Rechners>:3000` (PWA-Installation und Push brauchen HTTPS und gehen nur auf dem echten Server oder über `localhost`).
+Der erste Build dauert einige Minuten. Wenn im Log `migrations applied` und `Ready` erscheinen, öffne http://localhost:3000. Du landest auf der **Einrichtung**: Lege das Admin-Konto an (Passwort mindestens 20 Zeichen mit Groß-/Kleinbuchstabe, Ziffer, Sonderzeichen, zum Beispiel `Correct-Horse-Battery-9!`). Weitere Personen legst du unter *Konto → Nutzer verwalten* an (Einmal-Link oder Passwort setzen). Zum Testen mit mehreren Personen den Einmal-Link in einem privaten Fenster öffnen und dort das Passwort wählen. Vom Handy im selben WLAN: `http://<IP-deines-Rechners>:3000` (PWA-Installation und Push brauchen HTTPS und gehen nur auf dem echten Server oder über `localhost`).
 
 Nützlich: `docker compose -f docker-compose.local.yml logs -f app` (Logs), `... down` (stoppen, Daten bleiben), `... down -v` (stoppen und Daten löschen), anderer Port: `LOCAL_PORT=3001 docker compose -f docker-compose.local.yml up --build`. Optionale Funktionen: `ANTHROPIC_API_KEY=sk-... docker compose -f docker-compose.local.yml up --build` aktiviert den Belegscan.
 
@@ -32,10 +32,9 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Beim ersten Start baut Docker die App, Caddy holt automatisch ein HTTPS-Zertifikat, und die Datenbankmigrationen laufen automatisch. Öffne `https://<DOMAIN>` und registriere dich: **der erste Nutzer wird Administrator**.
+Beim ersten Start baut Docker die App, Caddy holt automatisch ein HTTPS-Zertifikat, und die Datenbankmigrationen laufen automatisch. Öffne `https://<DOMAIN>`: Solange es noch kein Konto gibt, erscheint die **Einrichtung**, dort legst du den Administrator an (Name, Nutzername, Passwort). **Richte das Konto ein, bevor du die Domain weitergibst**: Wer die Seite zuerst aufruft, wird Admin.
 
-- Weitere Personen einladen: in einer Gruppe *Mitglieder → Mitglied einladen* (oder *Freunde → Freund hinzufügen*) und den Link verschicken.
-- Registrierung ohne Einladung abschalten: `REGISTRATION_ENABLED=false` in `.env`, dann `docker compose up -d`. Einladungslinks funktionieren weiterhin.
+- Weitere Konten legt der Admin unter *Konto → Nutzer verwalten* an (siehe unten). Wer in eine Gruppe soll, bekommt aus *Mitglieder → Mitglied einladen* (oder *Freunde → Freund hinzufügen*) einen Link, den er nach der Anmeldung annimmt.
 - Lokal testen: `DOMAIN=localhost` (Caddy nutzt ein selbstsigniertes Zertifikat).
 - Health-Check: `GET /api/health`.
 - Update: `git pull && docker compose up -d --build`.
@@ -55,8 +54,14 @@ Der Anbieter ist per `EXCHANGE_RATE_PROVIDER` wählbar: `fawazahmed0` (Standard,
 ### Belegscan (optional)
 Mit `ANTHROPIC_API_KEY` in `.env` erscheint beim Anlegen einer Ausgabe der Button „Beleg scannen“: Foto aufnehmen oder hochladen, das Vision-Modell liest Positionen, Steuer, Trinkgeld und Total aus und füllt das Formular für die Einzelposten vor. **Es wird nie automatisch gespeichert**, alle Werte sind vor dem Speichern editierbar, bei abweichender Summe erscheint ein Hinweis. Das Foto wird im Browser verkleinert, an die Anthropic-API gesendet und **nicht gespeichert**. Das Modell lässt sich mit `RECEIPT_SCAN_MODEL` ändern (Standard `claude-opus-5-5`; ein günstigeres Modell reicht für Belege oft). Pro Nutzer sind 30 Scans pro Stunde erlaubt.
 
-### Konten und E-Mail-Adressen
-Standardmäßig dürfen mehrere Konten dieselbe E-Mail-Adresse nutzen (z. B. für Familienmitglieder mit gemeinsamem Postfach). Beim Login prüft die App alle Konten mit dieser E-Mail; passt das Passwort zu mehreren, wählt man das Konto aus. Der Admin kann das unter *Konto → Administration* abschalten: Dann kann sich jede E-Mail nur noch einmal registrieren (bestehende Konten bleiben unverändert). E-Mail-Adressen werden nicht verifiziert.
+### Konten, Anmeldung und Passwörter
+- **Anmeldung** mit Nutzername (3–32 Zeichen, a–z 0–9 . _ -, eindeutig) oder E-Mail. Die E-Mail ist optional und wird nicht verifiziert oder für Versand genutzt; es gibt keinen Mailserver. Standardmäßig darf eine E-Mail nur einmal vorkommen. Erlaubt der Admin Duplikate, fragt der Login bei mehreren passenden Konten nach, welches gemeint ist.
+- **Konten legt der Admin an** (*Konto → Nutzer verwalten*): entweder mit einem **Einmal-Link**, über den der Nutzer sein Passwort selbst wählt (Standard 72 Stunden gültig, einstellbar, nur einmal verwendbar, ein neuer Link ersetzt den alten), oder mit einem vom Admin gesetzten Passwort, das beim ersten Login geändert werden muss (abwählbar). Den Link gibt der Admin selbst weiter. „Passwort vergessen“ läuft genauso über einen neuen Link.
+- **Selbstregistrierung** ist standardmäßig aus. Der Admin kann sie einschalten; neue Konten warten dann auf seine **Freigabe**.
+- **Passwortrichtlinie** (überall gleich, auch beim Admin-Setzen): mindestens 20 Zeichen (höchstens 200), je ein Groß- und Kleinbuchstabe, eine Ziffer, ein Sonderzeichen (Leerzeichen zählt, daher gehen auch Passphrasen), und das Passwort enthält weder den Nutzernamen noch die E-Mail. Ändern geht nur mit dem aktuellen Passwort und nicht auf dasselbe Passwort; danach werden alle anderen Geräte abgemeldet.
+- **Schutz vor Raten:** Nach 5 Fehlversuchen pro Konto steigt die Wartezeit (30 s, dann verdoppelt, höchstens 15 Minuten); zusätzlich Begrenzung pro IP.
+- **Admin-Verwaltung:** Konten anlegen, freigeben, Einmal-Link erzeugen, Passwort setzen, deaktivieren (Sitzungen enden sofort, Ausgaben und Salden bleiben erhalten) und wieder aktivieren, Admin-Recht vergeben oder entziehen. Es kann mehrere Admins geben; der letzte aktive Admin kann sich weder degradieren noch deaktivieren.
+- **Kommt noch (Etappe B):** TOTP (Zwang durch den Admin, Wiederherstellungscodes), danach QR-Code für Gruppeneinladungen (Etappe C). Passkeys sind zurückgestellt.
 
 ### Als App installieren
 iOS (Safari): Teilen → „Zum Home-Bildschirm“. Android (Chrome): Menü → „App installieren“. Voraussetzung ist HTTPS.

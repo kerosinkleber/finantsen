@@ -34,8 +34,16 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Belegscan: `server/receipts/` (`scanner.ts` Interface + Anthropic-Implementierung mit `messages.parse` und Zod-Schema, `normalize.ts` wandelt Modell-Strings in Minor-Units, `image.ts` Magic-Byte-Prüfung), Route `api/receipts/scan`, UI `components/ReceiptScan.tsx`. Aktiv nur mit `ANTHROPIC_API_KEY`; Ergebnis ist nur ein Vorschlag. Bilder werden nie gespeichert.
 - Migration `0002` füllt Basiswerte für Altdaten (= Originalwerte).
 
-## Konten
-`users.email` ist **nicht** eindeutig (nur Index auf `lower(email)`). Instanz-Einstellung `allow_duplicate_emails` (Tabelle `settings`, Standard an, Admin-UI unter Konto, `services/settings.ts`, `api/admin/settings`). Login (`authenticate`) liefert alle Konten mit passendem Passwort; bei mehreren antwortet `/api/auth/login` mit 409 `choose_account` + Kontoliste, der Client sendet dann `userId` mit. Registrierung prüft die Einstellung unter dem Advisory Lock.
+## Konten und Anmeldung
+- Keine öffentliche Registrierung per Default. `users`: `username` (eindeutig, klein, kein „@“), optionale `email` (nicht eindeutig im DB-Index; Eindeutigkeit prüft `insertUser` unter Advisory Lock, solange `allow_duplicate_emails` aus ist), `passwordHash` null bis zur Aktivierung, `status` (`active | invited | pending | disabled`), `mustChangePassword`, `failedAttempts/lockedUntil`.
+- Alles in `services/accounts.ts`: `needsSetup/setupAdmin` (nur solange kein Konto existiert, Lock), `createUserByAdmin`, `registerSelf` (Status `pending`), `authenticate` (Nutzername oder E-Mail; Backoff pro Konto `lockSeconds`; Status erst nach korrektem Passwort offengelegt), Einmal-Links (`issueLink/peekLink/redeemLink`, nur SHA-256 in `user_tokens`, einmalig, ersetzt alte, Gültigkeit aus Einstellung), `changePassword`, `adminAction` (approve/disable/enable/makeAdmin/removeAdmin/link/setPassword; Last-Admin-Schutz; Sitzungen enden bei disable/setPassword/Änderung).
+- Passwortrichtlinie: `lib/password.ts` (rein, gemeinsam Client/Server; UI `PasswordField` mit Live-Checkliste). Server wirft `password_policy` mit `issues`.
+- Einstellungen (Tabelle `settings`, `services/settings.ts`, Admin-UI `/admin/users`, API `api/admin/settings`): `registration_enabled` (aus), `allow_duplicate_emails` (aus), `link_validity_hours` (72).
+- `route()` blockiert alle API-Aufrufe mit 403 `password_change_required`, solange `mustChangePassword` gilt (Ausnahme `allowMustChange`: me, Passwort ändern); `(app)/layout` leitet auf `/change-password`.
+- Einmal-Links laufen über **eine** Stelle (`linkUrl` in accounts.ts); SMTP wäre dort nachrüstbar (bewusst nicht gebaut).
+- Ersteinrichtung: `/setup` (ohne Schutzcode, vom Auftraggeber so gewollt), `/login` und `/register` leiten dorthin, solange es kein Konto gibt.
+- Gruppeneinladungen (`/join/[code]`) nimmt nur ein angemeldetes Konto an.
+- Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. Offen: Etappe B (TOTP) und C (QR), Passkeys zuletzt.
 
 ## Lizenz
 Proprietär (`LICENSE`, `package.json` → `UNLICENSED`). Keine Open-Source-Lizenz, keine Copyleft-Abhängigkeiten hinzufügen (aktuell nur MIT/Apache/Unlicense/MPL-2.0). Neue Dateien brauchen keinen Lizenzkopf.
@@ -54,4 +62,4 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 - Jeder sinnvolle Schritt = eigener Commit.
 
 ## Roadmap
-Phase 0–3 fertig. Ideen für später: Mitglieder ohne Konto, Wiederherstellen gelöschter Ausgaben, Wiederkehrende Ausgaben, weitere Belegscan-Anbieter.
+Phase 0–3 fertig, Konten-Etappe A fertig (siehe oben). Ideen für später: Mitglieder ohne Konto, Wiederherstellen gelöschter Ausgaben, Wiederkehrende Ausgaben, weitere Belegscan-Anbieter.

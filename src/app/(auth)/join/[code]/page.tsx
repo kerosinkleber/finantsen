@@ -25,8 +25,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
       ) : (
         <>
           <p className="muted">{t("join.needLogin")}</p>
-          <Link className="btn" href={`/register?invite=${encodeURIComponent(code)}`}>{t("auth.register")}</Link>
-          <Link className="btn-secondary" href={`/login?next=${encodeURIComponent(`/join/${code}`)}`}>{t("auth.login")}</Link>
+          <Link className="btn" href={`/login?next=${encodeURIComponent(`/join/${code}`)}`}>{t("auth.login")}</Link>
         </>
       )}
     </div>

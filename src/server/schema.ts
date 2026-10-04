@@ -22,15 +22,44 @@ export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    email: varchar("email", { length: 320 }).notNull(),
+    /** Anmeldename: klein geschrieben, 3-32 Zeichen, ohne "@" (siehe lib/schemas) */
+    username: varchar("username", { length: 32 }).notNull(),
+    /** Optional, nicht verifiziert; mehrfach nutzbar, solange der Admin Duplikate erlaubt */
+    email: varchar("email", { length: 320 }),
+    /** Anzeigename in Gruppen und Ausgaben */
     name: varchar("name", { length: 100 }).notNull(),
-    passwordHash: text("password_hash").notNull(),
+    /** null, solange das Konto per Einmal-Link noch nicht aktiviert wurde */
+    passwordHash: text("password_hash"),
     isAdmin: boolean("is_admin").notNull().default(false),
+    /** active | invited (wartet auf Aktivierung per Link) | pending (Selbstregistrierung, wartet auf Freigabe) | disabled */
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
+    /** Login-Schutz: zunehmende Wartezeit nach Fehlversuchen */
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
     locale: varchar("locale", { length: 5 }).notNull().default("de"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  // Nicht eindeutig: Mehrere Konten pro E-Mail sind erlaubt, solange der Admin es nicht abschaltet (settings).
-  (t) => [index("users_email_idx").on(sql`lower(${t.email})`)],
+  (t) => [uniqueIndex("users_username_idx").on(t.username), index("users_email_idx").on(sql`lower(${t.email})`)],
+);
+
+/** Einmal-Links (Konto aktivieren / Passwort neu setzen); gespeichert wird nur der SHA-256 des Tokens. */
+export const userTokens = pgTable(
+  "user_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** activation | reset */
+    purpose: varchar("purpose", { length: 12 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("user_tokens_user_idx").on(t.userId)],
 );
 
 export const sessions = pgTable(

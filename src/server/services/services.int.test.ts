@@ -10,11 +10,11 @@ d("services (PostgreSQL)", () => {
 
   async function load() {
     process.env.DATABASE_URL = url;
-    process.env.REGISTRATION_ENABLED = "false";
-    const [{ getDb, closeDb }, { runMigrations }, users, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings] = await Promise.all([
       import("../db"),
       import("../migrate"),
-      import("./users"),
+      import("./accounts"),
+      import("../auth"),
       import("./groups"),
       import("./expenses"),
       import("./balances"),
@@ -26,7 +26,7 @@ d("services (PostgreSQL)", () => {
       import("../rates"),
       import("./settings"),
     ]);
-    return { getDb, closeDb, runMigrations, users, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings };
+    return { getDb, closeDb, runMigrations, users, auth, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings };
   }
 
   beforeAll(async () => {
@@ -35,16 +35,38 @@ d("services (PostgreSQL)", () => {
   });
   afterAll(async () => svc?.closeDb());
   beforeEach(async () => {
-    await svc.getDb().execute(svc.sql`truncate users, groups, settings, exchange_rates cascade`);
+    await svc.getDb().execute(svc.sql`truncate users, groups, settings, exchange_rates, user_tokens cascade`);
   });
 
+  const PW = "Correct-Horse-Battery-9!";
+  type U = { id: string; username: string; isAdmin: boolean };
+  const actor = (u: U) => ({ id: u.id, username: u.username, email: null, name: u.username, isAdmin: u.isAdmin, locale: "de", mustChangePassword: false });
+
+  /** Legt über den Admin ein Konto mit Passwort an (ohne Passwortwechsel-Pflicht). */
+  async function mkUser(admin: U, username: string, extra: { email?: string; isAdmin?: boolean; name?: string } = {}) {
+    const r = await svc.users.createUserByAdmin(actor(admin), {
+      name: extra.name ?? username,
+      username,
+      email: extra.email,
+      mode: "password",
+      password: PW,
+      mustChange: false,
+      isAdmin: extra.isAdmin ?? false,
+    });
+    return { ...r.user };
+  }
+  const join = async (g: { id: string }, owner: U, member: U) => {
+    const inv = await svc.groups.createInvite(owner.id, g.id);
+    await svc.groups.acceptInvite(member.id, inv.code);
+  };
+
   async function setup() {
-    const a = await svc.users.registerUser({ email: "a@x.de", name: "Anna", password: "password1" });
+    const a = await svc.users.setupAdmin({ username: "anna", name: "Anna", password: PW, email: "a@x.de" });
     const g = await svc.groups.createGroup(a.id, { name: "WG", defaultCurrency: "EUR" });
-    const inv = await svc.groups.createInvite(a.id, g.id);
-    const b = await svc.users.registerUser({ email: "b@x.de", name: "Ben", password: "password1", inviteCode: inv.code });
-    const inv2 = await svc.groups.createInvite(a.id, g.id);
-    const c = await svc.users.registerUser({ email: "c@x.de", name: "Cleo", password: "password1", inviteCode: inv2.code });
+    const b = await mkUser(a, "ben", { name: "Ben" });
+    const c = await mkUser(a, "cleo", { name: "Cleo" });
+    await join(g, a, b);
+    await join(g, a, c);
     return { a, b, c, g };
   }
   const base = (over: Pick<ExpenseBody, "payers" | "split"> & Partial<ExpenseBody>): ExpenseBody => ({
@@ -56,29 +78,11 @@ d("services (PostgreSQL)", () => {
     ...over,
   });
 
-  it("erster Nutzer ist Admin; Registrierung kann abgeschaltet sein; Einladung umgeht das", async () => {
-    const { a, b } = await setup();
-    expect(a.isAdmin).toBe(true);
-    expect(b.isAdmin).toBe(false);
-    await expect(svc.users.registerUser({ email: "z@x.de", name: "Z", password: "password1" })).rejects.toMatchObject({ code: "registration_disabled" });
-    await expect(svc.users.registerUser({ email: "A@X.de", name: "Z", password: "password1", inviteCode: "nope" })).rejects.toMatchObject({ code: "invite_invalid" });
-  });
-
-  it("E-Mail-Eindeutigkeit (case-insensitive) gilt, wenn der Admin Duplikate abschaltet; Login funktioniert", async () => {
-    const { a } = await setup();
-    await svc.settings.updateAdminSettings({ allowDuplicateEmails: false });
-    const inv = await svc.groups.createInvite(a.id, (await svc.groups.listGroups(a.id))[0].id);
-    await expect(svc.users.registerUser({ email: "A@x.de", name: "X", password: "password1", inviteCode: inv.code })).rejects.toMatchObject({ code: "email_taken" });
-    expect(await svc.users.authenticate("a@x.de", "password1")).toHaveLength(1);
-    expect(await svc.users.authenticate("a@x.de", "wrong")).toHaveLength(0);
-    expect(await svc.users.authenticate("nobody@x.de", "password1")).toHaveLength(0);
-  });
-
   it("Nicht-Mitglieder sehen und ändern nichts (404)", async () => {
     const { a, g } = await setup();
     const inv = await svc.groups.createGroup(a.id, { name: "Privat", defaultCurrency: "EUR" });
-    const invite = await svc.groups.createInvite(a.id, g.id);
-    const d = await svc.users.registerUser({ email: "d@x.de", name: "Dora", password: "password1", inviteCode: invite.code });
+    const d = await mkUser(a, "dora", { name: "Dora" });
+    await join(g, a, d);
     // Dora ist in WG, aber nicht in "Privat"
     const e = await svc.expenses.createExpense(a.id, inv.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "full", owner: a.id } }));
     await expect(svc.expenses.listExpenses(d.id, inv.id)).rejects.toMatchObject({ status: 404 });
@@ -338,40 +342,189 @@ d("services (PostgreSQL)", () => {
     });
   });
 
-  describe("Mehrere Konten pro E-Mail", () => {
-    it("ist standardmäßig erlaubt; Login liefert alle Konten mit passendem Passwort", async () => {
-      expect(await svc.settings.allowDuplicateEmails()).toBe(true);
-      const { a, g } = await setup();
-      const mk = async (name: string, password: string) => {
-        const inv = await svc.groups.createInvite(a.id, g.id);
-        return svc.users.registerUser({ email: "Zwilling@X.de", name, password, inviteCode: inv.code });
-      };
-      const z1 = await mk("Zwilling Eins", "password1");
-      const z2 = await mk("Zwilling Zwei", "password1");
-      const z3 = await mk("Zwilling Drei", "anderes-pw-123");
-      expect(new Set([z1.id, z2.id, z3.id]).size).toBe(3);
-      const same = await svc.users.authenticate("zwilling@x.de", "password1");
-      expect(same.map((u) => u.name)).toEqual(["Zwilling Eins", "Zwilling Zwei"]);
-      const other = await svc.users.authenticate("zwilling@x.de", "anderes-pw-123");
-      expect(other.map((u) => u.name)).toEqual(["Zwilling Drei"]);
-      expect(await svc.users.authenticate("zwilling@x.de", "falsch")).toHaveLength(0);
+  describe("Konten, Einrichtung, Anmeldung", () => {
+    it("Einrichtung: nur einmal, erster Nutzer wird Admin, Passwortrichtlinie gilt", async () => {
+      expect(await svc.users.needsSetup()).toBe(true);
+      await expect(svc.users.setupAdmin({ username: "root", name: "Root", password: "zu-kurz" })).rejects.toMatchObject({ code: "password_policy" });
+      const a = await svc.users.setupAdmin({ username: "Root", name: "Root", password: PW });
+      expect(a.isAdmin).toBe(true);
+      expect(a.username).toBe("root");
+      expect(await svc.users.needsSetup()).toBe(false);
+      await expect(svc.users.setupAdmin({ username: "zweiter", name: "Z", password: PW })).rejects.toMatchObject({ code: "setup_done" });
     });
 
-    it("Admin kann es abschalten (nur neue Registrierungen betroffen) und wieder einschalten", async () => {
-      const { a, g } = await setup();
-      const reg = async (email: string) => {
-        const inv = await svc.groups.createInvite(a.id, g.id);
-        return svc.users.registerUser({ email, name: "N", password: "password1", inviteCode: inv.code });
-      };
-      await reg("dup@x.de");
-      await reg("dup@x.de"); // erlaubt
-      await svc.settings.updateAdminSettings({ allowDuplicateEmails: false });
-      await expect(reg("DUP@x.de")).rejects.toMatchObject({ status: 409, code: "email_taken" });
-      await reg("neu@x.de"); // andere E-Mail geht weiterhin
-      expect(await svc.users.authenticate("dup@x.de", "password1")).toHaveLength(2); // Bestand bleibt
+    it("Einrichtung: gleichzeitige Aufrufe erzeugen genau einen Admin", async () => {
+      const results = await Promise.allSettled(
+        ["a1", "a2", "a3"].map((u) => svc.users.setupAdmin({ username: u, name: u, password: PW })),
+      );
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(await svc.users.listUsers({ ...actor({ id: "x", username: "x", isAdmin: true }) })).toHaveLength(1);
+    });
+
+    it("Passwortrichtlinie: Admin-Anlage, Nutzer in der Passwort enthalten verboten", async () => {
+      const { a } = await setup();
+      const mk = (password: string, username = "neu") =>
+        svc.users.createUserByAdmin(actor(a), { name: "N", username, mode: "password", password, mustChange: false, isAdmin: false });
+      await expect(mk("Kurz1!")).rejects.toMatchObject({ code: "password_policy", extra: { issues: expect.arrayContaining(["too_short"]) } });
+      await expect(mk("Xx-NeueNutzerin-Xx-Xx-9!xx", "neuenutzerin")).rejects.toMatchObject({ code: "password_policy" });
+      await expect(mk(PW)).resolves.toBeTruthy();
+    });
+
+    it("Nutzername: eindeutig (ohne Groß-/Kleinschreibung), E-Mail optional und eindeutig solange Duplikate aus sind", async () => {
+      const { a } = await setup();
+      await expect(mkUser(a, "ANNA")).rejects.toMatchObject({ code: "username_taken" });
+      await mkUser(a, "ohne-mail");
+      await expect(mkUser(a, "dup1", { email: "A@X.de" })).rejects.toMatchObject({ code: "email_taken" }); // anna hat a@x.de
       await svc.settings.updateAdminSettings({ allowDuplicateEmails: true });
-      await reg("dup@x.de");
-      expect(await svc.users.authenticate("dup@x.de", "password1")).toHaveLength(3);
+      await mkUser(a, "dup1", { email: "A@X.de" });
+    });
+
+    it("Login per Nutzername oder E-Mail; falsche Daten und unbekannte Konten sind nicht unterscheidbar", async () => {
+      await setup();
+      const ok1 = await svc.users.authenticate("ANNA", PW);
+      expect(ok1.kind === "ok" && ok1.matches.map((m) => m.username)).toEqual(["anna"]);
+      const ok2 = await svc.users.authenticate("a@x.de", PW);
+      expect(ok2.kind === "ok" && ok2.matches[0].username).toBe("anna");
+      expect(await svc.users.authenticate("anna", "falsch")).toEqual({ kind: "invalid" });
+      expect(await svc.users.authenticate("niemand", PW)).toEqual({ kind: "invalid" });
+    });
+
+    it("Duplikate erlaubt: Login über gleiche E-Mail liefert alle Konten mit passendem Passwort", async () => {
+      const { a } = await setup();
+      await svc.settings.updateAdminSettings({ allowDuplicateEmails: true });
+      await mkUser(a, "zwilling1", { email: "z@x.de" });
+      await mkUser(a, "zwilling2", { email: "Z@x.de" });
+      const r = await svc.users.authenticate("z@x.de", PW);
+      expect(r.kind === "ok" && r.matches.map((m) => m.username)).toEqual(["zwilling1", "zwilling2"]);
+      expect(await svc.users.authenticate("zwilling1", PW)).toMatchObject({ kind: "ok" });
+    });
+
+    it("Wartezeit nach Fehlversuchen steigt und wird bei Erfolg zurückgesetzt", async () => {
+      await setup();
+      expect(svc.users.lockSeconds(4)).toBe(0);
+      expect(svc.users.lockSeconds(5)).toBe(30);
+      expect(svc.users.lockSeconds(6)).toBe(60);
+      expect(svc.users.lockSeconds(50)).toBe(900);
+      for (let i = 0; i < 4; i++) expect(await svc.users.authenticate("ben", "falsch")).toEqual({ kind: "invalid" });
+      expect(await svc.users.authenticate("ben", "falsch")).toEqual({ kind: "invalid" }); // 5. Fehlversuch sperrt ab jetzt
+      const locked = await svc.users.authenticate("ben", PW); // auch das richtige Passwort wird während der Sperre abgewiesen
+      expect(locked).toMatchObject({ kind: "locked" });
+      expect(locked.kind === "locked" && locked.retryAfter).toBeGreaterThan(0);
+      await svc.getDb().execute(svc.sql`update users set locked_until = now() - interval '1 second' where username = 'ben'`);
+      expect(await svc.users.authenticate("ben", PW)).toMatchObject({ kind: "ok" });
+      const [row] = await svc.getDb().execute(svc.sql`select failed_attempts from users where username = 'ben'`);
+      expect(row.failed_attempts).toBe(0);
+    });
+
+    it("Einmal-Link: Konto aktivieren, nur einmal, abgelaufen, neuer Link macht alten ungültig", async () => {
+      const { a } = await setup();
+      const r = await svc.users.createUserByAdmin(actor(a), { name: "Neu", username: "neu", mode: "link", mustChange: true, isAdmin: false });
+      expect(r.user.status).toBe("invited");
+      expect(await svc.users.authenticate("neu", PW)).toEqual({ kind: "invalid" }); // noch kein Passwort
+      const token1 = r.link!.url.split("/activate/")[1];
+      expect(await svc.users.peekLink(token1)).toMatchObject({ purpose: "activation", username: "neu" });
+      // neuer Link ersetzt den alten
+      const l2 = await svc.users.adminAction(actor(a), r.user.id, { action: "link" });
+      const token2 = (l2 as { link: { url: string } }).link.url.split("/activate/")[1];
+      expect(await svc.users.peekLink(token1)).toBeNull();
+      await expect(svc.users.redeemLink(token2, "kurz")).rejects.toMatchObject({ code: "password_policy" });
+      const u = await svc.users.redeemLink(token2, PW);
+      expect(u.status).toBe("active");
+      await expect(svc.users.redeemLink(token2, PW)).rejects.toMatchObject({ code: "link_invalid" }); // nur einmal
+      expect(await svc.users.authenticate("neu", PW)).toMatchObject({ kind: "ok" });
+      // abgelaufener Link
+      const l3 = await svc.users.adminAction(actor(a), r.user.id, { action: "link" });
+      const token3 = (l3 as { link: { url: string } }).link.url.split("/activate/")[1];
+      expect((await svc.users.peekLink(token3))?.purpose).toBe("reset");
+      await svc.getDb().execute(svc.sql`update user_tokens set expires_at = now() - interval '1 minute'`);
+      expect(await svc.users.peekLink(token3)).toBeNull();
+    });
+
+    it("Gültigkeit der Links ist einstellbar", async () => {
+      const { a } = await setup();
+      await svc.settings.updateAdminSettings({ linkValidityHours: 1 });
+      const r = await svc.users.createUserByAdmin(actor(a), { name: "N", username: "nn", mode: "link", mustChange: true, isAdmin: false });
+      const ms = new Date(r.link!.expiresAt).getTime() - Date.now();
+      expect(ms).toBeGreaterThan(55 * 60_000);
+      expect(ms).toBeLessThanOrEqual(60 * 60_000);
+    });
+
+    it("Passwort setzen durch Admin erzwingt Wechsel, beendet Sitzungen; Einmal-Link-Passwort-Reset beendet Sitzungen", async () => {
+      const { a, b } = await setup();
+      await svc.auth.createSessionFor(b.id);
+      expect(await svc.users.sessionCount(b.id)).toBe(1);
+      await svc.users.adminAction(actor(a), b.id, { action: "setPassword", password: "Another-Strong-Pass-77#", mustChange: true });
+      expect(await svc.users.sessionCount(b.id)).toBe(0);
+      const r = await svc.users.authenticate("ben", "Another-Strong-Pass-77#");
+      expect(r.kind === "ok" && r.matches[0].mustChangePassword).toBe(true);
+      await expect(svc.users.adminAction(actor(a), b.id, { action: "setPassword", password: "kurz", mustChange: false })).rejects.toMatchObject({ code: "password_policy" });
+    });
+
+    it("Passwort ändern: aktuelles Passwort nötig, nicht gleich, Richtlinie, beendet andere Sitzungen", async () => {
+      const { b } = await setup();
+      await svc.auth.createSessionFor(b.id);
+      await svc.auth.createSessionFor(b.id);
+      expect(await svc.users.sessionCount(b.id)).toBe(2);
+      const NEW = "Brand-New-Passphrase-42?";
+      await expect(svc.users.changePassword(b.id, "falsch", NEW, null)).rejects.toMatchObject({ code: "invalid_credentials" });
+      await expect(svc.users.changePassword(b.id, PW, PW, null)).rejects.toMatchObject({ code: "password_same" });
+      await expect(svc.users.changePassword(b.id, PW, "zu-kurz", null)).rejects.toMatchObject({ code: "password_policy" });
+      await svc.users.changePassword(b.id, PW, NEW, null);
+      expect(await svc.users.sessionCount(b.id)).toBe(0);
+      expect(await svc.users.authenticate("ben", NEW)).toMatchObject({ kind: "ok" });
+      expect(await svc.users.authenticate("ben", PW)).toMatchObject({ kind: "invalid" });
+    });
+
+    it("Selbstregistrierung: aus (Standard); an -> Konto wartet auf Freigabe, kann sich erst danach anmelden", async () => {
+      const { a } = await setup();
+      const input = { username: "gast", name: "Gast", password: PW };
+      await expect(svc.users.registerSelf(input)).rejects.toMatchObject({ code: "registration_disabled" });
+      await svc.settings.updateAdminSettings({ registrationEnabled: true });
+      await svc.users.registerSelf(input);
+      await expect(svc.users.registerSelf(input)).rejects.toMatchObject({ code: "username_taken" });
+      expect(await svc.users.authenticate("gast", PW)).toEqual({ kind: "blocked", reason: "pending" });
+      expect(await svc.users.authenticate("gast", "falsch")).toEqual({ kind: "invalid" }); // Status nur nach richtigem Passwort sichtbar
+      const gast = (await svc.users.listUsers(actor(a))).find((u) => u.username === "gast")!;
+      await svc.users.adminAction(actor(a), gast.id, { action: "approve" });
+      expect(await svc.users.authenticate("gast", PW)).toMatchObject({ kind: "ok" });
+      await expect(svc.users.adminAction(actor(a), gast.id, { action: "approve" })).rejects.toMatchObject({ code: "invalid_state" });
+    });
+
+    it("Selbstregistrierung ist vor der Einrichtung nicht möglich", async () => {
+      await svc.settings.updateAdminSettings({ registrationEnabled: true });
+      await expect(svc.users.registerSelf({ username: "x1", name: "X", password: PW })).rejects.toMatchObject({ code: "setup_required" });
+    });
+
+    it("Deaktivieren: Login gesperrt, Sitzungen beendet, Daten bleiben; wieder aktivieren", async () => {
+      const { a, b, g } = await setup();
+      await svc.expenses.createExpense(b.id, g.id, base({ payers: [{ userId: b.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      await svc.auth.createSessionFor(b.id);
+      await svc.users.adminAction(actor(a), b.id, { action: "disable" });
+      expect(await svc.users.sessionCount(b.id)).toBe(0);
+      expect(await svc.users.authenticate("ben", PW)).toEqual({ kind: "blocked", reason: "disabled" });
+      expect(await svc.expenses.listExpenses(a.id, g.id)).toHaveLength(1);
+      await svc.users.adminAction(actor(a), b.id, { action: "enable" });
+      expect(await svc.users.authenticate("ben", PW)).toMatchObject({ kind: "ok" });
+    });
+
+    it("Letzter Admin ist geschützt; mehrere Admins möglich; Selbst-Deaktivierung verboten; Nicht-Admins dürfen nichts", async () => {
+      const { a, b } = await setup();
+      await expect(svc.users.adminAction(actor(a), a.id, { action: "removeAdmin" })).rejects.toMatchObject({ code: "last_admin" });
+      await expect(svc.users.adminAction(actor(a), a.id, { action: "disable" })).rejects.toMatchObject({ code: "cannot_disable_self" });
+      await svc.users.adminAction(actor(a), b.id, { action: "makeAdmin" });
+      await svc.users.adminAction(actor(a), a.id, { action: "removeAdmin" }); // jetzt möglich: ben bleibt Admin
+      await expect(svc.users.adminAction(actor({ ...b, isAdmin: true }), b.id, { action: "removeAdmin" })).rejects.toMatchObject({ code: "last_admin" });
+      await expect(svc.users.adminAction(actor({ ...a, isAdmin: false }), b.id, { action: "disable" })).rejects.toMatchObject({ status: 403 });
+      await expect(svc.users.listUsers(actor({ ...a, isAdmin: false }))).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("Einmal-Link für deaktiviertes oder wartendes Konto nicht möglich/einlösbar", async () => {
+      const { a, b } = await setup();
+      const l = (await svc.users.adminAction(actor(a), b.id, { action: "link" })) as { link: { url: string } };
+      const token = l.link.url.split("/activate/")[1];
+      await svc.users.adminAction(actor(a), b.id, { action: "disable" });
+      expect(await svc.users.peekLink(token)).toBeNull();
+      await expect(svc.users.adminAction(actor(a), b.id, { action: "link" })).rejects.toMatchObject({ code: "invalid_state" });
     });
   });
 });

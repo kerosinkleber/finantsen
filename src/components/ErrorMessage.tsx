@@ -10,7 +10,7 @@ export function useErrorText() {
     if (e instanceof ApiClientError) {
       if (e.code === "offline") return t("common.offline");
       const key = `err.${e.code}` as MessageKey;
-      if (key in de) return t(key);
+      if (key in de) return t(key, { n: Number(e.data?.retryAfter ?? 0) });
     }
     return t("common.error");
   };

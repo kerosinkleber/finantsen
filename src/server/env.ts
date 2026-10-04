@@ -5,9 +5,6 @@ export const env = {
   get appUrl() {
     return process.env.APP_URL ?? "http://localhost:3000";
   },
-  get registrationEnabled() {
-    return (process.env.REGISTRATION_ENABLED ?? "true").toLowerCase() !== "false";
-  },
   get defaultLocale(): "de" | "en" {
     return process.env.DEFAULT_LOCALE === "en" ? "en" : "de";
   },
