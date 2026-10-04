@@ -24,7 +24,7 @@ The first build takes a few minutes. When the log shows `migrations applied` and
 
 **Test password** that satisfies the rules: `Correct-Horse-Battery-9!`
 
-**Not available in this version** (please do not report these as bugs): TOTP / two-factor, passkeys, QR codes for invitations, e-mail sending (the admin hands out links himself), members without an account, restoring deleted expenses, push notifications on a local setup, receipt scanning (needs an API key).
+**Not available in this version** (please do not report these as bugs): passkeys, QR codes for invitations, e-mail sending (the admin hands out links himself), members without an account, restoring deleted expenses, push notifications on a local setup, receipt scanning (needs an API key).
 
 ---
 
@@ -121,6 +121,20 @@ For trying things out without creating many real accounts. Account → *Manage u
 - [ ] **Test users are marked "(Test)"** everywhere other people can see them.
 - [ ] **Test users can never sign in** (try their username with any password) and you cannot act as a real account.
 - [ ] **Delete** a test user. Expected: refused with an explanation if their data is in a group with real users; otherwise removed together with test-only groups.
+
+---
+
+## 7b. Two-factor sign-in (TOTP)
+
+You need an authenticator app (Aegis, 2FAS, Google/Microsoft Authenticator, …) or any TOTP tool. Use a normal account (not the passwordless dev admin, it is exempt).
+
+1. Account → **Two-factor sign-in (TOTP)** → *Set up*. Scan the QR code (or type the key), enter the current 6-digit code, confirm. A wrong code must be refused.
+2. You see **recovery codes once** (default: 1; the admin can set 0–20). Each works exactly once.
+3. Sign out and in again: after the password a second step asks for the code. Check: a wrong code fails; the same code cannot be used twice; a recovery code works once and then no more.
+4. Account page: regenerate recovery codes (needs password; old ones stop working). Turn TOTP off (needs password + code) — unless it is mandatory.
+5. As admin (*Manage users*): *Require 2FA* for one account. That user must set it up straight after the password and can do nothing else before. The setting "Require two-factor for everyone" does the same for everybody (careful: you are included).
+6. Admin *Reset 2FA* for a user who lost the phone: their sessions end, they sign in with the password only and set it up again if required.
+7. Try to break it: many wrong codes in a row (waiting time should grow), reuse a code, open a one-time link for an account with TOTP (you must still sign in with a code afterwards).
 
 ---
 

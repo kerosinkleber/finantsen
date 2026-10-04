@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { base32Decode, stepAt, totpAt } from "../src/server/totp";
 
 const PASSWORD = "Correct-Horse-Battery-9!";
 
@@ -742,3 +743,99 @@ test("display name is optional (defaults to the username); dev admin sign-in doe
   await expect(page.getByRole("heading", { name: "Your total balance" })).toBeVisible();
   await expect(page.getByTestId("dev-banner")).toHaveCount(0); // kein Entwicklungsbanner im Normalbetrieb
 });
+
+test("two-factor: admin requires it, user must set it up, signs in with code and recovery code, admin resets", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  await form(page).getByLabel("Username", { exact: true }).fill("tom");
+  await form(page).getByLabel("I set the password").check();
+  await form(page).getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await form(page).getByLabel("Require a password change at first sign-in").uncheck();
+  await form(page).getByRole("button", { name: "Create account" }).click();
+  await expect(card(page, "tom")).toBeVisible();
+  await card(page, "tom").getByTestId("toggle-totp-required").click();
+  await expect(card(page, "tom").getByTestId("badge-totp-required")).toBeVisible();
+
+  // Tom: nach dem Passwort geht erst einmal nur die Einrichtung
+  const ctx = await browser.newContext({ baseURL, locale: "en-US" });
+  const tp = await ctx.newPage();
+  await tp.goto("/login");
+  await tp.getByLabel("Username or email").fill("tom");
+  await tp.getByLabel("Password").fill(PASSWORD);
+  await tp.getByRole("button", { name: "Sign in" }).click();
+  await expect(tp).toHaveURL(/two-factor/);
+  await expect(tp.getByTestId("totp-forced")).toBeVisible();
+  expect((await tp.request.get("/api/groups")).status()).toBe(403);
+  await tp.goto("/");
+  await expect(tp).toHaveURL(/two-factor/);
+
+  await tp.getByTestId("totp-start").click();
+  await expect(tp.getByTestId("totp-qr")).toBeVisible();
+  const secret = base32Decode((await tp.getByTestId("totp-secret").innerText()).trim());
+  await tp.getByLabel("Current 6-digit code").fill("000000");
+  await tp.getByRole("button", { name: "Confirm and enable" }).click();
+  await expect(tp.getByTestId("error")).toContainText("invalid or already used");
+  await tp.getByLabel("Current 6-digit code").fill(totpAt(secret, stepAt() - 1));
+  await tp.getByRole("button", { name: "Confirm and enable" }).click();
+  await expect(tp.getByTestId("recovery-codes")).toBeVisible();
+  const recovery = (await tp.getByTestId("recovery-code").innerText()).trim();
+  expect(recovery).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+  await tp.getByTestId("totp-done").click();
+  await expect(tp).toHaveURL("/");
+
+  // Anmeldung: zweiter Schritt, falscher Code, richtiger Code (anderer Zeitschritt als bei der Einrichtung)
+  await tp.request.post("/api/auth/logout");
+  const signIn = async () => {
+    await tp.goto("/login");
+    await tp.getByLabel("Username or email").fill("tom");
+    await tp.getByLabel("Password").fill(PASSWORD);
+    await tp.getByRole("button", { name: "Sign in" }).click();
+    await expect(tp.getByTestId("totp-step")).toBeVisible();
+  };
+  await signIn();
+  await tp.getByLabel("Code", { exact: true }).fill("000000");
+  await tp.getByRole("button", { name: "Sign in" }).click();
+  await expect(tp.getByTestId("error")).toContainText("invalid or already used");
+  await tp.getByLabel("Code", { exact: true }).fill(totpAt(secret, stepAt()));
+  await tp.getByRole("button", { name: "Sign in" }).click();
+  await expect(tp).toHaveURL("/");
+
+  // Verlangt: ausschalten nicht möglich
+  await tp.goto("/two-factor");
+  await expect(tp.getByTestId("totp-on")).toBeVisible();
+  await expect(tp.getByTestId("totp-cannot-disable")).toBeVisible();
+  await expect(tp.getByTestId("recovery-remaining")).toContainText("1");
+
+  // Wiederherstellungscode funktioniert einmal
+  await tp.request.post("/api/auth/logout");
+  await signIn();
+  await tp.getByLabel("Code", { exact: true }).fill(recovery);
+  await tp.getByRole("button", { name: "Sign in" }).click();
+  await expect(tp).toHaveURL("/");
+  await tp.request.post("/api/auth/logout");
+  await signIn();
+  await tp.getByLabel("Code", { exact: true }).fill(recovery);
+  await tp.getByRole("button", { name: "Sign in" }).click();
+  await expect(tp.getByTestId("error")).toContainText("invalid or already used");
+
+  // Admin setzt zurück: Badge weg, Sitzung beendet, Tom muss neu einrichten
+  await tp.getByLabel("Code", { exact: true }).fill(totpAt(secret, stepAt() + 1));
+  await tp.getByRole("button", { name: "Sign in" }).click();
+  await expect(tp).toHaveURL("/");
+  await page.reload();
+  await expect(card(page, "tom").getByTestId("badge-totp")).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await card(page, "tom").getByTestId("reset-totp").click();
+  await expect(card(page, "tom").getByTestId("badge-totp")).toHaveCount(0);
+  expect((await tp.request.get("/api/groups")).status()).toBe(401);
+  await signInNoTotp(tp);
+  await expect(tp).toHaveURL(/two-factor/);
+  await ctx.close();
+});
+
+async function signInNoTotp(p: Page) {
+  await p.goto("/login");
+  await p.getByLabel("Username or email").fill("tom");
+  await p.getByLabel("Password").fill(PASSWORD);
+  await p.getByRole("button", { name: "Sign in" }).click();
+}

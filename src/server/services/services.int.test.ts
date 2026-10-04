@@ -10,7 +10,8 @@ d("services (PostgreSQL)", () => {
 
   async function load() {
     process.env.DATABASE_URL = url;
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings] = await Promise.all([
+    process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -26,8 +27,10 @@ d("services (PostgreSQL)", () => {
       import("./stats"),
       import("../rates"),
       import("./settings"),
+      import("./totp"),
+      import("../totp"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib };
   }
 
   beforeAll(async () => {
@@ -917,6 +920,134 @@ d("services (PostgreSQL)", () => {
       await svc.testUsers.createTestUsers(actor({ id: annaRow.id, username: "anna", isAdmin: true }), { username: "admin" });
       expect(await svc.users.devAdminAvailable()).toBe(false); // Konto "admin" ist ein Testnutzer (kind=test)
       await expect(svc.users.devLogin()).rejects.toMatchObject({ status: 404 });
+    });
+  });
+  describe("Etappe B: TOTP", () => {
+    // Zeitschritt relativ zu jetzt; jeder Code gilt nur einmal, daher je Schritt ein eigener Offset (Fenster ±1)
+    const codeAt = (secretB32: string, offset: number) =>
+      svc.totpLib.totpAt(svc.totpLib.base32Decode(secretB32), svc.totpLib.stepAt() + offset);
+
+    async function enrolled() {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      const b = await mkUser(a, "ben");
+      const { secret } = await svc.totp.startEnrollment(b.id);
+      const { recoveryCodes } = await svc.totp.confirmEnrollment(b.id, codeAt(secret, -1));
+      return { a, b, secret, recoveryCodes };
+    }
+
+    it("Einrichtung: Code bestätigt, ein Wiederherstellungscode als Standard, Geheimnis nur verschlüsselt", async () => {
+      const { b, secret, recoveryCodes } = await enrolled();
+      expect(recoveryCodes).toHaveLength(1);
+      expect(recoveryCodes[0]).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+      expect(await svc.totp.totpStatus(b.id)).toMatchObject({ enabled: true, required: false, recoveryRemaining: 1 });
+      const [row] = await svc.getDb().execute(svc.sql`select totp_secret from users where id = ${b.id}`);
+      expect(String((row as { totp_secret: string }).totp_secret)).not.toContain(secret);
+      const [rc] = await svc.getDb().execute(svc.sql`select code_hash from recovery_codes where user_id = ${b.id}`);
+      expect(String((rc as { code_hash: string }).code_hash)).not.toContain(recoveryCodes[0].replace("-", ""));
+      await expect(svc.totp.startEnrollment(b.id)).rejects.toMatchObject({ code: "totp_already_enabled" });
+    });
+
+    it("falscher Code bestätigt die Einrichtung nicht", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      await expect(svc.totp.confirmEnrollment(a.id, "123456")).rejects.toMatchObject({ code: "totp_not_started" });
+      const { secret } = await svc.totp.startEnrollment(a.id);
+      const wrong = codeAt(secret, 0) === "000000" ? "000001" : "000000";
+      await expect(svc.totp.confirmEnrollment(a.id, wrong)).rejects.toMatchObject({ code: "invalid_code" });
+      expect((await svc.totp.totpStatus(a.id)).enabled).toBe(false);
+    });
+
+    it("Anmeldung: Challenge + Code, jeder Code nur einmal (Replay), Wiederherstellungscode nur einmal", async () => {
+      const { b, secret, recoveryCodes } = await enrolled();
+      const ch = svc.totp.issueChallenge(b.id);
+      // Schritt -1 wurde bei der Einrichtung verbraucht
+      await expect(svc.totp.completeLogin(ch, codeAt(secret, -1))).rejects.toMatchObject({ code: "invalid_code" });
+      expect((await svc.totp.completeLogin(ch, codeAt(secret, 0))).id).toBe(b.id);
+      await expect(svc.totp.completeLogin(ch, codeAt(secret, 0))).rejects.toMatchObject({ code: "invalid_code" });
+      expect((await svc.totp.completeLogin(ch, codeAt(secret, 1))).id).toBe(b.id);
+      // Wiederherstellungscode: Schreibweise egal, nur einmal
+      const rc = recoveryCodes[0].toLowerCase().replace("-", " ");
+      expect((await svc.totp.completeLogin(ch, rc)).id).toBe(b.id);
+      await expect(svc.totp.completeLogin(ch, recoveryCodes[0])).rejects.toMatchObject({ code: "invalid_code" });
+      expect((await svc.totp.totpStatus(b.id)).recoveryRemaining).toBe(0);
+    });
+
+    it("Challenge: gefälscht oder für ein anderes Konto nutzlos", async () => {
+      const { b, secret } = await enrolled();
+      await expect(svc.totp.completeLogin("x.y", codeAt(secret, 0))).rejects.toMatchObject({ code: "challenge_invalid" });
+      await expect(svc.totp.completeLogin("", "123456")).rejects.toMatchObject({ code: "challenge_invalid" });
+      expect(b.id).toBeTruthy();
+    });
+
+    it("Fehlversuche sperren zunehmend; ein richtiges Passwort löscht den TOTP-Zähler nicht", async () => {
+      const { b, secret } = await enrolled();
+      const ch = svc.totp.issueChallenge(b.id);
+      for (let i = 0; i < 5; i++) await expect(svc.totp.completeLogin(ch, "000000")).rejects.toMatchObject({ code: "invalid_code" });
+      await svc.users.authenticate("ben", PW); // richtiges Passwort
+      await expect(svc.totp.completeLogin(ch, codeAt(secret, 0))).rejects.toMatchObject({ status: 429, code: "account_locked" });
+    });
+
+    it("Zwang: Konto-Flag oder globaler Schalter; Ausschalten dann nicht möglich, freiwillig schon", async () => {
+      const { a, b, secret } = await enrolled();
+      const admin = actor(a);
+      // freiwillig ausschalten
+      await expect(svc.totp.disableTotp(b.id, "falsch", codeAt(secret, 0))).rejects.toMatchObject({ code: "invalid_credentials" });
+      await svc.totp.disableTotp(b.id, PW, codeAt(secret, 0));
+      expect((await svc.totp.totpStatus(b.id)).enabled).toBe(false);
+      // verlangt (Konto-Flag)
+      await svc.users.adminAction(admin, b.id, { action: "requireTotp" });
+      const token = await svc.auth.createSessionFor(b.id);
+      expect(await svc.auth.resolveSession(token)).toMatchObject({ totpEnabled: false, totpSetupRequired: true });
+      const { secret: s2 } = await svc.totp.startEnrollment(b.id);
+      await svc.totp.confirmEnrollment(b.id, codeAt(s2, -1));
+      expect(await svc.auth.resolveSession(token)).toMatchObject({ totpEnabled: true, totpSetupRequired: false });
+      await expect(svc.totp.disableTotp(b.id, PW, codeAt(s2, 0))).rejects.toMatchObject({ code: "totp_required" });
+      // global
+      await svc.users.adminAction(admin, b.id, { action: "unrequireTotp" });
+      const c = await mkUser(a, "cleo");
+      const tc = await svc.auth.createSessionFor(c.id);
+      expect((await svc.auth.resolveSession(tc))?.totpSetupRequired).toBe(false);
+      await svc.settings.updateAdminSettings({ totpRequiredAll: true });
+      expect((await svc.auth.resolveSession(tc))?.totpSetupRequired).toBe(true);
+      expect(await svc.totp.totpStatus(b.id)).toMatchObject({ required: true });
+    });
+
+    it("Wiederherstellungscodes: Anzahl 0–20 einstellbar, Neuerzeugung macht alte ungültig", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      await svc.settings.updateAdminSettings({ recoveryCodeCount: 3 });
+      const { secret } = await svc.totp.startEnrollment(a.id);
+      const { recoveryCodes: first } = await svc.totp.confirmEnrollment(a.id, codeAt(secret, -1));
+      expect(first).toHaveLength(3);
+      await expect(svc.totp.regenerateRecoveryCodes(a.id, "falsch")).rejects.toMatchObject({ code: "invalid_credentials" });
+      await svc.settings.updateAdminSettings({ recoveryCodeCount: 0 });
+      const { recoveryCodes: second } = await svc.totp.regenerateRecoveryCodes(a.id, PW);
+      expect(second).toHaveLength(0);
+      const ch = svc.totp.issueChallenge(a.id);
+      await expect(svc.totp.completeLogin(ch, first[0])).rejects.toMatchObject({ code: "invalid_code" });
+      expect((await svc.settings.getAdminSettings()).recoveryCodeCount).toBe(0);
+    });
+
+    it("Admin-Reset: TOTP weg, Codes weg, Sitzungen beendet", async () => {
+      const { a, b } = await enrolled();
+      const token = await svc.auth.createSessionFor(b.id);
+      const r = await svc.users.adminAction(actor(a), b.id, { action: "resetTotp" });
+      expect(r).toMatchObject({ user: { totpEnabled: false } });
+      expect(await svc.auth.resolveSession(token)).toBeNull();
+      const [{ n }] = (await svc.getDb().execute(svc.sql`select count(*)::int as n from recovery_codes`)) as unknown as { n: number }[];
+      expect(n).toBe(0);
+      await expect(svc.users.adminAction(actor(b as unknown as U), a.id, { action: "resetTotp" })).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("Dev-Admin ist vom Zwang ausgenommen", async () => {
+      process.env.DEV_ADMIN = "true";
+      try {
+        await svc.users.ensureDevAdmin();
+        await svc.settings.updateAdminSettings({ totpRequiredAll: true });
+        const a = (await svc.users.devLogin()) as unknown as U;
+        const token = await svc.auth.createSessionFor(a.id);
+        expect((await svc.auth.resolveSession(token))?.totpSetupRequired).toBe(false);
+      } finally {
+        delete process.env.DEV_ADMIN;
+      }
     });
   });
 });

@@ -43,7 +43,16 @@ Next.js 15 (App Router, UI + API in einem Projekt), React 19, Tailwind 3, Drizzl
 - Einmal-Links laufen über **eine** Stelle (`linkUrl` in accounts.ts); SMTP wäre dort nachrüstbar (bewusst nicht gebaut).
 - Ersteinrichtung: `/setup` (ohne Schutzcode, vom Auftraggeber so gewollt), `/login` und `/register` leiten dorthin, solange es kein Konto gibt.
 - Gruppeneinladungen (`/join/[code]`) nimmt nur ein angemeldetes Konto an.
-- Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. Offen: Etappe B (TOTP) und C (QR), Passkeys zuletzt.
+- Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. Offen: Etappe C (QR), Passkeys zuletzt.
+
+## Zwei-Faktor (TOTP, Etappe B)
+- `server/totp.ts` (RFC 6238 ohne Bibliothek: Base32, HOTP, `verifyTotp` mit Fenster ±1 und `afterStep`), `server/secrets.ts` (AES-256-GCM, HMAC, signierte kurzlebige Tokens, alles aus `APP_SECRET` abgeleitet; `env.appSecret` wirft ohne ≥16 Zeichen), `server/qr.ts` (QR als SVG-Data-URL, auch für Etappe C), `services/totp.ts`.
+- Ablauf: `/api/auth/login` liefert bei aktivem TOTP **keine Sitzung**, sondern `{totpRequired, challenge}` (signiert, 5 min); `/api/auth/login/totp` prüft Challenge + Code und legt die Sitzung an. Einmal-Links (`/api/activate`) loggen bei TOTP-Konten nicht automatisch ein. Dev-Login ist ausgenommen.
+- Replay-Schutz: `users.totp_last_step` (atomar weitergeschaltet); Wiederherstellungscodes `XXXXX-XXXXX` nur als HMAC in `recovery_codes`, einmal nutzbar. Eigener Fehlzähler `totp_failed_attempts/totp_locked_until` (gleiche Backoff-Kurve `lockSeconds`), den ein richtiges Passwort nicht löscht.
+- Zwang: `users.totp_required` (Admin) oder Einstellung `totp_required_all`. `resolveSession` berechnet `totpSetupRequired` für das **echte** Konto; `route()` antwortet 403 `totp_setup_required` (Ausnahme `allowTotpSetup`: `me`, `api/auth/totp/*`), `(app)/layout` leitet auf `/two-factor`. Ausschalten ist bei Zwang gesperrt.
+- Einstellungen: `totp_required_all`, `recovery_code_count` (0–20, Standard 1). Admin-Aktionen in `adminAction`: `requireTotp`, `unrequireTotp`, `resetTotp` (beendet Sitzungen, löscht Codes).
+- Tests: `totp.test.ts` (RFC-Vektoren), Integrationstests „Etappe B: TOTP“, e2e „two-factor“ (liest den Schlüssel von der Seite, nutzt `totpAt` mit Schritt-Offsets −1/0/+1, weil jeder Code nur einmal gilt).
+- `APP_SECRET` ist Pflicht und darf nach Produktivstart nicht geändert werden (`docker-compose.yml` verlangt ihn; lokal fester Dev-Wert in `docker-compose.local.yml`).
 
 ## Entwicklungs-Admin und Anzeigename
 - `DEV_ADMIN=true` (nur `docker-compose.local.yml`; produktiv nie durchgereicht): `ensureDevAdmin` (Start, `instrumentation.ts`) legt bei **leerer** Datenbank genau einen Admin `admin` ohne Passwort an (`name` = Nutzername); `/api/dev/login` + Knopf auf der Anmeldeseite + rotes Banner. `devLogin` gilt nur, solange Variable gesetzt, Konto `admin` echtes Konto (`kind user`), Admin, aktiv und **ohne Passwort**; sonst 404. Normaler Login bleibt für passwortlose Konten immer zu. Release: `docs/release-checkliste.md`.
@@ -74,4 +83,4 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 - Jeder sinnvolle Schritt = eigener Commit.
 
 ## Roadmap
-Siehe `docs/roadmap.md` (maßgeblich, mit Reihenfolge). Kurz: Phase 0–3 und Konten-Etappe A sind fertig. **Aktuell vorgezogen: Admin-Testfunktionen** (Testnutzer ohne Passwort, vom Admin steuerbar; Fragebogen `docs/fragen/02-testnutzer.md`). Danach Etappe B (TOTP), Etappe C (QR), zuletzt Passkeys.
+Siehe `docs/roadmap.md` (maßgeblich, mit Reihenfolge). Kurz: Phase 0–3 und Konten-Etappen A und B (TOTP) sind fertig. **Aktuell vorgezogen: Admin-Testfunktionen** (Testnutzer ohne Passwort, vom Admin steuerbar; Fragebogen `docs/fragen/02-testnutzer.md`). Danach Etappe C (QR), zuletzt Passkeys.

@@ -25,6 +25,7 @@ export default defineConfig({
     env: {
       DATABASE_URL,
       APP_URL: `http://localhost:${PORT}`,
+      APP_SECRET: "playwright-test-secret-not-for-production",
       // Feste Kurse statt Netzwerk (Kurse pro 1 EUR); ohne ANTHROPIC_API_KEY ist der Belegscan ausgeblendet
       TEST_FEATURES_DEFAULT: "true",
       EXCHANGE_RATE_PROVIDER: "static",

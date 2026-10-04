@@ -30,6 +30,8 @@ services:
       DATABASE_URL: postgres://finantsen:local-dev-only@db:5432/finantsen
       APP_URL: http://localhost:${LOCAL_PORT:-3000}
       DEFAULT_LOCALE: de
+      # Fester Schlüssel NUR für lokale Tests (verschlüsselt TOTP-Geheimnisse); produktiv ein eigener, zufälliger Wert
+      APP_SECRET: local-dev-only-app-secret-change-for-release
       # Nur für den lokalen Test: Admin-Testfunktionen standardmäßig an (im produktiven Stack nicht gesetzt = aus)
       TEST_FEATURES_DEFAULT: "true"
       # Nur lokaler Test: Admin "admin" ohne Passwort wird angelegt, Anmeldung per Knopf (keine Ersteinrichtung nötig).
