@@ -5,6 +5,7 @@ import { api } from "@/lib/client-api";
 import { useConfirm } from "./useConfirm";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
+import { QrCode } from "./QrCode";
 import { PasswordField } from "./PasswordField";
 import { passwordIssues } from "@/lib/password";
 import type { MessageKey } from "@/i18n";
@@ -47,6 +48,7 @@ function LinkBox({ link }: { link: LinkInfo }) {
           {copied ? t("common.copied") : t("common.copy")}
         </button>
       </div>
+      <QrCode text={url} label={t("invite.qrAlt")} />
     </div>
   );
 }

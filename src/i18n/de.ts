@@ -4,6 +4,8 @@ const de = {
   "nav.friends": "Freunde",
   "nav.settings": "Konto",
   "common.save": "Speichern",
+  "invite.qrHelp": "Oder scannen lassen: Die andere Person richtet die Kamera ihres Handys auf diesen Code.",
+  "invite.qrAlt": "QR-Code der Einladung",
   "common.cancel": "Abbrechen",
   "common.confirm": "Bestätigen",
   "common.delete": "Löschen",

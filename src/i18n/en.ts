@@ -6,6 +6,8 @@ const en: Record<MessageKey, string> = {
   "nav.friends": "Friends",
   "nav.settings": "Account",
   "common.save": "Save",
+  "invite.qrHelp": "Or let them scan it: the other person points their phone camera at this code.",
+  "invite.qrAlt": "Invitation QR code",
   "common.cancel": "Cancel",
   "common.confirm": "Confirm",
   "common.delete": "Delete",

@@ -24,7 +24,7 @@ The first build takes a few minutes. When the log shows `migrations applied` and
 
 **Test password** that satisfies the rules: `Correct-Horse-Battery-9!`
 
-**Not available in this version** (please do not report these as bugs): passkeys, QR codes for invitations, e-mail sending (the admin hands out links himself), members without an account, restoring deleted expenses, push notifications on a local setup, receipt scanning (needs an API key).
+**Not available in this version** (please do not report these as bugs): passkeys, scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), members without an account, restoring deleted expenses, push notifications on a local setup, receipt scanning (needs an API key).
 
 ---
 

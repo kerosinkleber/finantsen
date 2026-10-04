@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
+import { QrCode } from "./QrCode";
 
 /** Erzeugt einen Einladungslink. `createUrl` ist der API-Endpunkt (Gruppe oder Freunde). */
 export function InviteBox({ createUrl, label }: { createUrl: string; label: string }) {
@@ -39,6 +40,8 @@ export function InviteBox({ createUrl, label }: { createUrl: string; label: stri
             <input readOnly className="input" value={link} data-testid="invite-link" onFocus={(e) => e.currentTarget.select()} />
             <button className="btn-secondary" onClick={copy}>{copied ? t("common.copied") : t("common.copy")}</button>
           </div>
+          <p className="muted mt-2">{t("invite.qrHelp")}</p>
+          <QrCode text={link} label={t("invite.qrAlt")} />
         </div>
       )}
     </div>

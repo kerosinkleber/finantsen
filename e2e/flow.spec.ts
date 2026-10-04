@@ -69,6 +69,7 @@ test("signed-in admin creates a group and an invite link", async ({ page }) => {
   await page.getByRole("button", { name: "Invite a member" }).click();
   inviteLink = await page.getByTestId("invite-link").inputValue();
   expect(inviteLink).toContain("/join/");
+  await expect(page.getByTestId("qr")).toBeVisible(); // QR-Code zum Link
 });
 
 test("admin creates Ben with a one-time link; Ben sets his own password and joins the group", async ({ page, browser, baseURL }) => {
