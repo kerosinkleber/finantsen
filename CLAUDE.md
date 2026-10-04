@@ -62,4 +62,4 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 - Jeder sinnvolle Schritt = eigener Commit.
 
 ## Roadmap
-Phase 0–3 fertig, Konten-Etappe A fertig (siehe oben). Ideen für später: Mitglieder ohne Konto, Wiederherstellen gelöschter Ausgaben, Wiederkehrende Ausgaben, weitere Belegscan-Anbieter.
+Siehe `docs/roadmap.md` (maßgeblich, mit Reihenfolge). Kurz: Phase 0–3 und Konten-Etappe A sind fertig. **Aktuell vorgezogen: Admin-Testfunktionen** (Testnutzer ohne Passwort, vom Admin steuerbar; Fragebogen `docs/fragen/02-testnutzer.md`). Danach Etappe B (TOTP), Etappe C (QR), zuletzt Passkeys.
