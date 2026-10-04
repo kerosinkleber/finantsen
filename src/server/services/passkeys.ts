@@ -6,7 +6,7 @@ import { passkeys, users } from "../schema";
 import { ApiError } from "../http";
 import { verifyPassword } from "../auth";
 import { hmacHex, signToken, verifyToken } from "../secrets";
-import { lockSeconds } from "./accounts";
+import { recordFailure } from "./accounts";
 
 type UserRow = typeof users.$inferSelect;
 
@@ -141,12 +141,7 @@ export async function authenticationOptions(identifier: string, rp: Rp) {
 }
 
 async function registerFailure(u: UserRow): Promise<never> {
-  const failed = u.failedAttempts + 1;
-  const secs = lockSeconds(failed);
-  await getDb()
-    .update(users)
-    .set({ failedAttempts: failed, lockedUntil: secs ? new Date(Date.now() + secs * 1000) : null })
-    .where(eq(users.id, u.id));
+  await recordFailure(u.id, "login");
   throw new ApiError(401, "invalid_credentials");
 }
 

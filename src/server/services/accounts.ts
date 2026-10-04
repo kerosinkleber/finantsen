@@ -215,6 +215,24 @@ export function lockSeconds(failedAttempts: number): number {
   return Math.min(30 * 2 ** (failedAttempts - 5), 900);
 }
 
+/**
+ * Zählt einen Fehlversuch atomar hoch (auch bei parallelen Anfragen geht keiner verloren) und setzt ggf. die
+ * Sperre. `login` = Passwort/Passkey, `totp` = eigener Zähler für Codes. Liefert die Sperrdauer in Sekunden.
+ */
+export async function recordFailure(userId: string, kind: "login" | "totp"): Promise<number> {
+  const db = getDb();
+  const [r] =
+    kind === "login"
+      ? await db.update(users).set({ failedAttempts: sql`${users.failedAttempts} + 1` }).where(eq(users.id, userId)).returning({ n: users.failedAttempts })
+      : await db.update(users).set({ totpFailedAttempts: sql`${users.totpFailedAttempts} + 1` }).where(eq(users.id, userId)).returning({ n: users.totpFailedAttempts });
+  const secs = r ? lockSeconds(r.n) : 0;
+  if (secs) {
+    const until = new Date(Date.now() + secs * 1000);
+    await db.update(users).set(kind === "login" ? { lockedUntil: until } : { totpLockedUntil: until }).where(eq(users.id, userId));
+  }
+  return secs;
+}
+
 export type AuthResult =
   | { kind: "invalid" }
   | { kind: "locked"; retryAfter: number }
@@ -254,12 +272,7 @@ export async function authenticate(identifier: string, password: string): Promis
       matches.push(u);
       if (u.failedAttempts > 0 || u.lockedUntil) await db.update(users).set({ failedAttempts: 0, lockedUntil: null }).where(eq(users.id, u.id));
     } else {
-      const failed = u.failedAttempts + 1;
-      const secs = lockSeconds(failed);
-      await db
-        .update(users)
-        .set({ failedAttempts: failed, lockedUntil: secs ? new Date(Date.now() + secs * 1000) : null })
-        .where(eq(users.id, u.id));
+      const secs = await recordFailure(u.id, "login");
       // Sperre gleich beim auslösenden Fehlversuch melden (nicht erst beim nächsten)
       if (secs) retryAfter = Math.max(retryAfter, secs);
     }

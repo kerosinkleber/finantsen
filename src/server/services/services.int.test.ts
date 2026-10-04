@@ -471,6 +471,13 @@ d("services (PostgreSQL)", () => {
       expect(ms).toBeLessThanOrEqual(60 * 60_000);
     });
 
+    it("parallele Fehlversuche gehen nicht verloren (atomarer Zähler)", async () => {
+      const { a } = await setup();
+      await Promise.all(Array.from({ length: 8 }, () => svc.users.authenticate("anna", "falsch-falsch")));
+      const [row] = (await svc.getDb().execute(svc.sql`select failed_attempts from users where id = ${a.id}`)) as unknown as { failed_attempts: number }[];
+      expect(row.failed_attempts).toBe(8);
+    });
+
     it("Passwort setzen durch Admin erzwingt Wechsel, beendet Sitzungen; Einmal-Link-Passwort-Reset beendet Sitzungen", async () => {
       const { a, b } = await setup();
       await svc.auth.createSessionFor(b.id);

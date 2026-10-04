@@ -6,7 +6,7 @@ import { ApiError } from "../http";
 import { endSessions, verifyPassword } from "../auth";
 import { decryptSecret, encryptSecret, hmacHex, signToken, verifyToken } from "../secrets";
 import { generateSecret, otpauthUri, base32Decode, verifyTotp } from "../totp";
-import { lockSeconds } from "./accounts";
+import { recordFailure } from "./accounts";
 import { recoveryCodeCount, totpRequiredAll } from "./settings";
 
 type UserRow = typeof users.$inferSelect;
@@ -65,12 +65,7 @@ function assertNotLocked(u: UserRow) {
 }
 
 async function registerFailure(u: UserRow): Promise<never> {
-  const failed = u.totpFailedAttempts + 1;
-  const secs = lockSeconds(failed);
-  await getDb()
-    .update(users)
-    .set({ totpFailedAttempts: failed, totpLockedUntil: secs ? new Date(Date.now() + secs * 1000) : null })
-    .where(eq(users.id, u.id));
+  await recordFailure(u.id, "totp");
   throw new ApiError(401, "invalid_code");
 }
 
