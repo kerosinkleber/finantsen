@@ -16,7 +16,8 @@ Vor dem Produktivbetrieb abhaken.
 ## Sicherheit
 - [ ] Admin-Konto über `/setup` eingerichtet, **bevor** die Domain weitergegeben wurde (wer die Seite zuerst aufruft, wird Admin).
 - [ ] HTTPS aktiv (Caddy holt das Zertifikat automatisch, DNS muss auf den Server zeigen, Port 80/443 offen).
-- [ ] Backup eingerichtet (`pg_dump`, siehe README) und einmal testweise zurückgespielt.
+- [ ] Backup eingerichtet (`scripts/backup.sh` per Cron, siehe README), `APP_SECRET` getrennt gesichert, und einmal mit `scripts/restore-check.sh` geprüft.
+- [ ] `npm audit --omit=dev` angesehen (bekannt: PostCSS in Next.js, nur Build-Zeit).
 
 ## Prüfen
 - [ ] `docker compose up -d --build`, `https://<DOMAIN>/api/health` liefert `ok`.

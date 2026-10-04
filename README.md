@@ -84,7 +84,11 @@ docker compose stop app
 docker compose exec -T db pg_restore -U finantsen -d finantsen --clean --if-exists < backup-2026-01-01.dump
 docker compose start app
 ```
-Sichere die Dumps außerhalb des Servers (z. B. per Cron + `rclone`/`rsync`).
+Einfacher mit den Skripten: `scripts/backup.sh` legt einen Dump in `./backups` ab (behält die letzten 14; Cron-Zeile steht im Skript). `scripts/restore-check.sh <dump> <Quell-URL> <Admin-URL>` spielt einen Dump in eine Wegwerf-Datenbank zurück und vergleicht Zeilenzahlen (zur Prüfung, dass die Sicherung brauchbar ist).
+**Sichere zusätzlich `APP_SECRET` aus der `.env`** (getrennt vom Dump): Ohne ihn sind eingerichtete TOTP-Konten nach einer Wiederherstellung unbenutzbar. Sichere die Dumps außerhalb des Servers (z. B. per Cron + `rclone`/`rsync`).
+
+### Sicherheits-Header
+Die App sendet `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` und (produktiv) eine Content-Security-Policy (nur eigene Herkunft, kein Einbetten); Caddy ergänzt HSTS. `npm audit` meldet derzeit eine PostCSS-Warnung innerhalb von Next.js. Sie betrifft nur das Verarbeiten eigener CSS-Dateien beim Build, nicht den Betrieb; die Behebung braucht ein Next-Hauptversions-Update und ist vorgemerkt.
 
 ## Entwicklung
 ```bash
