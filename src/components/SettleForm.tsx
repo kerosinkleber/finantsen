@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { CurrencySelect } from "./CurrencySelect";
 import { parseAmount, toInputString } from "@/lib/money";
+import { localToday } from "@/lib/local-date";
 
 export function SettleForm({ groupId, members, meId, initial }: {
   groupId: string;
@@ -21,6 +22,7 @@ export function SettleForm({ groupId, members, meId, initial }: {
   const [currency, setCurrency] = useState(initial.currency);
   const [amount, setAmount] = useState(initial.amountMinor ? toInputString(initial.amountMinor, initial.currency, locale) : "");
   const [note, setNote] = useState("");
+  const [date, setDate] = useState(localToday);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,7 +41,7 @@ export function SettleForm({ groupId, members, meId, initial }: {
         toUser: to,
         amountMinor,
         currency,
-        date: new Date().toISOString().slice(0, 10),
+        date,
         note: note || undefined,
       });
       router.replace(`/groups/${groupId}?tab=balances`);
@@ -77,6 +79,10 @@ export function SettleForm({ groupId, members, meId, initial }: {
           <label className="label" htmlFor="cur">{t("expense.currency")}</label>
           <CurrencySelect id="cur" value={currency} onChange={setCurrency} />
         </div>
+      </div>
+      <div>
+        <label className="label" htmlFor="pay-date">{t("expense.date")}</label>
+        <input id="pay-date" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} required />
       </div>
       <div>
         <label className="label" htmlFor="note">{t("settle.note")}</label>

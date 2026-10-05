@@ -353,6 +353,7 @@ const de = {
   "testWarn.title": "Testfunktionen vor dem echten Betrieb aufräumen",
   "testWarn.enabled": "Die Testfunktionen (Testnutzer, „Handeln als“) sind eingeschaltet. Für den echten Betrieb bitte ausschalten.",
   "testWarn.users": "Es gibt noch {n} Testnutzer. Sie können in Gruppen auftauchen.",
+  "testWarn.usersOne": "Es gibt noch 1 Testnutzer. Er kann in Gruppen auftauchen.",
   "testWarn.disable": "Testfunktionen ausschalten",
   "testWarn.deleteAll": "Alle Testnutzer löschen",
   "testWarn.confirmDelete": "Wirklich alle {n} Testnutzer löschen? Gruppen, in denen nur Testnutzer Daten haben, werden mitgelöscht.",

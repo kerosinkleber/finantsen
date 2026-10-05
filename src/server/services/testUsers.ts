@@ -94,7 +94,7 @@ export async function updateTestUser(actor: SessionUser, id: string, data: { nam
 
 // -------------------------------------------------------------------- Detail
 
-type MemberInfo = { id: string; name: string; isTest: boolean };
+type MemberInfo = { id: string; name: string; isTest: boolean; isGuest: boolean };
 
 async function membersByGroup(groupIds: string[]) {
   if (groupIds.length === 0) return new Map<string, MemberInfo[]>();
@@ -104,12 +104,14 @@ async function membersByGroup(groupIds: string[]) {
     .innerJoin(users, eq(users.id, groupMembers.userId))
     .where(inArray(groupMembers.groupId, groupIds));
   const m = new Map<string, MemberInfo[]>();
-  for (const r of rows) m.set(r.groupId, [...(m.get(r.groupId) ?? []), { id: r.id, name: r.name, isTest: r.kind === "test" }]);
+  for (const r of rows) m.set(r.groupId, [...(m.get(r.groupId) ?? []), { id: r.id, name: r.name, isTest: r.kind === "test", isGuest: r.kind === "guest" }]);
   return m;
 }
 
-/** Echte Mitglieder außer dem Admin selbst (für die Warnung beim Hinzufügen). */
-const realOthers = (members: MemberInfo[], adminId: string) => members.filter((m) => !m.isTest && m.id !== adminId);
+/** Echte Mitglieder außer dem Admin selbst (für die Warnung beim Hinzufügen). Gäste haben kein Konto und zählen nicht. */
+const realOthers = (members: MemberInfo[], adminId: string) => members.filter((m) => !m.isTest && !m.isGuest && m.id !== adminId);
+/** Gruppe ohne echte Konten (nur Testnutzer, ggf. mit Gästen). */
+const onlyTestAccounts = (members: MemberInfo[]) => members.some((m) => m.isTest) && members.every((m) => m.isTest || m.isGuest);
 
 export async function getTestUserDetail(actor: SessionUser, id: string) {
   await requireTestAdmin(actor);
@@ -142,7 +144,7 @@ export async function getTestUserDetail(actor: SessionUser, id: string) {
     .filter((g) => !memberOf.has(g.id))
     .filter((g) => {
       const ms = members.get(g.id) ?? [];
-      return ms.some((m) => m.id === actor.id) || (ms.length > 0 && ms.every((m) => m.isTest));
+      return ms.some((m) => m.id === actor.id) || onlyTestAccounts(ms);
     })
     .map((g) => ({ id: g.id, name: g.name, hasRealMembers: realOthers(members.get(g.id) ?? [], actor.id).length > 0 }));
 
@@ -173,7 +175,7 @@ export async function addToGroup(actor: SessionUser, testUserId: string, groupId
   if (!g || g.kind !== "group") throw new ApiError(404, "not_found");
   const ms = (await membersByGroup([groupId])).get(groupId) ?? [];
   // dieselbe Datenschutz-Regel wie in der Auswahlliste
-  if (!(ms.some((m) => m.id === actor.id) || (ms.length > 0 && ms.every((m) => m.isTest)))) throw new ApiError(404, "not_found");
+  if (!(ms.some((m) => m.id === actor.id) || onlyTestAccounts(ms))) throw new ApiError(404, "not_found");
   if (ms.some((m) => m.id === testUserId)) throw new ApiError(409, "already_member");
   const real = realOthers(ms, actor.id);
   if (real.length > 0 && !opts.confirmed) needsConfirmation(real.map((m) => m.name));

@@ -355,6 +355,7 @@ const en: Record<MessageKey, string> = {
   "testWarn.title": "Clean up test features before real use",
   "testWarn.enabled": "Test features (test users, “act as”) are switched on. Please switch them off for real use.",
   "testWarn.users": "There are still {n} test users. They can show up in groups.",
+  "testWarn.usersOne": "There is still 1 test user. They can show up in groups.",
   "testWarn.disable": "Switch off test features",
   "testWarn.deleteAll": "Delete all test users",
   "testWarn.confirmDelete": "Really delete all {n} test users? Groups in which only test users have data are deleted too.",

@@ -15,6 +15,7 @@ import { evaluateAmount, isExpression } from "@/lib/money/calc";
 import type { MessageKey } from "@/i18n";
 import { PAYMENT_METHODS, type DefaultSplit } from "@/lib/schemas";
 import { dueOccurrences, UNITS, type Unit } from "@/lib/recurrence";
+import { localToday } from "@/lib/local-date";
 
 type Member = { id: string; name: string };
 type SplitType = "equal" | "adjust" | "percent" | "exact" | "shares" | "items" | "full";
@@ -66,7 +67,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   const [title, setTitle] = useState(initial?.title ?? "");
   const [currency, setCurrency] = useState(initial?.currency ?? defaultCurrency);
   const [amount, setAmount] = useState(initial ? toInputString(initial.amountMinor, initial.currency, locale) : "");
-  const [date, setDate] = useState(initial && !copy ? initial.date : new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(initial && !copy ? initial.date : localToday());
   const [calcMode, setCalcMode] = useState(false);
   const [isRefund, setIsRefund] = useState(initial?.isRefund ?? false);
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "");
@@ -229,7 +230,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
       if (recurring) {
         // Liegt der erste Termin in der Vergangenheit, werden verpasste Termine sofort gebucht: vorher bestätigen lassen.
         // schon gebuchte Zeiträume zählen nicht (der Server setzt die Folge nach der letzten Buchung fort)
-        const missed = dueOccurrences({ start: date, unit, every: Number(every) || 1, from: 0, until: new Date().toISOString().slice(0, 10), end: endDate || null, limit: 100_000 })
+        const missed = dueOccurrences({ start: date, unit, every: Number(every) || 1, from: 0, until: localToday(), end: endDate || null, limit: 100_000 })
           .filter((o) => !recurring.lastBookedDate || o.date > recurring.lastBookedDate).length;
         if (missed > 1 && !paused && !(await ask(t("recurring.confirmBackfill", { n: missed })))) {
           inFlight.current = false;

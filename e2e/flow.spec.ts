@@ -145,8 +145,13 @@ test("add expense, see balances, settle up", async ({ page, browser, baseURL }) 
   await expect(bp).toHaveURL("/");
   await bp.goto(`${groupUrl}?tab=balances`);
   await bp.getByRole("link", { name: "Settle up" }).click();
+  // Datum ist wählbar (Standard: heute nach Gerätezeit)
+  await expect(bp.getByLabel("Date")).not.toHaveValue("");
+  await bp.getByLabel("Date").fill("2026-01-03");
   await bp.getByRole("button", { name: "Save payment" }).click();
   await expect(bp.getByTestId("settled")).toBeVisible();
+  await bp.goto(groupUrl);
+  await expect(bp.getByTestId("payment-item").first()).toContainText("2026-01-03");
   await ben.close();
 });
 
@@ -1435,8 +1440,11 @@ test("admin warning for test features and test users: switch off and delete all"
   const warn = page.getByTestId("test-leftovers");
   await expect(warn).toBeVisible();
   await expect(page.getByTestId("insecure-info-admin")).toHaveCount(0); // localhost gilt als sicher
-  page.once("dialog", (d) => void d.accept());
   await warn.getByTestId("test-leftovers-delete").click();
+  // Rückfrage im Seitenfenster (kein Browser-Dialog)
+  await expect(page.getByTestId("confirm-dialog")).toContainText("Really delete all");
+  await page.getByTestId("confirm-yes").click();
+  await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
   // Testnutzer mit Daten in echten Gruppen bleiben stehen und werden genannt, die übrigen sind weg
   await expect(warn.getByTestId("test-leftovers-delete")).toBeEnabled();
   await warn.getByTestId("test-leftovers-disable").click();

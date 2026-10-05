@@ -861,6 +861,19 @@ d("services (PostgreSQL)", () => {
       expect((await svc.expenses.listExpenses(a.id, g.id)).length).toBe(1); // echte Daten unangetastet
     });
 
+    it("Warnung beim Hinzufügen: Gäste ohne Konto zählen nicht als echte Mitglieder", async () => {
+      const { a, b } = await setup();
+      const [t1, t2] = await mkTest(a, 2);
+      const g = await svc.groups.createGroup(a.id, { name: "Nur Gäste", defaultCurrency: "EUR" });
+      await svc.guests.addGuest(a.id, g.id, "Gast Gerd");
+      await svc.testUsers.addToGroup(actor(a), t1, g.id, { role: "member" }); // keine Rückfrage nötig
+      await join(g, a, b);
+      await expect(svc.testUsers.addToGroup(actor(a), t2, g.id, { role: "member" })).rejects.toMatchObject({
+        code: "needs_confirmation",
+        extra: { realMembers: ["Ben"] }, // Gast Gerd nicht, der Admin selbst nicht
+      });
+    });
+
     it("Löschen beendet „Handeln als“-Sitzungen sauber", async () => {
       const { a } = await setup();
       const [t] = await mkTest(a);
