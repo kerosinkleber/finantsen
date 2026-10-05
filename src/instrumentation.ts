@@ -1,4 +1,13 @@
 export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    // Startsperre: Dev-Admin (Anmeldung ohne Passwort) nie in einer erreichbaren Installation
+    const { devAdminStartError, env } = await import("./server/env");
+    const devError = devAdminStartError(process.env.DEV_ADMIN, env.appUrl);
+    if (devError) {
+      console.error(`[finantsen] START ABGEBROCHEN: ${devError}`);
+      process.exit(1);
+    }
+  }
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.SKIP_MIGRATIONS !== "1") {
     const { runMigrations } = await import("./server/migrate");
     await runMigrations();

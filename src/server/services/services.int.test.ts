@@ -909,6 +909,20 @@ d("services (PostgreSQL)", () => {
       expect(u.username).toBe("admin");
     });
 
+    it("außerhalb von localhost wirkt DEV_ADMIN=true nicht (zusätzlich zur Startsperre)", async () => {
+      process.env.DEV_ADMIN = "true";
+      const oldUrl = process.env.APP_URL;
+      process.env.APP_URL = "http://192.168.178.20:3000";
+      try {
+        expect(await svc.users.ensureDevAdmin()).toBe(false);
+        expect(await svc.users.needsSetup()).toBe(true);
+        await expect(svc.users.devLogin()).rejects.toMatchObject({ status: 404 });
+      } finally {
+        if (oldUrl === undefined) delete process.env.APP_URL;
+        else process.env.APP_URL = oldUrl;
+      }
+    });
+
     it("gleichzeitige Starts legen nur einen Admin an", async () => {
       process.env.DEV_ADMIN = "true";
       const r = await Promise.all([svc.users.ensureDevAdmin(), svc.users.ensureDevAdmin(), svc.users.ensureDevAdmin()]);
