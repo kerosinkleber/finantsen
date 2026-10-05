@@ -121,3 +121,24 @@ Antwort:
 - GiroCode/EPC-QR: https://github.com/mtgrosser/girocode
 - GoCardless-Stopp für Neukunden: https://bankaccountdata.gocardless.com/new-signups-disabled
 
+
+---
+
+## Umsetzung (meine Auslegung deiner Antworten)
+
+Gebaut in dieser Reihenfolge, jeweils mit Tests (Unit, Integration, e2e), Doku und Abschnitt im Tester-Guide:
+
+1. **Bezahlen beim Begleichen**: Bezahldaten unter *Konto* (IBAN mit Kontoinhaber, PayPal.me-Name), Ändern nur mit Passwort. Im Reiter *Salden* sieht nur, wer der Person laut Vorschlag Geld schuldet, „Bezahlen an …“ mit GiroCode (nur Euro), IBAN zum Kopieren und PayPal-Link mit Betrag.
+2. **Gleich mit Anpassungen**: neue Aufteilungsart „Gleich + Anpassung“ (auch negative Anpassungen).
+3. **Erinnern**: Knopf im Reiter *Salden* bei Personen, die dir Geld schulden; höchstens einmal pro Tag je Person und Gruppe; In-App, Push und E-Mail (wenn eingeschaltet).
+4. **Rechner und Kopieren**: Rechnen im Betragsfeld (`12,50+3*4`), Knopf „±×“ für die Handytastatur; „Kopieren“ auf der Ausgabenseite.
+5. **Import**: Splitwise, Tricount, eigener CSV-Export und ein einfaches Format; Vorschau, Personen zuordnen (Unbekannte → Mitglieder ohne Konto), dieselbe Datei nur einmal je Gruppe. **Nur der Gruppenbesitzer** darf importieren (es entstehen viele Einträge auf einmal). Das Tricount-Format ist nach öffentlicher Beschreibung gebaut und noch nicht mit einer echten Datei geprüft. Wenn du eine Tricount-Exportdatei hast, teste sie bitte oder gib sie mir.
+6. **Rückerstattung**: Haken im Formular; „Erhalten von“ statt „Bezahlt von“; Salden wirken umgekehrt, Statistik sinkt.
+7. **Zahlungsart**: optional je Ausgabe (bar, Karte, Überweisung, PayPal, Sonstiges), Filter und Auswertung.
+8. **Mehr Statistik**: Durchschnitt je Ausgabe und je Monat, nach Zahlungsart, größte Ausgaben (je Person und Monatsverlauf gab es schon).
+9. **Gruppenbudget**: vom Besitzer, je Monat oder insgesamt, Balken über der Ausgabenliste, einmalige Benachrichtigung je Zeitraum bei Überschreitung.
+10. **Belegfotos**: bis 5 Fotos je Ausgabe, nur für Mitglieder sichtbar, im Browser verkleinert (ohne Aufnahmeort). **Abweichung von meiner Empfehlung:** gespeichert in der **Datenbank** statt in einem eigenen Docker-Volume. Damit sind die Fotos automatisch im bestehenden Backup und werden mit der Ausgabe bzw. Gruppe gelöscht, ohne verwaiste Dateien. Für verkleinerte Fotos (meist unter 500 KB) ist das unproblematisch. Fotos einer Ausgabe im Papierkorb bleiben fürs Wiederherstellen erhalten.
+
+**Zu deiner Frage „Belegfoto an Ausgabe speichern – was tut das?“:** Man hängt an eine Ausgabe ein Foto des Kassenbons oder der Rechnung. Alle in der Gruppe können es später ansehen, z. B. um nachzuprüfen, was gekauft wurde. Das ist unabhängig vom Belegscan: Der Scan liest einen Bon per KI aus und speichert nichts; das Belegfoto speichert das Bild bei dir, ohne KI.
+
+**Frage 4 (Belegscan-Anbieter):** nicht gebaut, wie gewünscht. Wir beraten das gesondert.
