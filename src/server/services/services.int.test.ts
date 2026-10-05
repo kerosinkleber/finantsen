@@ -1692,7 +1692,10 @@ d("services (PostgreSQL)", () => {
       const got = await svc.expenses.getExpense(a.id, g.id, e.id);
       expect(got.splitType).toBe("adjust");
       expect(got.shares.reduce((x, y) => x + y.amountMinor, 0)).toBe(1000);
-      expect(got.shares.find((x) => x.userId === c.id)).toMatchObject({ amountMinor: 266, input: -100 });
+      // Rest 11,00 € → 3,67/3,67/3,66 (Restcent nach ID-Reihenfolge), c bekommt davon 1,00 € weniger
+      const cShare = got.shares.find((x) => x.userId === c.id)!;
+      expect(cShare.input).toBe(-100);
+      expect([266, 267]).toContain(cShare.amountMinor);
       await expect(
         svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 1000, payers: [{ userId: a.id, amountMinor: 1000 }], split: { type: "adjust", entries: [{ userId: a.id, adjustMinor: 2000 }, { userId: b.id, adjustMinor: 0 }] } })),
       ).rejects.toMatchObject({ code: "adjust_sum" });
