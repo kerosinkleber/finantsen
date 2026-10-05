@@ -119,6 +119,10 @@ Use at least three people in one group so the results are interesting.
 - [ ] **Copy an expense.** Open an expense → *Copy*.
   Expected: page "Copy expense" with the same title, amount, payer and split, today's date, no Delete button. Saving creates a **new** expense; the original stays unchanged.
 
+- [ ] **Refund.** New expense "Bottle deposit" 6 €, tick *Refund*, "Received by" yourself, split equally among three people, payment method *Cash*.
+  Expected: the heading changes to "Received by"; the list shows a "Refund" badge and "Cash"; balances move the other way (you now owe each of the two others 2 € more / they owe you 2 € less). Statistics total goes **down** by 6 €. Editing the refund keeps the tick. CSV export shows type "Refund" with negative amounts.
+- [ ] **Payment method.** Set a method on some expenses. Filter *Payment method = Card*: only those expenses. Statistics tab: section "By payment method", "Average: … per expense, … per month", "Largest expenses".
+
 ### Other currencies (needs internet)
 - [ ] Create an expense in a currency different from the group's (e.g. USD in a EUR group). Expected: the exchange rate for the expense date is shown with a preview of the converted amount.
 - [ ] **Set the rate manually** (checkbox) and watch the preview change. After saving, the list shows the converted amount, balances are in the group currency, and re-opening the expense keeps the stored rate.

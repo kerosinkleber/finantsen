@@ -30,6 +30,8 @@ export type ExpenseDetail = {
   items: ItemsData | null;
   /** Gesetzt bei automatischen Buchungen aus einer wiederkehrenden Vorlage */
   recurringId: string | null;
+  isRefund: boolean;
+  paymentMethod: string | null;
   payers: { userId: string; amountMinor: number; baseAmountMinor: number }[];
   shares: { userId: string; amountMinor: number; baseAmountMinor: number; input: number | null }[];
 };
@@ -114,6 +116,8 @@ async function hydrate(rows: (typeof expenses.$inferSelect)[]): Promise<ExpenseD
     rateSource: r.rateSource,
     items: (r.items as ItemsData | null) ?? null,
     recurringId: r.recurringId,
+    isRefund: r.isRefund,
+    paymentMethod: r.paymentMethod,
     payers: (payersOf.get(r.id) ?? []).map((p) => ({ userId: p.userId, amountMinor: p.amountMinor, baseAmountMinor: p.baseAmountMinor })),
     shares: (sharesOf.get(r.id) ?? []).map((s) => ({ userId: s.userId, amountMinor: s.amountMinor, baseAmountMinor: s.baseAmountMinor, input: s.input })),
   }));
@@ -130,6 +134,7 @@ export type ExpenseFilter = {
   category?: string;
   /** Nutzer, der Zahler oder Anteilsträger sein muss */
   person?: string;
+  paymentMethod?: string;
 };
 
 export async function listExpenses(
@@ -155,6 +160,7 @@ export async function loadExpenses(groupId: string, opts: { includeDeleted?: boo
   if (f.from) conds.push(gte(expenses.date, f.from));
   if (f.to) conds.push(lte(expenses.date, f.to));
   if (f.category) conds.push(eq(expenses.category, f.category));
+  if (f.paymentMethod) conds.push(eq(expenses.paymentMethod, f.paymentMethod));
   if (f.person) {
     const db = getDb();
     conds.push(
@@ -265,6 +271,8 @@ function snapshot(e: ExpenseDetail) {
     baseAmountMinor: e.baseAmountMinor,
     rate: e.rate,
     items: e.items,
+    isRefund: e.isRefund,
+    paymentMethod: e.paymentMethod,
     payers: e.payers,
     shares: e.shares,
     deleted: e.deletedAt !== null,
@@ -296,6 +304,8 @@ export async function createExpense(
         rate: p.rate,
         rateSource: p.source,
         items: p.itemsData,
+        isRefund: !!body.isRefund,
+        paymentMethod: body.paymentMethod ?? null,
         recurringId: opts.recurringId ?? null,
         createdBy: userId,
       })
@@ -337,6 +347,8 @@ export async function updateExpense(userId: string, groupId: string, expenseId: 
         rate: p.rate,
         rateSource: p.source,
         items: p.itemsData,
+        isRefund: !!body.isRefund,
+        paymentMethod: body.paymentMethod ?? null,
         updatedAt: new Date(),
       })
       .where(eq(expenses.id, expenseId));

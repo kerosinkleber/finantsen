@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from "@/lib/schemas";
 import Link from "next/link";
 import { CATEGORIES } from "@/lib/categories";
 import type { MessageKey } from "@/i18n";
@@ -52,6 +53,15 @@ export function FilterForm({ groupId, members, currency, values, active, t }: {
               <option value="">{t("filter.any")}</option>
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>{t(`cat.${c}` as MessageKey)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="f-method">{t("pm.label").replace(/ \(.*\)$/, "")}</label>
+            <select id="f-method" name="method" className="input" defaultValue={val(values.method)}>
+              <option value="">{t("pm.any")}</option>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m}>{t(`pm.${m}` as MessageKey)}</option>
               ))}
             </select>
           </div>

@@ -124,6 +124,9 @@ export const splitSchema = z.discriminatedUnion("type", [
 ]);
 export type SplitBody = z.infer<typeof splitSchema>;
 
+export const PAYMENT_METHODS = ["cash", "card", "bank", "paypal", "other"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
 export const expenseSchema = z.object({
   title: z.string().trim().min(1).max(200),
   amountMinor: safeInt.min(1),
@@ -134,6 +137,9 @@ export const expenseSchema = z.object({
   split: splitSchema,
   /** Optionaler manueller Kurs (1 Einheit `currency` = rate Einheiten der Gruppenwährung); ersetzt den automatischen */
   rate: z.string().trim().max(40).optional(),
+  /** Rückerstattung (Geld kam zurück): „Zahler“ = wer es erhalten hat, Aufteilung = wem es zusteht */
+  isRefund: z.boolean().optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
 });
 export type ExpenseBody = z.infer<typeof expenseSchema>;
 

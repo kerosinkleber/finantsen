@@ -185,14 +185,15 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
         const e = it.e;
         const paid = e.payers.find((x) => x.userId === userId)?.baseAmountMinor ?? 0;
         const share = e.shares.find((x) => x.userId === userId)?.baseAmountMinor ?? 0;
-        const net = paid - share;
+        // Rückerstattung: Wirkung auf den Saldo umgekehrt
+        const net = e.isRefund ? share - paid : paid - share;
         const involved = paid > 0 || share > 0;
         return (
           <li key={e.id}>
             <Link href={`/groups/${groupId}/expenses/${e.id}`} className="card flex items-center justify-between gap-3 hover:border-brand" data-testid="expense-item">
               <span className="min-w-0">
-                <span className="muted">{e.date} · {t(`cat.${e.category}` as MessageKey)}</span>
-                <span className="block truncate font-medium">{e.title}{e.recurringId && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 align-middle text-xs font-normal text-sky-900" data-testid="auto-badge">{t("recurring.auto")}</span>}</span>
+                <span className="muted">{e.date} · {t(`cat.${e.category}` as MessageKey)}{e.paymentMethod && ` · ${t(`pm.${e.paymentMethod}` as MessageKey)}`}</span>
+                <span className="block truncate font-medium">{e.title}{e.isRefund && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 align-middle text-xs font-normal text-emerald-900" data-testid="refund-badge">{t("refund.badge")}</span>}{e.recurringId && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 align-middle text-xs font-normal text-sky-900" data-testid="auto-badge">{t("recurring.auto")}</span>}</span>
                 <span className="muted block">
                   {t(e.payers.length > 1 ? "group.paidByMany" : e.payers[0]?.userId === userId ? "group.paidByYou" : "group.paidBy", {
                     name: e.payers.map((p) => names.get(p.userId) ?? "?").join(", "),

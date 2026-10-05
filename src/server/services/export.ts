@@ -52,15 +52,17 @@ export async function groupCsv(userId: string, groupId: string, locale: Locale) 
   const rows: Row[] = [];
   for (const e of exps) {
     const cur = e.baseCurrency;
+    // Rückerstattung: negative Beträge, damit „bezahlt − Anteil“ je Person weiterhin den Saldo ergibt
+    const sign = e.isRefund ? -1 : 1;
     rows.push({
       date: e.date,
       cells: [
-        t("export.expense"), e.date, e.title, translate(locale, `cat.${e.category}` as never), money(e.amountMinor, e.currency), e.currency,
-        money(e.baseAmountMinor, cur), cur,
+        t(e.isRefund ? "export.refund" : "export.expense"), e.date, e.title, translate(locale, `cat.${e.category}` as never), money(sign * e.amountMinor, e.currency), e.currency,
+        money(sign * e.baseAmountMinor, cur), cur,
         ...people.flatMap((p) => {
           const paid = e.payers.find((x) => x.userId === p)?.baseAmountMinor ?? 0;
           const share = e.shares.find((x) => x.userId === p)?.baseAmountMinor ?? 0;
-          return [paid ? money(paid, cur) : "", share ? money(share, cur) : ""];
+          return [paid ? money(sign * paid, cur) : "", share ? money(sign * share, cur) : ""];
         }),
       ],
     });
@@ -116,7 +118,7 @@ export async function accountExport(userId: string) {
       expenses: exps.map((e) => ({
         id: e.id, date: e.date, title: e.title, category: e.category, amountMinor: e.amountMinor, currency: e.currency,
         baseAmountMinor: e.baseAmountMinor, baseCurrency: e.baseCurrency, rate: e.rate, rateSource: e.rateSource,
-        splitType: e.splitType, items: e.items, recurringId: e.recurringId, createdBy: e.createdBy,
+        splitType: e.splitType, items: e.items, recurringId: e.recurringId, createdBy: e.createdBy, isRefund: e.isRefund, paymentMethod: e.paymentMethod,
         payers: e.payers, shares: e.shares.map((s) => ({ userId: s.userId, amountMinor: s.amountMinor, baseAmountMinor: s.baseAmountMinor })),
       })),
       payments: pays.map((p) => ({ id: p.id, date: p.date, fromUser: p.fromUser, toUser: p.toUser, amountMinor: p.amountMinor, currency: p.currency, note: p.note })),

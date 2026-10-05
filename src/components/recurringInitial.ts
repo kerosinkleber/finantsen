@@ -6,6 +6,8 @@ type Template = {
   amountMinor: number;
   currency: string;
   category: string;
+  isRefund?: boolean;
+  paymentMethod?: string | null;
   payers: { userId: string; amountMinor: number }[];
   split:
     | { type: "equal"; participants: string[] }
@@ -44,6 +46,8 @@ export function templateToInitial(id: string, startDate: string, t: Template): E
     baseCurrency: t.currency,
     rate: "1",
     rateSource: "same",
+    isRefund: t.isRefund ?? false,
+    paymentMethod: t.paymentMethod ?? null,
     items: s.type === "items" ? { items: s.items, taxMinor: s.taxMinor, tipMinor: s.tipMinor } : null,
   };
 }

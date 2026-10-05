@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **Rückerstattung, Zahlungsart, mehr Statistik** (Fragebogen 8): Rückerstattungen wirken umgekehrt auf Salden und mindern die Statistik; Zahlungsart mit Filter; Durchschnitte, Zahlungsarten, größte Ausgaben.
 - **Import** (Fragebogen 8): Splitwise, Tricount, eigener Finantsen-Export und einfaches CSV; Vorschau, Personen zuordnen (unbekannte → Gäste), kein Doppelimport.
 - **Rechner im Betragsfeld und „Ausgabe kopieren“** (Fragebogen 8).
 - **Erinnern-Knopf** (Fragebogen 8): Gläubiger erinnern Schuldner (In-App, Push, E-Mail), höchstens einmal pro Tag.

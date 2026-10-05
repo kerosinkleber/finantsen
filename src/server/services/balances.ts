@@ -25,11 +25,11 @@ export async function netBalancesSql(groupIds: string[]): Promise<Map<string, Ba
   const ids = sql`${sql.param(groupIds)}::uuid[]`;
   const rows = (await getDb().execute(sql`
     select group_id, currency, user_id, sum(amount)::text as amount from (
-      select e.group_id, e.base_currency as currency, p.user_id, p.base_amount_minor as amount
+      select e.group_id, e.base_currency as currency, p.user_id, case when e.is_refund then -p.base_amount_minor else p.base_amount_minor end as amount
         from expense_payers p join expenses e on e.id = p.expense_id
         where e.group_id = any(${ids}) and e.deleted_at is null
       union all
-      select e.group_id, e.base_currency, s.user_id, -s.base_amount_minor
+      select e.group_id, e.base_currency, s.user_id, case when e.is_refund then s.base_amount_minor else -s.base_amount_minor end
         from expense_shares s join expenses e on e.id = s.expense_id
         where e.group_id = any(${ids}) and e.deleted_at is null
       union all
@@ -68,12 +68,13 @@ export async function groupBalances(groupId: string): Promise<GroupBalances> {
 /** Vollständiger Weg über alle Ausgaben (nötig für paarweise Schulden ohne Vereinfachung). */
 export async function groupBalancesFull(groupId: string, simplified: boolean): Promise<GroupBalances> {
   const [exps, pays] = await Promise.all([loadExpenses(groupId), loadPayments(groupId)]);
-  const expLike = exps.map((e) => ({
+  const expLike = exps.map((e) => {
     // Salden werden in der Abrechnungswährung der Ausgabe geführt (umgerechnet beim Buchen)
-    currency: e.baseCurrency,
-    payers: e.payers.map((p) => ({ userId: p.userId, amount: p.baseAmountMinor })),
-    shares: e.shares.map((s) => ({ userId: s.userId, amount: s.baseAmountMinor })),
-  }));
+    const payers = e.payers.map((p) => ({ userId: p.userId, amount: p.baseAmountMinor }));
+    const shares = e.shares.map((s) => ({ userId: s.userId, amount: s.baseAmountMinor }));
+    // Rückerstattung wirkt umgekehrt: wer das Geld erhalten hat, schuldet es denen, denen es zusteht
+    return e.isRefund ? { currency: e.baseCurrency, payers: shares, shares: payers } : { currency: e.baseCurrency, payers, shares };
+  });
   const payLike = pays.map((p) => ({ currency: p.currency, fromUser: p.fromUser, toUser: p.toUser, amount: p.amountMinor }));
   const net = computeBalances(expLike, payLike);
   const transfers = simplified ? simplifiedTransfers(net) : pairwiseDebts(expLike, payLike);

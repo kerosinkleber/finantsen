@@ -1320,3 +1320,30 @@ test("import a CSV: preview, match people, import once", async ({ page }) => {
   await page.goto(`/groups/${gid}?tab=members`);
   await expect(page.getByText(/Zed/).first()).toBeVisible();
 });
+
+test("refund and payment method: refund lowers what others owe, badge, filter and statistics", async ({ page }) => {
+  await login(page, "anna@example.com");
+  const groups = await (await page.request.get("/api/groups")).json();
+  const gid = groups.groups.find((g: { name: string }) => g.name === "Pay test").id;
+  await page.goto(`/groups/${gid}?tab=balances`);
+  await expect(page.getByTestId("transfers-EUR")).toContainText("€58.00");
+  await page.goto(`/groups/${gid}/expenses/new`);
+  await page.getByLabel("Title").fill("Bottle deposit");
+  await page.getByLabel("Amount").fill("4");
+  await page.getByTestId("refund").check();
+  await expect(page.getByRole("heading", { name: "Received by" })).toBeVisible();
+  await page.getByLabel("Payment method (optional)").selectOption("cash");
+  await page.getByRole("checkbox", { name: "Zed" }).uncheck(); // nur Anna und Ben steht das Pfand zu
+  await page.getByRole("button", { name: "Save" }).click();
+  const item = page.getByTestId("expense-item").filter({ hasText: "Bottle deposit" });
+  await expect(item.getByTestId("refund-badge")).toHaveText("Refund");
+  await expect(item).toContainText("Cash");
+  await page.goto(`/groups/${gid}?tab=balances`);
+  await expect(page.getByTestId("transfers-EUR")).toContainText("€56.00");
+  await page.goto(`/groups/${gid}?method=cash`);
+  await expect(page.getByTestId("expense-item")).toHaveCount(1);
+  await page.goto(`/groups/${gid}?tab=stats`);
+  await expect(page.getByTestId("stats-method")).toContainText("Cash");
+  await expect(page.getByTestId("stats-avg")).toContainText("per expense");
+  await expect(page.getByTestId("stats-top")).toBeVisible();
+});

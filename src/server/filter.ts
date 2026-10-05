@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from "@/lib/schemas";
 import { CATEGORIES } from "@/lib/categories";
 import { isValidCurrency, parseAmount } from "@/lib/money";
 import type { ExpenseFilter } from "./services/expenses";
@@ -30,6 +31,8 @@ export function parseExpenseFilter(raw: Raw, fallbackCurrency: string): { filter
   if (isDate(to)) filter.to = to;
   const cat = one(raw.category);
   if (cat && (CATEGORIES as readonly string[]).includes(cat)) filter.category = cat;
+  const method = one(raw.method);
+  if (method && (PAYMENT_METHODS as readonly string[]).includes(method)) filter.paymentMethod = method;
   const person = one(raw.person);
   if (person && /^[0-9a-f-]{36}$/i.test(person)) filter.person = person;
   return { filter, active: Object.keys(filter).length > 0 };

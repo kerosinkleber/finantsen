@@ -9,7 +9,7 @@ import { minorUnits } from "./money/currency";
 export type ImportFormat = "finantsen" | "splitwise" | "tricount" | "simple";
 export type ImportPart = { name: string; amountMinor: number };
 export type ImportEntry =
-  | { kind: "expense"; line: number; date: string; title: string; category: string | null; currency: string; amountMinor: number; payers: ImportPart[]; shares: ImportPart[] }
+  | { kind: "expense"; line: number; date: string; title: string; category: string | null; currency: string; amountMinor: number; payers: ImportPart[]; shares: ImportPart[]; isRefund?: boolean }
   | { kind: "payment"; line: number; date: string; title: string; currency: string; amountMinor: number; from: string; to: string };
 export type ImportError = { line: number; code: string };
 export type ParsedImport = { format: ImportFormat; people: string[]; entries: ImportEntry[]; errors: ImportError[] };
@@ -232,9 +232,12 @@ export function parseImport(text: string): ParsedImport | { error: "unknown_form
       // Unser eigener Export (de oder en): Art, Datum, Titel, Kategorie, Betrag, Währung, Betrag (Abrechnung), Abrechnungswährung, je Person „bezahlt“/„Anteil“
       const kind = norm(cell(0));
       if (kind === "saldo" || kind === "balance") return;
+      const refund = kind === "rückerstattung" || kind === "refund";
+      const sign = refund ? -1 : 1;
       const currency = cell(7).toUpperCase();
       const date = parseDate(cell(1));
-      const total = parseDecimal(cell(6), currency);
+      const rawTotal = parseDecimal(cell(6), currency);
+      const total = rawTotal === null ? null : sign * rawTotal;
       if (!date || !/^[A-Z]{3}$/.test(currency) || total === null) return errors.push({ line, code: "invalid_row" });
       const payers: ImportPart[] = [];
       const shares: ImportPart[] = [];
@@ -245,13 +248,13 @@ export function parseImport(text: string): ParsedImport | { error: "unknown_form
         const v = parseDecimal(cell(i), currency);
         if (v === null) bad = true;
         const name = cleanName(m[1].replace(/ \((Test|Gast|Guest)\)$/, ""));
-        (/^(bezahlt|paid)$/i.test(m[2]) ? payers : shares).push({ name, amountMinor: v ?? 0 });
+        (/^(bezahlt|paid)$/i.test(m[2]) ? payers : shares).push({ name, amountMinor: sign * (v ?? 0) });
       });
       if (bad) return errors.push({ line, code: "invalid_amount" });
       if (kind === "zahlung" || kind === "payment") {
         return addPayment({ kind: "payment", line, date, title: cell(2), currency, amountMinor: total, from: payers.find((p) => p.amountMinor > 0)?.name ?? "", to: shares.find((p) => p.amountMinor > 0)?.name ?? "" });
       }
-      return addExpense({ kind: "expense", line, date, title: cell(2), category: cell(3) || null, currency, amountMinor: total, payers, shares });
+      return addExpense({ kind: "expense", line, date, title: cell(2), category: cell(3) || null, currency, amountMinor: total, payers, shares, isRefund: refund || undefined });
     }
     // Einfaches Format: date, title, amount, currency, paid_by, split_between (Namen mit | getrennt), optional category
     const currency = cell(col("currency")).toUpperCase();

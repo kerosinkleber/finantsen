@@ -1780,4 +1780,34 @@ d("services (PostgreSQL)", () => {
       expect(net2[a.id]).toBe(net1[a.id]);
     });
   });
+
+  describe("Rückerstattung, Zahlungsart, Statistik", () => {
+    it("Rückerstattung wirkt umgekehrt (SQL und vollständig gleich), mindert die Statistik, Export/Import behalten sie", async () => {
+      const { a, b, c, g } = await setup();
+      await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 3000, paymentMethod: "card", payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      // Ben bekommt 6 € Pfand zurück, das allen dreien zusteht → Ben schuldet je 2 €
+      const r = await svc.expenses.createExpense(b.id, g.id, base({ title: "Pfand", amountMinor: 600, isRefund: true, paymentMethod: "cash", payers: [{ userId: b.id, amountMinor: 600 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      expect(r).toMatchObject({ isRefund: true, paymentMethod: "cash" });
+      const fast = await svc.balances.groupBalances(g.id);
+      expect(fast).toEqual(await svc.balances.groupBalancesFull(g.id, true));
+      // a: +2000 (Pizza) + 200 (Pfand) ; b: −1000 − 400 ; c: −1000 + 200
+      expect(fast.net.EUR).toEqual({ [a.id]: 2200, [b.id]: -1400, [c.id]: -800 });
+      const st = (await svc.stats.getGroupStats(a.id, g.id)).EUR;
+      expect(st.total).toBe(2400);
+      expect(st.byMethod).toEqual([{ method: "card", total: 3000 }, { method: "cash", total: -600 }]);
+      expect(st.avgPerExpense).toBe(1200);
+      expect(st.top[0]).toMatchObject({ title: "Pizza", amount: 3000 });
+      // Filter nach Zahlungsart
+      expect((await svc.expenses.listExpenses(a.id, g.id, { filter: { paymentMethod: "cash" } })).map((e) => e.title)).toEqual(["Pfand"]);
+      // Export → Import in neue Gruppe: gleiche Salden
+      const { csv } = await svc.exporter.groupCsv(a.id, g.id, "en");
+      expect(csv).toContain("Refund");
+      const g2 = await svc.groups.createGroup(a.id, { name: "Kopie", defaultCurrency: "EUR" });
+      const pv = await svc.importer.previewImport(a.id, g2.id, csv);
+      const imp = await svc.importer.runImport(a.id, g2.id, csv, Object.fromEntries(pv.people.map((p) => [p.name, p.suggestion])));
+      expect(imp.failed).toEqual([]);
+      const net2 = (await svc.balances.groupBalances(g2.id)).net.EUR;
+      expect(Object.values(net2).sort((x, y) => x - y)).toEqual([-1400, -800, 2200]);
+    });
+  });
 });

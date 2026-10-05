@@ -138,6 +138,7 @@ async function bookExpense(userId: string, groupId: string, e: Extract<ImportEnt
       category: matchCategory(e.category),
       payers: merge(e.payers, idOf),
       split: { type: "exact", entries: merge(e.shares, idOf) },
+      isRefund: e.isRefund,
     },
     null,
     { silent: true },

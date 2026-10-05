@@ -72,6 +72,7 @@ export async function StatsTab({ groupId, userId, names, locale, t, sp }: {
           <section className="card" data-testid="stats-total">
             <p className="muted">{t("stats.total")} · {t("stats.count", { count: s.count })}</p>
             <p className="text-2xl font-semibold tabular-nums">{fmt(s.total)}</p>
+            <p className="muted mt-1" data-testid="stats-avg">{t("stats.avg", { perExpense: fmt(s.avgPerExpense), perMonth: fmt(s.avgPerMonth) })}</p>
           </section>
           <section className="card flex flex-col gap-3" data-testid="stats-category">
             <h2 className="font-semibold">{t("stats.byCategory")}</h2>
@@ -89,6 +90,29 @@ export async function StatsTab({ groupId, userId, names, locale, t, sp }: {
               ))}
             </ul>
           </section>
+          {s.byMethod.some((m) => m.method !== "none") && (
+            <section className="card flex flex-col gap-3" data-testid="stats-method">
+              <h2 className="font-semibold">{t("stats.byMethod")}</h2>
+              <ul className="flex flex-col gap-3">
+                {s.byMethod.map((m) => (
+                  <Bar key={m.method} label={t(`pm.${m.method}` as MessageKey)} value={m.total} max={s.byMethod[0].total} text={fmt(m.total)} />
+                ))}
+              </ul>
+            </section>
+          )}
+          {s.top.length > 0 && (
+            <section className="card flex flex-col gap-2" data-testid="stats-top">
+              <h2 className="font-semibold">{t("stats.top")}</h2>
+              <ol className="flex flex-col gap-1 text-sm">
+                {s.top.map((x, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span className="truncate">{x.title} <span className="muted">· {x.date}</span></span>
+                    <span className="tabular-nums">{fmt(x.amount)}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           <section className="card flex flex-col gap-3" data-testid="stats-person">
             <h2 className="font-semibold">{t("stats.byPerson")}</h2>
             <ul className="flex flex-col gap-4">

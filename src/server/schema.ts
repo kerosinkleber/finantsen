@@ -212,6 +212,10 @@ export const expenses = pgTable(
     /** Einzelposten bei splitType "items": { items: [{ name, amountMinor, participants }], taxMinor, tipMinor } */
     items: jsonb("items"),
     /** Gesetzt, wenn die Ausgabe automatisch aus einer wiederkehrenden Vorlage entstanden ist */
+    /** Rückerstattung: Geld kam zurück (Zahler = Empfänger, Anteile = wem es zusteht); Salden wirken umgekehrt */
+    isRefund: boolean("is_refund").notNull().default(false),
+    /** Zahlungsart (optional): cash | card | bank | paypal | other */
+    paymentMethod: varchar("payment_method", { length: 10 }),
     recurringId: uuid("recurring_id"),
     createdBy: uuid("created_by")
       .notNull()

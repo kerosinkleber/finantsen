@@ -13,7 +13,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { formatMoney, localDecimal, minorUnits, normalizeRate, parseAmount, toInputString } from "@/lib/money";
 import { evaluateAmount, isExpression } from "@/lib/money/calc";
 import type { MessageKey } from "@/i18n";
-import type { DefaultSplit } from "@/lib/schemas";
+import { PAYMENT_METHODS, type DefaultSplit } from "@/lib/schemas";
 import { dueOccurrences, UNITS, type Unit } from "@/lib/recurrence";
 
 type Member = { id: string; name: string };
@@ -33,6 +33,8 @@ export type ExpenseInitial = {
   rate: string;
   rateSource: string;
   items: { items: { name: string; amountMinor: number; participants: string[] }[]; taxMinor: number; tipMinor: number } | null;
+  isRefund?: boolean;
+  paymentMethod?: string | null;
 };
 
 const SPLITS: SplitType[] = ["equal", "adjust", "percent", "exact", "shares", "items", "full"];
@@ -66,6 +68,8 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   const [amount, setAmount] = useState(initial ? toInputString(initial.amountMinor, initial.currency, locale) : "");
   const [date, setDate] = useState(initial && !copy ? initial.date : new Date().toISOString().slice(0, 10));
   const [calcMode, setCalcMode] = useState(false);
+  const [isRefund, setIsRefund] = useState(initial?.isRefund ?? false);
+  const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "");
   const [category, setCategory] = useState(initial?.category ?? "other");
   const [unit, setUnit] = useState<Unit>(recurring?.unit ?? "month");
   const [every, setEvery] = useState(String(recurring?.every ?? 1));
@@ -207,9 +211,9 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
     if (recurring) {
       const n = Number(every);
       if (!Number.isInteger(n) || n < 1 || n > 365) throw new ApiClientError(400, "validation");
-      return { title, amountMinor: total, currency, category, payers, split, unit, every: n, startDate: date, endDate: endDate || null, paused };
+      return { title, amountMinor: total, currency, category, payers, split, unit, every: n, startDate: date, endDate: endDate || null, paused, isRefund, paymentMethod: paymentMethod || null };
     }
-    return { title, amountMinor: total, currency, date, category, payers, split, rate };
+    return { title, amountMinor: total, currency, date, category, payers, split, rate, isRefund, paymentMethod: paymentMethod || null };
   }
 
   // Sperre gegen Mehrfach-Absenden: greift sofort, nicht erst nach dem nächsten Rendern (wie `busy`)
@@ -337,6 +341,19 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
             </select>
           </div>
         </div>
+        <div>
+          <label className="label" htmlFor="payment-method">{t("pm.label")}</label>
+          <select id="payment-method" className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            <option value="">{t("pm.none")}</option>
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>{t(`pm.${m}` as MessageKey)}</option>
+            ))}
+          </select>
+        </div>
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input type="checkbox" className="h-5 w-5" checked={isRefund} onChange={(e) => setIsRefund(e.target.checked)} data-testid="refund" />
+          {t("refund.label")}
+        </label>
         {recurring && (
           <div className="flex flex-col gap-3" data-testid="schedule">
             <div>
@@ -369,9 +386,9 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
       />}
 
       <fieldset className="card flex flex-col gap-3">
-        <legend className="sr-only">{t("expense.paidBy")}</legend>
+        <legend className="sr-only">{t(isRefund ? "refund.receivedBy" : "expense.paidBy")}</legend>
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">{t("expense.paidBy")}</h2>
+          <h2 className="font-semibold">{t(isRefund ? "refund.receivedBy" : "expense.paidBy")}</h2>
           <label className="flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" className="h-5 w-5" checked={multi} onChange={(e) => setMulti(e.target.checked)} />
             {t("expense.multiplePayers")}

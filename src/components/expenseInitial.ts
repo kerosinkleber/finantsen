@@ -17,5 +17,7 @@ export function expenseToInitial(expense: ExpenseDetail): ExpenseInitial {
     rate: expense.rate,
     rateSource: expense.rateSource,
     items: expense.items,
+    isRefund: expense.isRefund,
+    paymentMethod: expense.paymentMethod,
   };
 }
