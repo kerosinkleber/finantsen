@@ -2,6 +2,8 @@ import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
 import Link from "next/link";
 import { PushToggle } from "@/components/PushToggle";
+import { InsecureInfo } from "@/components/InsecureInfo";
+import { InstallHint } from "@/components/InstallHint";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { EmailSettings } from "@/components/EmailSettings";
 import { getEmailPrefs } from "@/server/services/accounts";
@@ -26,11 +28,12 @@ export default async function SettingsPage() {
       {!user.impersonating && <Link href="/two-factor" className="btn-secondary" data-testid="two-factor-link">{t("totp.link")}</Link>}
       {user.isAdmin && <Link href="/admin/users" className="btn-secondary" data-testid="admin-link">{t("admin.usersLink")}</Link>}
       <a href="/api/account/export" download className="btn-secondary" data-testid="export-account">{t("export.account")}</a>
+      <InsecureInfo />
       <PushToggle />
       {emailPrefs && <EmailSettings initial={emailPrefs} />}
       {payInfo && emailPrefs && <PaymentSettings initial={payInfo} hasPassword={emailPrefs.hasPassword} />}
       <SettingsPanel />
-      <p className="muted">{t("settings.install")}</p>
+      <InstallHint />
     </>
   );
 }

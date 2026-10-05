@@ -6,6 +6,8 @@ import Link from "next/link";
 import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
+import { InsecureNote } from "./InsecureNote";
+import { useSecureContext } from "@/lib/use-secure";
 import { startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 
 type Account = { id: string; name: string; username: string; createdAt: string };
@@ -23,6 +25,7 @@ export function LoginForm({
   passwordReset?: boolean;
 }) {
   const { t, locale } = useI18n();
+  const secure = useSecureContext();
   const router = useRouter();
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -162,8 +165,15 @@ export function LoginForm({
       )}
       <ErrorMessage error={error} />
       <button className="btn" disabled={busy}>{t("auth.login")}</button>
-      {typeof window !== "undefined" && browserSupportsWebAuthn() && (
-        <button type="button" className="btn-secondary" disabled={busy} data-testid="passkey-login" onClick={(e) => passkeyLogin(e.currentTarget.form)}>{t("passkey.login")}</button>
+      {secure === false ? (
+        <>
+          <button type="button" className="btn-secondary" disabled data-testid="passkey-login">{t("passkey.login")}</button>
+          <InsecureNote k="insecure.passkey" />
+        </>
+      ) : (
+        typeof window !== "undefined" && browserSupportsWebAuthn() && (
+          <button type="button" className="btn-secondary" disabled={busy} data-testid="passkey-login" onClick={(e) => passkeyLogin(e.currentTarget.form)}>{t("passkey.login")}</button>
+        )
       )}
       {passwordReset && (
         <p className="text-center">

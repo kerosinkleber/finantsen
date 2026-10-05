@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/i18n/client";
 import { appPathFromScan } from "@/lib/qr-link";
+import { useSecureContext } from "@/lib/use-secure";
+import { InsecureNote } from "./InsecureNote";
 
 type Detector = { detect(source: CanvasImageSource): Promise<{ rawValue: string }[]> };
 declare global {
@@ -20,7 +22,8 @@ export function QrScanner() {
   const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<"idle" | "starting" | "scanning" | "no-camera">("idle");
+  const [status, setStatus] = useState<"idle" | "starting" | "scanning" | "no-camera" | "insecure">("idle");
+  const secure = useSecureContext();
   const [foreign, setForeign] = useState<string | null>(null);
   const [pasted, setPasted] = useState("");
   const [pasteError, setPasteError] = useState(false);
@@ -43,6 +46,8 @@ export function QrScanner() {
     }
 
     async function start() {
+      // Ohne HTTPS gibt der Browser keine Kamera frei: gleich den Hinweis zeigen, Einfügen geht weiter
+      if (!window.isSecureContext) return setStatus("insecure");
       setStatus("starting");
       if (!navigator.mediaDevices?.getUserMedia) return setStatus("no-camera");
       try {
@@ -99,9 +104,12 @@ export function QrScanner() {
 
   if (!open)
     return (
-      <button type="button" className="btn-secondary" onClick={() => { setOpen(true); setForeign(null); }} data-testid="qr-scan-open">
-        {t("qrscan.open")}
-      </button>
+      <>
+        <button type="button" className={`btn-secondary ${secure === false ? "opacity-60" : ""}`} onClick={() => { setOpen(true); setForeign(null); }} data-testid="qr-scan-open">
+          {t("qrscan.open")}
+        </button>
+        {secure === false && <InsecureNote k="insecure.camera" />}
+      </>
     );
 
   return (
@@ -110,7 +118,9 @@ export function QrScanner() {
         <h2 className="font-semibold">{t("qrscan.title")}</h2>
         <button type="button" className="btn-secondary !min-h-9 !px-3" onClick={() => setOpen(false)}>{t("common.close")}</button>
       </div>
-      {status !== "no-camera" ? (
+      {status === "insecure" ? (
+        <InsecureNote k="insecure.camera" />
+      ) : status !== "no-camera" ? (
         <>
           <video ref={video} className="aspect-square w-full rounded-lg bg-black object-cover" muted playsInline data-testid="qr-video" />
           <p className="muted text-sm">{status === "scanning" ? t("qrscan.hint") : t("qrscan.starting")}</p>

@@ -1397,3 +1397,103 @@ test("receipt photo: attach to an expense, visible to members, served as image, 
   await page.getByTestId("confirm-yes").click();
   await expect(box.getByTestId("attachment")).toHaveCount(0);
 });
+
+test("group list pages: 50 entries per page, newer/older, switch to 100 per page", async ({ page }) => {
+  await login(page, "anna");
+  const me = await (await page.request.get("/api/auth/me")).json();
+  const { group } = await (await page.request.post("/api/groups", { data: { name: "Paging", defaultCurrency: "EUR" } })).json();
+  for (let i = 1; i <= 55; i++) {
+    const d = `2026-01-${String(1 + (i % 28)).padStart(2, "0")}`;
+    const r = await page.request.post(`/api/groups/${group.id}/expenses`, {
+      data: { title: `P${i}`, amountMinor: 100 * i, currency: "EUR", date: d, category: "groceries", payers: [{ userId: me.user.id, amountMinor: 100 * i }], split: { type: "equal", participants: [me.user.id] } },
+    });
+    expect(r.status()).toBe(200);
+  }
+  await page.goto(`/groups/${group.id}`);
+  await expect(page.getByTestId("expense-item")).toHaveCount(50);
+  await expect(page.getByTestId("page-info")).toHaveText("Page 1 of 2");
+  await expect(page.getByTestId("page-newer")).toHaveCount(0);
+  const firstPage = await page.getByTestId("expense-item").allInnerTexts();
+  await page.getByTestId("page-older").click();
+  await expect(page.getByTestId("page-info")).toHaveText("Page 2 of 2");
+  await expect(page.getByTestId("expense-item")).toHaveCount(5);
+  const secondPage = await page.getByTestId("expense-item").allInnerTexts();
+  expect(new Set([...firstPage, ...secondPage]).size).toBe(55); // nichts doppelt, nichts fehlt
+  await page.getByTestId("page-newer").click();
+  await expect(page.getByTestId("page-info")).toHaveText("Page 1 of 2");
+  await page.getByTestId("page-size").click();
+  await expect(page.getByTestId("expense-item")).toHaveCount(55);
+  await expect(page.getByTestId("page-info")).toHaveCount(0);
+  await expect(page.getByTestId("page-size")).toHaveText("Show 50 entries per page");
+  await page.goto(`/groups/${group.id}?page=999`);
+  await expect(page.getByTestId("page-info")).toHaveText("Page 2 of 2");
+});
+
+test("admin warning for test features and test users: switch off and delete all", async ({ page }) => {
+  await login(page, "anna");
+  await page.goto("/admin/users");
+  const warn = page.getByTestId("test-leftovers");
+  await expect(warn).toBeVisible();
+  await expect(page.getByTestId("insecure-info-admin")).toHaveCount(0); // localhost gilt als sicher
+  page.once("dialog", (d) => void d.accept());
+  await warn.getByTestId("test-leftovers-delete").click();
+  // Testnutzer mit Daten in echten Gruppen bleiben stehen und werden genannt, die übrigen sind weg
+  await expect(warn.getByTestId("test-leftovers-delete")).toBeEnabled();
+  await warn.getByTestId("test-leftovers-disable").click();
+  await expect(warn.getByTestId("test-leftovers-disable")).toHaveCount(0);
+  await expect(page.getByTestId("admin-settings").getByLabel("Test features")).not.toBeChecked();
+  const remaining = await page.getByTestId("test-leftovers").count();
+  if (remaining > 0) await expect(page.getByTestId("test-leftovers-count")).toBeVisible();
+  // wieder an für spätere Läufe
+  await page.getByTestId("admin-settings").getByLabel("Test features").check();
+  await expect(page.getByTestId("admin-settings").getByRole("status")).toBeVisible();
+});
+
+test("without HTTPS (plain http on a LAN name): camera, passkeys and push are greyed out with a hint, the rest works", async ({ browser, page, baseURL }) => {
+  // Browser behandeln localhost als sicher; über einen anderen Namen ist http unsicher wie im Heimnetz
+  const port = new URL(baseURL!).port;
+  const launch = browser.browserType();
+  const insecure = await launch.launch({
+    args: ["--host-resolver-rules=MAP finantsen.test 127.0.0.1"],
+    ...(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {}),
+  });
+  try {
+    const ctx = await insecure.newContext({ baseURL: `http://finantsen.test:${port}`, locale: "en-US" });
+    const p = await ctx.newPage();
+    await p.goto("/login");
+    expect(await p.evaluate(() => window.isSecureContext)).toBe(false);
+    await expect(p.getByTestId("passkey-login")).toBeDisabled();
+    await expect(p.getByTestId("insecure-note")).toContainText("HTTPS");
+    await p.getByLabel("Username or email").fill("anna");
+    await p.getByLabel("Password").fill(PASSWORD);
+    await p.getByRole("button", { name: "Sign in" }).click();
+    await expect(p).toHaveURL(/\/$/);
+    // QR: Knopf ausgegraut mit Hinweis, Einfügen geht weiter
+    await expect(p.getByTestId("insecure-note")).toBeVisible();
+    await p.getByTestId("qr-scan-open").click();
+    await expect(p.getByTestId("qr-scanner").getByTestId("insecure-note")).toBeVisible();
+    await expect(p.getByTestId("qr-video")).toHaveCount(0);
+    await expect(p.getByLabel("Or paste an invitation link")).toBeVisible();
+    // Einstellungen: Übersicht und Push aus
+    await p.goto("/settings");
+    await expect(p.getByTestId("insecure-info")).toContainText("Offline mode");
+    await expect(p.getByTestId("push").getByTestId("push-enable")).toBeDisabled();
+    await expect(p.getByTestId("push").getByTestId("insecure-note")).toBeVisible();
+    // Passkeys
+    await p.goto("/two-factor");
+    await expect(p.getByTestId("passkeys").getByTestId("passkey-add")).toBeDisabled();
+    // Admin sieht die Erklärung, wie man es ändert
+    await p.goto("/admin/users");
+    await expect(p.getByTestId("insecure-info-admin")).toContainText("https://");
+    // normales Arbeiten geht (Formular-POST mit Origin-Prüfung über den anderen Namen)
+    const status = await p.evaluate(async () => (await fetch("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Über http", defaultCurrency: "EUR" }) })).status);
+    expect(status).toBe(200);
+    await ctx.close();
+  } finally {
+    await insecure.close();
+  }
+  // Gegenprobe über localhost: keine Hinweise
+  await login(page, "anna");
+  await page.goto("/settings");
+  await expect(page.getByTestId("insecure-info")).toHaveCount(0);
+});

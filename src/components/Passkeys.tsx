@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
+import { InsecureNote } from "./InsecureNote";
+import { useSecureContext } from "@/lib/use-secure";
 
 type Item = { id: string; name: string; createdAt: string; lastUsedAt: string | null };
 
@@ -17,6 +19,7 @@ export function Passkeys({ initial, forced }: { initial: Item[]; forced: boolean
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const secure = useSecureContext();
   const supported = typeof window !== "undefined" && browserSupportsWebAuthn();
 
   const reload = async () => setItems((await api<{ passkeys: Item[] }>("GET", "/api/auth/passkeys")).passkeys);
@@ -85,7 +88,12 @@ export function Passkeys({ initial, forced }: { initial: Item[]; forced: boolean
           ))}
         </ul>
       )}
-      {!supported ? (
+      {secure === false ? (
+        <>
+          <button className="btn-secondary" disabled data-testid="passkey-add">{t("passkey.add")}</button>
+          <InsecureNote k="insecure.passkey" />
+        </>
+      ) : !supported ? (
         <p className="muted">{t("passkey.unsupported")}</p>
       ) : open ? (
         <form onSubmit={add} className="flex flex-col gap-2">

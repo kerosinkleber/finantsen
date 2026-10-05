@@ -30,7 +30,7 @@ export function TestLeftoversWarning({ enabled, testUsers }: { enabled: boolean;
     }
     setBusy(false);
   }
-  const disable = () => run(async () => void (await api("PUT", "/api/admin/settings", { testFeaturesEnabled: false })));
+  const disable = () => run(async () => void (await api("PATCH", "/api/admin/settings", { testFeaturesEnabled: false })));
   const removeAll = () => {
     if (!window.confirm(t("testWarn.confirmDelete", { n: testUsers }))) return;
     return run(async () => setBlocked((await api<{ deleted: string[]; blocked: Blocked[] }>("DELETE", "/api/admin/test-users")).blocked));

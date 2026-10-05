@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
+import { InsecureNote } from "./InsecureNote";
 
-type State = "loading" | "server-off" | "unsupported" | "denied" | "off" | "on";
+type State = "loading" | "insecure" | "server-off" | "unsupported" | "denied" | "off" | "on";
 
 function urlBase64ToUint8Array(b64: string) {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
@@ -19,6 +20,8 @@ export function PushToggle() {
 
   useEffect(() => {
     (async () => {
+      // Ohne HTTPS gibt es weder Service Worker noch Push im Browser
+      if (!window.isSecureContext) return setState("insecure");
       try {
         const cfg = await api<{ enabled: boolean; publicKey: string | null }>("GET", "/api/push");
         if (!cfg.enabled || !cfg.publicKey) return setState("server-off");
@@ -57,6 +60,12 @@ export function PushToggle() {
   return (
     <div className="card flex flex-col gap-2" data-testid="push">
       <h2 className="font-semibold">{t("notif.push")}</h2>
+      {state === "insecure" && (
+        <>
+          <button className="btn-secondary" disabled data-testid="push-enable">{t("notif.pushEnable")}</button>
+          <InsecureNote k="insecure.push" />
+        </>
+      )}
       {state === "server-off" && <p className="muted">{t("notif.pushUnavailable")}</p>}
       {state === "unsupported" && <p className="muted">{t("notif.pushUnsupported")}</p>}
       {state === "denied" && <p className="muted">{t("notif.pushDenied")}</p>}
