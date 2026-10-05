@@ -72,6 +72,17 @@ Create people first, you need at least two accounts to test sharing.
 - [ ] **Delete group** (owner only). Expected: asks for confirmation, everything in it is gone.
 - [ ] **Archive a group** (group → *Members* → *Archive group (just for me)*). Expected: on the overview the group moves into a collapsible "Archive (n)" box at the bottom; other members still see it normally; your balance still counts in the totals. *Restore from archive* brings it back.
 
+### Import (group owner)
+- [ ] Group → *Members* → **Import expenses (CSV)**. Create a small file in a text editor and save it as `test.csv`:
+  ```
+  date,title,amount,currency,paid_by,split_between,category
+  2026-03-01,Museum,24.00,EUR,<your name>,<your name>|Zed,entertainment
+  2026-03-02,Broken,abc,EUR,<your name>,<your name>,
+  ```
+  Expected: preview "simple format. 1 expenses, 0 payments", "1 rows will be skipped" (line 3, amount unreadable). Your name is matched to you, "Zed" to "New member without an account". After *Import*, the expense appears, Zed is a guest member, nobody got a notification per imported entry. Importing the same file again → "already been imported".
+- [ ] If you have a **Splitwise** or **Tricount** account, export a group as CSV there and import it. Expected: same balances per person as in the source app. Please report the file format (first line) if it is not recognised.
+- [ ] Export a group (*Export as CSV*), create a new group and import that file. Expected: format "Finantsen export", balances identical. Only the group owner sees the import link.
+
 ### Members without an account (guests)
 - [ ] Group → *Members* → **Members without an account** → enter a name (e.g. `qa-grandma`) → *Add guest*. Expected: the guest appears with "(guest)" behind the name everywhere (member list, expense form, balances).
 - [ ] Use the guest in an expense as **payer** and as **participant**. Balances include the guest. The guest never gets notifications.

@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -36,8 +36,9 @@ d("services (PostgreSQL)", () => {
       import("./export"),
       import("./payinfo"),
       import("./reminders"),
+      import("./import"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer };
   }
 
   beforeAll(async () => {
@@ -1723,6 +1724,60 @@ d("services (PostgreSQL)", () => {
       const guest = await svc.guests.addGuest(a.id, g.id, "Gast");
       await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 500, payers: [{ userId: a.id, amountMinor: 500 }], split: { type: "full", owner: guest.id } }));
       await expect(svc.reminders.remind(a.id, g.id, guest.id)).rejects.toMatchObject({ code: "cannot_remind_guest" });
+    });
+  });
+
+  describe("Import", () => {
+    const SPLITWISE = [
+      "Date,Description,Category,Cost,Currency,Anna,Bob Extern,Cleo",
+      "2024-01-15,Groceries,Groceries,30.00,EUR,20.00,-10.00,-10.00",
+      "2024-01-16,Bob paid Anna,Payment,10.00,EUR,-10.00,10.00,0.00",
+      "2024-01-20,Total balance, , ,EUR,10.00,0.00,-10.00",
+    ].join("\n");
+
+    it("Vorschau, Zuordnung (Mitglied oder neuer Gast), Import ohne Benachrichtigungen, Salden stimmen, kein Doppelimport", async () => {
+      const { a, b, c, g } = await setup();
+      const pv = await svc.importer.previewImport(a.id, g.id, SPLITWISE);
+      expect(pv).toMatchObject({ format: "splitwise", expenses: 1, payments: 1, alreadyImported: false, errors: [] });
+      expect(pv.people).toEqual([
+        { name: "Anna", suggestion: a.id },
+        { name: "Bob Extern", suggestion: "new" },
+        { name: "Cleo", suggestion: c.id },
+      ]);
+      // nur der Besitzer
+      await expect(svc.importer.previewImport(b.id, g.id, SPLITWISE)).rejects.toMatchObject({ code: "owner_only" });
+      await expect(svc.importer.runImport(a.id, g.id, SPLITWISE, { Anna: a.id })).rejects.toMatchObject({ code: "import_mapping" });
+      const before = (await svc.notifications.listNotifications(c.id)).length;
+      const r = await svc.importer.runImport(a.id, g.id, SPLITWISE, { Anna: a.id, "Bob Extern": "new", Cleo: c.id });
+      expect(r).toEqual({ expenses: 1, payments: 1, failed: [] });
+      expect((await svc.notifications.listNotifications(c.id)).length).toBe(before);
+      const grp = await svc.groups.getGroup(a.id, g.id);
+      const bob = grp.members.find((m) => m.isGuest)!;
+      const bal = await svc.balances.groupBalances(g.id);
+      // Splitwise-Endsaldo: Anna +10, Bob 0, Cleo −10
+      expect(bal.net.EUR).toEqual({ [a.id]: 1000, [c.id]: -1000 });
+      expect(bob.name).toContain("Bob Extern");
+      await expect(svc.importer.runImport(a.id, g.id, SPLITWISE, { Anna: a.id, "Bob Extern": "new", Cleo: c.id })).rejects.toMatchObject({ code: "import_duplicate" });
+      expect((await svc.importer.previewImport(a.id, g.id, SPLITWISE)).alreadyImported).toBe(true);
+      await expect(svc.importer.previewImport(a.id, g.id, "x,y\n1,2")).rejects.toMatchObject({ code: "import_unknown_format" });
+    });
+
+    it("eigener Export lässt sich in eine neue Gruppe übernehmen (gleiche Salden)", async () => {
+      const { a, b, c, g } = await setup();
+      await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 1000, payers: [{ userId: a.id, amountMinor: 1000 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      await svc.payments.createPayment(b.id, g.id, { fromUser: b.id, toUser: a.id, amountMinor: 200, currency: "EUR", date: "2026-01-05" });
+      const { csv } = await svc.exporter.groupCsv(a.id, g.id, "de");
+      const g2 = await svc.groups.createGroup(a.id, { name: "Kopie", defaultCurrency: "EUR" });
+      const pv = await svc.importer.previewImport(a.id, g2.id, csv);
+      expect(pv.format).toBe("finantsen");
+      const mapping = Object.fromEntries(pv.people.map((p) => [p.name, p.suggestion]));
+      expect(mapping.Anna).toBe(a.id);
+      const r = await svc.importer.runImport(a.id, g2.id, csv, mapping);
+      expect(r.failed).toEqual([]);
+      const net1 = (await svc.balances.groupBalances(g.id)).net.EUR;
+      const net2 = (await svc.balances.groupBalances(g2.id)).net.EUR;
+      expect(Object.values(net2).sort()).toEqual(Object.values(net1).sort());
+      expect(net2[a.id]).toBe(net1[a.id]);
     });
   });
 });

@@ -417,3 +417,22 @@ export const exchangeRates = pgTable(
   },
   (t) => [primaryKey({ columns: [t.provider, t.base, t.date] })],
 );
+
+/** Durchgeführte Importe (gegen doppeltes Einlesen derselben Datei in dieselbe Gruppe). */
+export const imports = pgTable(
+  "imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    /** SHA-256 des normalisierten Inhalts */
+    hash: varchar("hash", { length: 64 }).notNull(),
+    format: varchar("format", { length: 20 }).notNull(),
+    expenses: integer("expenses").notNull(),
+    payments: integer("payments").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("imports_group_hash_idx").on(t.groupId, t.hash)],
+);

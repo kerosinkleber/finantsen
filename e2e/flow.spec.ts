@@ -1294,3 +1294,29 @@ test("calculator in the amount field and copying an expense", async ({ page }) =
   await expect(page.getByTestId("expense-item").filter({ hasText: "Snacks again" })).toBeVisible();
   await expect(page.getByTestId("expense-item").filter({ hasText: "Snacks" })).toHaveCount(2);
 });
+
+test("import a CSV: preview, match people, import once", async ({ page }) => {
+  await login(page, "anna@example.com");
+  const groups = await (await page.request.get("/api/groups")).json();
+  const gid = groups.groups.find((g: { name: string }) => g.name === "Pay test").id;
+  await page.goto(`/groups/${gid}?tab=members`);
+  await page.getByTestId("import-link").click();
+  const csv = "date,title,amount,currency,paid_by,split_between,category\n2026-03-01,Museum,24.00,EUR,Anna,Anna|Zed,entertainment\n2026-03-02,Broken,abc,EUR,Anna,Anna,\n";
+  const file = { name: "simple.csv", mimeType: "text/csv", buffer: Buffer.from(csv) };
+  await page.getByLabel("CSV file").setInputFiles(file);
+  const preview = page.getByTestId("import-preview");
+  await expect(preview).toContainText("Detected: simple format. 1 expenses, 0 payments");
+  await expect(preview).toContainText("1 rows will be skipped");
+  await expect(page.getByLabel("Anna", { exact: true })).not.toHaveValue("new");
+  await expect(page.getByLabel("Zed")).toHaveValue("new");
+  await page.getByRole("button", { name: "Import 1 entries" }).click();
+  await expect(page.getByTestId("import-result")).toContainText("Imported: 1 expenses, 0 payments.");
+  await expect(page.getByTestId("import-result")).toContainText("Line 3");
+  // dieselbe Datei noch einmal: abgelehnt
+  await page.getByLabel("CSV file").setInputFiles({ ...file, name: "again.csv" });
+  await expect(page.getByTestId("import-preview").getByRole("alert")).toContainText("already been imported");
+  await page.goto(`/groups/${gid}`);
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Museum" })).toBeVisible();
+  await page.goto(`/groups/${gid}?tab=members`);
+  await expect(page.getByText(/Zed/).first()).toBeVisible();
+});

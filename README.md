@@ -66,6 +66,9 @@ Für den lokalen Test (`docker-compose.local.yml`) läuft **Mailpit** mit: alle 
 ### Aufteilungsarten
 Gleich, **gleich mit Anpassungen** (z. B. „Anna +5 €, Ben −2 €, Rest gleich“: erst die Anpassungen abziehen, den Rest gleich teilen, dann die Anpassung je Person addieren), Prozent, feste Beträge, Anteile (ganze Zahlen), Einzelposten mit Steuer/Trinkgeld und „eine Person trägt alles“. Summe der Anteile ist immer exakt der Betrag.
 
+### Import (Umstieg von Splitwise, Tricount)
+Im Reiter *Mitglieder* kann der Gruppenbesitzer **Ausgaben importieren (CSV)**: Splitwise-Export, Tricount-Export (CSV mit Spalten „Paid by …“ und „Paid for …“), der eigene Finantsen-CSV-Export (z. B. um eine Gruppe zu kopieren) oder ein einfaches Format `date,title,amount,currency,paid_by,split_between,category` (Namen in `split_between` mit `|` getrennt). Zuerst kommt eine Vorschau: erkannte Ausgaben und Zahlungen, übersprungene Zeilen mit Grund, und für jeden Namen aus der Datei die Zuordnung zu einem Mitglied oder „neu als Mitglied ohne Konto“ (Gast, später mit einem Konto verknüpfbar). Importierte Ausgaben werden mit festen Beträgen gespeichert, die Salden stimmen exakt mit der Quelle überein; es gibt keine Benachrichtigung je Eintrag. Dieselbe Datei kann pro Gruppe nur einmal importiert werden. Splitwise liefert je Person nur „bezahlt minus Anteil“; daraus werden Zahler und Anteile so gebildet, dass die Salden gleich bleiben. Das Tricount-Format ist nach öffentlicher Beschreibung umgesetzt und noch nicht mit einer echten Exportdatei geprüft.
+
 ### Rechner und Kopieren
 Im Betragsfeld darf man rechnen, z. B. `12,50+3*4` oder `(30+15)/3`: darunter steht das Ergebnis, beim Verlassen des Felds wird es übernommen (exakt gerechnet, kaufmännisch gerundet). Auf dem Handy schaltet der Knopf „±×“ auf eine Tastatur mit Rechenzeichen. Auf der Seite einer Ausgabe legt **„Kopieren“** eine neue Ausgabe mit denselben Werten an (Datum heute, Kurs neu).
 

@@ -271,7 +271,13 @@ function snapshot(e: ExpenseDetail) {
   };
 }
 
-export async function createExpense(userId: string, groupId: string, body: ExpenseBody, actedBy: string | null = null, opts: { recurringId?: string } = {}) {
+export async function createExpense(
+  userId: string,
+  groupId: string,
+  body: ExpenseBody,
+  actedBy: string | null = null,
+  opts: { recurringId?: string; /** Import: keine Benachrichtigung je Ausgabe */ silent?: boolean } = {},
+) {
   const { group } = await requireMember(userId, groupId);
   const p = await prepare(groupId, body, group.defaultCurrency);
   const id = await getDb().transaction(async (tx) => {
@@ -299,7 +305,7 @@ export async function createExpense(userId: string, groupId: string, body: Expen
   });
   const detail = await getExpense(userId, groupId, id);
   await getDb().insert(expenseHistory).values({ expenseId: id, userId, actedBy, action: "create", snapshot: snapshot(detail) });
-  await notifyGroup({
+  if (!opts.silent) await notifyGroup({
     type: "expense_created",
     auto: !!opts.recurringId,
     groupId,

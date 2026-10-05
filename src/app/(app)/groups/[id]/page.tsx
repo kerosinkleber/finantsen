@@ -100,6 +100,9 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
           <div className="card flex flex-col gap-2">
             <a href={`/api/groups/${id}/export`} download className="btn-secondary" data-testid="export-csv">{t("export.csv")}</a>
             <p className="muted">{t("export.csvHelp")}</p>
+            {group.role === "owner" && (
+              <Link href={`/groups/${id}/import`} className="btn-secondary" data-testid="import-link">{t("import.link")}</Link>
+            )}
           </div>
         </>
       )}
