@@ -235,6 +235,24 @@ d("services (PostgreSQL)", () => {
       expect(await f({ person: b.id, minMinor: 1800 })).toEqual(["Pizza 100%"]);
     });
 
+    it("Blättern: Schlüssel/Anzahl mit Filter, gelöschte zählen nicht, Seite lädt nur ihre IDs", async () => {
+      const { a, b, g } = await setup();
+      const made = [];
+      for (let i = 1; i <= 7; i++)
+        made.push(await svc.expenses.createExpense(a.id, g.id, base({ title: `E${i}`, date: `2026-01-0${i}`, payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } })));
+      await svc.expenses.deleteExpense(a.id, g.id, made[0].id);
+      const all = await svc.expenses.listExpenseKeys(b.id, g.id, { limit: 3 });
+      expect(all.total).toBe(6);
+      expect(all.keys.map((k) => k.id)).toEqual([made[6].id, made[5].id, made[4].id]);
+      const filtered = await svc.expenses.listExpenseKeys(b.id, g.id, { filter: { from: "2026-01-05" }, limit: 10 });
+      expect(filtered.total).toBe(3);
+      const page = await svc.expenses.listExpenses(b.id, g.id, { ids: [made[2].id, made[3].id, made[0].id] });
+      expect(page.map((e) => e.title)).toEqual(["E4", "E3"]); // gelöschte E1 fehlt
+      expect((await svc.expenses.listExpenses(b.id, g.id, { ids: [] }))).toEqual([]);
+      const outsider = await mkUser(a, "olga", { name: "Olga" });
+      await expect(svc.expenses.listExpenseKeys(outsider.id, g.id, { limit: 3 })).rejects.toMatchObject({ status: 404 });
+    });
+
     it("Standard-Aufteilung speichern und validieren", async () => {
       const { a, b, g } = await setup();
       await svc.groups.updateGroup(a.id, g.id, { defaultSplit: { type: "percent", entries: [{ userId: a.id, value: 7000 }, { userId: b.id, value: 3000 }] } });

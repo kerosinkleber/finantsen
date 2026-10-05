@@ -23,7 +23,8 @@ Ursachen:
 1. `hydrate` gruppiert Zahler/Anteile einmal per `Map` (linear).
 2. Ein einzelner Array-Parameter (`= any($1::uuid[])`) statt der IN-Liste.
 3. `netBalancesSql`: Nettosalden direkt in SQL summiert (Zahler +, Anteile −, Zahlungen ±, nur nicht gelöschte, Abrechnungswährung). `groupBalances` nutzt das für Gruppen mit vereinfachten Schulden; nur bei paarweisen Schulden bleibt der vollständige Weg (`groupBalancesFull`). Die Übersicht fragt alle vereinfachten Gruppen mit **einer** Abfrage ab, die übrigen parallel.
-4. Ausgabenliste der Gruppe mit Paging: die neuesten 100 Einträge, „Ältere anzeigen“ lädt jeweils 100 mehr (`?show=`). Salden, Statistik und Export zählen weiterhin alles.
+4. Ausgabenliste der Gruppe mit Seiten: 50 Einträge je Seite (auf Wunsch 100, `?per=100`), „← Neuere / Ältere →“ (`?page=`). Geladen werden nur Sortierschlüssel bis zur Seite (`listExpenseKeys`, plus Anzahl) und die vollen Daten der sichtbaren Einträge (`loadExpenses(..., { ids })`). Salden, Statistik und Export zählen weiterhin alles.
+   - Vorher (bis Oktober 2026) gab es „Ältere anzeigen“, das die Liste immer um 100 verlängerte. Messung mit 1000 Ausgaben: die Seite mit allen Einträgen war 1,6 MB groß, der Speicher der App stieg dabei auf 415 MB (eine Person) bis 780 MB (20 gleichzeitig). Normale Seiten: 110 MB im Leerlauf, 250–370 MB unter Last.
 5. Absicherung: Integrationstest „SQL-Nettosalden stimmen mit der vollständigen Berechnung überein“ (Zahler, Anteile, mehrere Zahler, Zahlung, gelöschte Ausgabe, Übersicht) und Test für das Limit.
 
 ## Ergebnis

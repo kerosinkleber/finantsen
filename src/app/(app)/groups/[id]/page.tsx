@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
 import { getGroup } from "@/server/services/groups";
-import { listExpenses } from "@/server/services/expenses";
+import { listExpenseKeys, listExpenses } from "@/server/services/expenses";
+import { feedPage, parsePage, parsePageSize, type FeedKey } from "@/lib/paging";
 import { listPayments } from "@/server/services/payments";
 import { getGroupBalances } from "@/server/services/balances";
 import { payInfoForCreditors } from "@/server/services/payinfo";
@@ -29,9 +30,6 @@ import type { MessageKey } from "@/i18n";
 import { formatMoney } from "@/lib/money";
 
 type Tab = "expenses" | "balances" | "stats" | "members" | "recurring";
-
-/** Einträge pro Seite in der Ausgabenliste */
-const PAGE = 100;
 
 export default async function GroupPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
@@ -133,10 +131,12 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
   sp: Record<string, string | string[] | undefined>;
 }) {
   const { filter, active } = parseExpenseFilter(sp, group.defaultCurrency);
-  // Große Gruppen: nur die neuesten Einträge rendern, „Ältere anzeigen“ lädt weitere (Salden zählen immer alles)
-  const show = Math.min(Math.max(Number(sp.show) || PAGE, PAGE), 100_000);
-  const [expenses, allPayments, trash] = await Promise.all([
-    listExpenses(userId, groupId, { filter, limit: show + 1 }),
+  // Blättern: je Seite 50 (oder auf Wunsch 100) Einträge; geladen werden nur die Daten der sichtbaren Seite
+  // (Salden, Statistik und Export zählen immer alles)
+  const size = parsePageSize(sp.per);
+  const requested = parsePage(sp.page);
+  const [{ keys, total: expenseTotal }, allPayments, trash] = await Promise.all([
+    listExpenseKeys(userId, groupId, { filter, limit: requested * size }),
     listPayments(userId, groupId),
     listExpenses(userId, groupId, { onlyDeleted: true }),
   ]);
@@ -161,17 +161,28 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
   const budget = active ? null : await getBudgetStatus(userId, groupId);
   const budgetBar = budget && <BudgetBar b={budget} locale={locale} t={t} />;
   const form = <FilterForm groupId={groupId} members={group.members.map((m) => ({ id: m.id, name: m.id === userId ? t("common.you") : m.name }))} currency={group.defaultCurrency} values={sp} active={active} t={t} />;
-  type Item = { kind: "e"; date: string; at: number; e: (typeof expenses)[number] } | { kind: "p"; date: string; at: number; p: (typeof payments)[number] };
-  const items: Item[] = [
-    ...expenses.map((e) => ({ kind: "e" as const, date: e.date, at: +e.createdAt, e })),
-    ...payments.map((p) => ({ kind: "p" as const, date: p.date, at: +p.createdAt, p })),
-  ].sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1));
-  const hasMore = items.length > show;
-  const visible = items.slice(0, show);
-  const moreParams = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && k !== "show") moreParams.set(k, v);
-  moreParams.set("show", String(show + PAGE));
-  if (items.length === 0) return <>{budgetBar}{form}<Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link><p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
+  const paymentKeys: FeedKey[] = payments.map((p) => ({ kind: "p", id: p.id, date: p.date, at: +p.createdAt }));
+  const expenseKeys: FeedKey[] = keys.map((k) => ({ kind: "e", id: k.id, date: k.date, at: +k.createdAt }));
+  const { items: pageKeys, page, pages } = feedPage(expenseKeys, paymentKeys, expenseTotal + payments.length, requested, size);
+  const pageExpenses = await listExpenses(userId, groupId, { filter, ids: pageKeys.filter((k) => k.kind === "e").map((k) => k.id) });
+  const byId = new Map<string, (typeof pageExpenses)[number]>(pageExpenses.map((e) => [e.id, e]));
+  const paymentById = new Map(payments.map((p) => [p.id, p]));
+  type Item = { kind: "e"; e: (typeof pageExpenses)[number] } | { kind: "p"; p: (typeof payments)[number] };
+  const visible: Item[] = pageKeys.flatMap((k): Item[] => {
+    if (k.kind === "e") {
+      const e = byId.get(k.id);
+      return e ? [{ kind: "e", e }] : [];
+    }
+    const p = paymentById.get(k.id);
+    return p ? [{ kind: "p", p }] : [];
+  });
+  const link = (changes: Record<string, string | null>) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && k !== "show") q.set(k, v);
+    for (const [k, v] of Object.entries(changes)) if (v === null) q.delete(k); else q.set(k, v);
+    return `/groups/${groupId}?${q}`;
+  };
+  if (pageKeys.length === 0) return <>{budgetBar}{form}<Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link><p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
   return (
     <>
     {budgetBar}
@@ -232,9 +243,24 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
         );
       })}
     </ul>
-    {hasMore && (
-      <Link href={`/groups/${groupId}?${moreParams}`} scroll={false} className="btn-secondary" data-testid="show-more">{t("group.showMore")}</Link>
-    )}
+    <nav className="flex flex-col gap-2" data-testid="pager">
+      {pages > 1 && (
+        <div className="flex items-center justify-between gap-2">
+          {page > 1 ? (
+            <Link href={link({ page: page === 2 ? null : String(page - 1) })} className="btn-secondary" data-testid="page-newer">{t("group.pageNewer")}</Link>
+          ) : <span />}
+          <span className="muted text-sm" data-testid="page-info">{t("group.pageInfo", { page, pages })}</span>
+          {page < pages ? (
+            <Link href={link({ page: String(page + 1) })} className="btn-secondary" data-testid="page-older">{t("group.pageOlder")}</Link>
+          ) : <span />}
+        </div>
+      )}
+      {(pages > 1 || size === 100) && (
+        <Link href={link({ per: size === 50 ? "100" : null, page: null })} className="self-center text-sm text-brand underline" data-testid="page-size">
+          {size === 50 ? t("group.pageSize100") : t("group.pageSize50")}
+        </Link>
+      )}
+    </nav>
     {trashBox}
     </>
   );

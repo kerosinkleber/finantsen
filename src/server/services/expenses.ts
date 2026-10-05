@@ -141,16 +141,18 @@ export type ExpenseFilter = {
 export async function listExpenses(
   userId: string,
   groupId: string,
-  opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter; limit?: number } = {},
+  opts: LoadOpts = {},
 ) {
   await requireMember(userId, groupId);
   return loadExpenses(groupId, opts);
 }
 
-/** `limit`: nur die neuesten n Ausgaben (Liste der Gruppenansicht); Salden/Statistik/Export laden immer alles. */
-export async function loadExpenses(groupId: string, opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter; limit?: number } = {}) {
+type LoadOpts = { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter; limit?: number; ids?: string[] };
+
+function expenseConds(groupId: string, opts: LoadOpts): (SQL | undefined)[] {
   const f = opts.filter ?? {};
   const conds: (SQL | undefined)[] = [eq(expenses.groupId, groupId)];
+  if (opts.ids) conds.push(sql`${expenses.id} = any(${sql.param(opts.ids)}::uuid[])`);
   if (opts.onlyDeleted) conds.push(isNotNull(expenses.deletedAt));
   else if (!opts.includeDeleted) conds.push(isNull(expenses.deletedAt));
   if (f.q) conds.push(ilike(expenses.title, `%${f.q.replace(/[\\%_]/g, (c) => "\\" + c)}%`));
@@ -171,13 +173,37 @@ export async function loadExpenses(groupId: string, opts: { includeDeleted?: boo
       ),
     );
   }
+  return conds;
+}
+
+/** `limit`: nur die neuesten n Ausgaben; `ids`: nur diese (Seite der Gruppenliste). Salden/Statistik/Export laden immer alles. */
+export async function loadExpenses(groupId: string, opts: LoadOpts = {}) {
   const rows = await getDb()
     .select()
     .from(expenses)
-    .where(and(...conds))
-    .orderBy(desc(expenses.date), desc(expenses.createdAt))
+    .where(and(...expenseConds(groupId, opts)))
+    .orderBy(desc(expenses.date), desc(expenses.createdAt), desc(expenses.id))
     .limit(opts.limit ?? 1_000_000_000);
   return hydrate(rows);
+}
+
+/**
+ * Nur Sortierschlüssel (ID, Datum, Anlagezeit) der neuesten `limit` Ausgaben plus die Gesamtzahl: Grundlage für das
+ * Blättern in der Gruppenliste, ohne Zahler/Anteile aller Ausgaben zu laden.
+ */
+export async function listExpenseKeys(userId: string, groupId: string, opts: { filter?: ExpenseFilter; limit: number }) {
+  await requireMember(userId, groupId);
+  const where = and(...expenseConds(groupId, { filter: opts.filter }));
+  const [keys, [{ n }]] = await Promise.all([
+    getDb()
+      .select({ id: expenses.id, date: expenses.date, createdAt: expenses.createdAt })
+      .from(expenses)
+      .where(where)
+      .orderBy(desc(expenses.date), desc(expenses.createdAt), desc(expenses.id))
+      .limit(opts.limit),
+    getDb().select({ n: sql<number>`count(*)::int` }).from(expenses).where(where),
+  ]);
+  return { keys, total: n };
 }
 
 export async function getExpense(userId: string, groupId: string, expenseId: string): Promise<ExpenseDetail> {

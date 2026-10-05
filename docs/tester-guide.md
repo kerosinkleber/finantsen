@@ -240,7 +240,10 @@ Needs a browser/device with a platform authenticator (fingerprint, face, device 
 
 ## 8b. Speed and long lists
 
-- [ ] In a group with **more than 100** entries (expenses and payments) the list shows the newest 100 and a button **"Show older"** at the end; it loads 100 more each time. Balances and statistics always count **all** expenses (compare the balance before and after loading older entries: unchanged).
+- [ ] In a group with **more than 50** entries (expenses and payments together) the list shows the newest **50** and below it **"← Newer"**, **"Page 1 of N"** and **"Older →"**. "Older →" shows the next 50 (no duplicates, nothing missing: the last entry of page 1 is directly followed by the first of page 2, sorted by date, newest first; payments appear between expenses at their date).
+- [ ] The link **"Show 100 entries per page"** switches to 100 per page (page count halves); **"Show 50 entries per page"** switches back. Both start at page 1.
+- [ ] With a filter active, paging only counts the filtered expenses. Typing a page number that is too large into the address bar (`&page=999`) shows the last page, `&page=abc` the first.
+- [ ] Balances and statistics always count **all** expenses (unchanged when you switch pages).
 - [ ] Pages should feel instant (well under a second) for normal groups. Note any page that takes noticeably longer, with the number of expenses in that group.
 
 ---
