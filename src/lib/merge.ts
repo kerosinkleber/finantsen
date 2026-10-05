@@ -12,6 +12,7 @@ type Split =
   | { type: "percent"; entries: { userId: string; bp: number }[] }
   | { type: "exact"; entries: { userId: string; amountMinor: number }[] }
   | { type: "shares"; entries: { userId: string; shares: number }[] }
+  | { type: "adjust"; entries: { userId: string; adjustMinor: number }[] }
   | { type: "full"; owner: string }
   | { type: "items"; items: Item[]; taxMinor: number; tipMinor: number };
 type Item = { name: string; amountMinor: number; participants: string[] };
@@ -41,6 +42,7 @@ function toInput(split: Split): SplitInput {
   if (split.type === "equal" || split.type === "full") return split;
   if (split.type === "percent") return { type: "percent", entries: split.entries.map((e) => ({ id: e.userId, bp: e.bp })) };
   if (split.type === "exact") return { type: "exact", entries: split.entries.map((e) => ({ id: e.userId, amount: e.amountMinor })) };
+  if (split.type === "adjust") return { type: "adjust", entries: split.entries.map((e) => ({ id: e.userId, adjust: e.adjustMinor })) };
   return { type: "shares", entries: split.entries.map((e) => ({ id: e.userId, shares: e.shares })) };
 }
 
@@ -58,6 +60,14 @@ export function replaceUserInSplit(split: Split, from: string, to: string, total
       return { type: "exact", entries: mergeBy(split.entries, from, to, (a, b) => ({ ...a, amountMinor: a.amountMinor + b.amountMinor })) };
     case "shares":
       return { type: "shares", entries: mergeBy(split.entries, from, to, (a, b) => ({ ...a, shares: a.shares + b.shares })) };
+    case "adjust": {
+      // Beide beteiligt: die zusammengefasste Person trägt beide Anteile → feste Beträge (wie bei Einzelposten)
+      if (total !== undefined && both(split.entries.map((e) => e.userId), from, to)) {
+        const alloc = computeShares(total, toInput(split)).map((a) => ({ userId: a.id, amountMinor: a.amount }));
+        return { type: "exact", entries: mergeBy(alloc, from, to, (a, b) => ({ ...a, amountMinor: a.amountMinor + b.amountMinor })) };
+      }
+      return { type: "adjust", entries: mergeBy(split.entries, from, to, (a, b) => ({ ...a, adjustMinor: a.adjustMinor + b.adjustMinor })) };
+    }
     case "full":
       return { type: "full", owner: swap(split.owner, from, to) };
     case "items":

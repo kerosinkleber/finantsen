@@ -13,6 +13,7 @@ export class SplitError extends Error {
       | "exact_sum"
       | "payer_sum"
       | "items_sum"
+      | "adjust_sum"
       | "invalid_amount",
     message?: string,
   ) {
@@ -26,6 +27,7 @@ export type SplitInput =
   | { type: "percent"; entries: { id: string; bp: number }[] } // bp = Basispunkte, 10000 = 100 %
   | { type: "exact"; entries: { id: string; amount: number }[] }
   | { type: "shares"; entries: { id: string; shares: number }[] }
+  | { type: "adjust"; entries: { id: string; adjust: number }[] } // gleich verteilt, plus/minus fester Betrag je Person
   | { type: "full"; owner: string } // eine Person trägt alles
   | { type: "items"; items: ItemInput[]; tax: number; tip: number }; // Einzelposten + Steuer/Trinkgeld
 
@@ -98,6 +100,18 @@ export function computeShares(total: number, input: SplitInput): Allocation[] {
       const ids = [...input.participants].sort();
       const parts = allocate(total, ids.map(() => 1));
       out = ids.map((id, i) => ({ id, amount: parts[i] }));
+      break;
+    }
+    case "adjust": {
+      // Erst die Anpassungen abziehen, den Rest gleich verteilen (größter Rest), dann die Anpassung je Person addieren.
+      assertUnique(input.entries.map((e) => e.id));
+      for (const e of input.entries) if (!Number.isSafeInteger(e.adjust)) throw new SplitError("invalid_amount");
+      const es = [...input.entries].sort((a, b) => (a.id < b.id ? -1 : 1));
+      const rest = total - es.reduce((a, e) => a + e.adjust, 0);
+      if (rest < 0) throw new SplitError("adjust_sum", `rest=${rest}`);
+      const parts = allocate(rest, es.map(() => 1));
+      out = es.map((e, i) => ({ id: e.id, amount: parts[i] + e.adjust }));
+      if (out.some((o) => o.amount < 0)) throw new SplitError("adjust_sum", "negative share");
       break;
     }
     case "shares": {

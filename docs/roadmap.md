@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **Gleich mit Anpassungen** (Fragebogen 8): z. B. „Anna +5 €, Rest gleich“, auch negative Anpassungen.
 - **Bezahlen beim Begleichen** (Fragebogen 8): GiroCode und PayPal.me-Link mit Betrag, Bezahldaten im Konto.
 - **Performance** (`docs/performance.md`): große Gruppen bis zu 35-mal schneller (Salden in SQL, lineare Zuordnung, Paging der Ausgabenliste).
 - **E-Mail-Versand** (Fragebogen 7): Einmal-Links per Mail, „Passwort vergessen“, Benachrichtigungen und wöchentliche Zusammenfassung per Mail (je Person, Standard aus), Mailserver über `.env` oder Admin-Bereich, Test-Mail, Mailpit für den lokalen Test.

@@ -12,6 +12,7 @@ type Template = {
     | { type: "percent"; entries: { userId: string; bp: number }[] }
     | { type: "exact"; entries: { userId: string; amountMinor: number }[] }
     | { type: "shares"; entries: { userId: string; shares: number }[] }
+    | { type: "adjust"; entries: { userId: string; adjustMinor: number }[] }
     | { type: "full"; owner: string }
     | { type: "items"; items: { name: string; amountMinor: number; participants: string[] }[]; taxMinor: number; tipMinor: number };
 };
@@ -23,11 +24,13 @@ export function templateToInitial(id: string, startDate: string, t: Template): E
     s.type === "percent" ? { type: "percent", entries: s.entries.map((e) => ({ id: e.userId, bp: e.bp })) }
     : s.type === "exact" ? { type: "exact", entries: s.entries.map((e) => ({ id: e.userId, amount: e.amountMinor })) }
     : s.type === "shares" ? { type: "shares", entries: s.entries.map((e) => ({ id: e.userId, shares: e.shares })) }
+    : s.type === "adjust" ? { type: "adjust", entries: s.entries.map((e) => ({ id: e.userId, adjust: e.adjustMinor })) }
     : s.type === "items" ? { type: "items", items: s.items.map((i) => ({ name: i.name, amount: i.amountMinor, participants: i.participants })), tax: s.taxMinor, tip: s.tipMinor }
     : s;
   const raw = new Map<string, number>();
   if (s.type === "percent") s.entries.forEach((e) => raw.set(e.userId, e.bp));
   if (s.type === "shares") s.entries.forEach((e) => raw.set(e.userId, e.shares));
+  if (s.type === "adjust") s.entries.forEach((e) => raw.set(e.userId, e.adjustMinor));
   return {
     id,
     title: t.title,

@@ -50,6 +50,8 @@ function toSplitInput(split: ExpenseBody["split"]): SplitInput {
       return { type: "exact", entries: split.entries.map((e) => ({ id: e.userId, amount: e.amountMinor })) };
     case "shares":
       return { type: "shares", entries: split.entries.map((e) => ({ id: e.userId, shares: e.shares })) };
+    case "adjust":
+      return { type: "adjust", entries: split.entries.map((e) => ({ id: e.userId, adjust: e.adjustMinor })) };
     case "full":
       return { type: "full", owner: split.owner };
     case "items":
@@ -67,6 +69,7 @@ function rawInput(split: ExpenseBody["split"]): Map<string, number> {
   if (split.type === "percent") split.entries.forEach((e) => m.set(e.userId, e.bp));
   if (split.type === "exact") split.entries.forEach((e) => m.set(e.userId, e.amountMinor));
   if (split.type === "shares") split.entries.forEach((e) => m.set(e.userId, e.shares));
+  if (split.type === "adjust") split.entries.forEach((e) => m.set(e.userId, e.adjustMinor));
   return m;
 }
 

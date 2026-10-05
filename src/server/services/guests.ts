@@ -123,8 +123,8 @@ export async function claimGuest(tx: Tx, targetId: string, groupId: string, gues
         // gleichmäßig → Anteile: das Konto trägt jetzt zwei Teile (seinen und den des Gasts)
         await tx.update(expenses).set({ splitType: "shares" }).where(eq(expenses.id, o.id));
         await tx.execute(sql`update expense_shares set input = case when user_id = ${targetId} then 2 else 1 end where expense_id = ${o.id}`);
-      } else if (o.split_type === "items") {
-        // Einzelposten → feste Beträge (die bereits berechneten Anteile)
+      } else if (o.split_type === "items" || o.split_type === "adjust") {
+        // Einzelposten / gleich mit Anpassungen → feste Beträge (die bereits berechneten Anteile)
         await tx.update(expenses).set({ splitType: "exact", items: null }).where(eq(expenses.id, o.id));
         await tx.execute(sql`update expense_shares set input = amount_minor where expense_id = ${o.id}`);
       }

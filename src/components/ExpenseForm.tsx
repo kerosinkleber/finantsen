@@ -16,7 +16,7 @@ import type { DefaultSplit } from "@/lib/schemas";
 import { dueOccurrences, UNITS, type Unit } from "@/lib/recurrence";
 
 type Member = { id: string; name: string };
-type SplitType = "equal" | "percent" | "exact" | "shares" | "items" | "full";
+type SplitType = "equal" | "adjust" | "percent" | "exact" | "shares" | "items" | "full";
 
 export type ExpenseInitial = {
   id: string;
@@ -34,7 +34,7 @@ export type ExpenseInitial = {
   items: { items: { name: string; amountMinor: number; participants: string[] }[]; taxMinor: number; tipMinor: number } | null;
 };
 
-const SPLITS: SplitType[] = ["equal", "percent", "exact", "shares", "items", "full"];
+const SPLITS: SplitType[] = ["equal", "adjust", "percent", "exact", "shares", "items", "full"];
 
 /** Modus „wiederkehrend“: dasselbe Formular legt eine Vorlage mit Rhythmus an (ohne Belegscan und manuellen Kurs). */
 export type RecurringInit = { id?: string; unit: Unit; every: number; endDate: string | null; paused: boolean; lastBookedDate?: string | null };
@@ -91,6 +91,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
       if (initial.splitType === "percent" && s.input !== null) v[s.userId] = localDecimal(s.input / 100, locale);
       if (initial.splitType === "exact") v[s.userId] = toInputString(s.amountMinor, initial.currency, locale);
       if (initial.splitType === "shares" && s.input !== null) v[s.userId] = String(s.input);
+      if (initial.splitType === "adjust" && s.input) v[s.userId] = toInputString(s.input, initial.currency, locale);
     }
     return v;
   });
@@ -137,6 +138,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   // Summenkontrollen
   const pctSum = [...included].reduce((a, id) => a + (parseAmount(values[id] ?? "", "EUR") ?? 0), 0); // Basispunkte
   const exactSum = [...included].reduce((a, id) => a + (parseAmount(values[id] ?? "", currency) ?? 0), 0);
+  const adjustSum = [...included].reduce((a, id) => a + (parseAmount(values[id] ?? "", currency) ?? 0), 0);
   const payerSum = Object.values(payerAmounts).reduce((a, v) => a + (parseAmount(v, currency) ?? 0), 0);
 
   function sumHint(diff: number, formatted: string) {
@@ -170,6 +172,11 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         // Anteile sind ganze Zahlen; „1,5“ o. Ä. nicht stillschweigend abschneiden, sondern ablehnen
         if (ids.some((id) => !/^\d+$/.test((values[id] ?? "1").trim()))) throw new ApiClientError(400, "invalid_weight");
         split = { type: "shares", entries: ids.map((userId) => ({ userId, shares: Number((values[userId] ?? "1").trim()) })) };
+        break;
+      case "adjust":
+        // leeres Feld = keine Anpassung; „-2,50“ = weniger als die anderen
+        if (ids.some((id) => (values[id] ?? "").trim() !== "" && parseAmount(values[id] ?? "", currency) === null)) throw new ApiClientError(400, "invalid_amount");
+        split = { type: "adjust", entries: ids.map((userId) => ({ userId, adjustMinor: parseAmount(values[userId] ?? "", currency) ?? 0 })) };
         break;
       case "items":
         if (rows.some((r) => r.who.length === 0)) throw new ApiClientError(400, "no_participants");
@@ -369,7 +376,11 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
               key={s}
               role="radio"
               aria-checked={splitType === s}
-              onClick={() => setSplitType(s)}
+              onClick={() => {
+                // Eingaben haben je Art eine andere Bedeutung (Prozent, Betrag, Anteile, Anpassung): beim Wechsel leeren
+                if (s !== splitType) setValues({});
+                setSplitType(s);
+              }}
               className={`min-h-9 rounded-full border px-3 text-sm ${splitType === s ? "border-brand bg-brand text-white" : "border-slate-300 dark:border-slate-700"}`}
             >
               {t(`expense.split.${s}` as MessageKey)}
@@ -402,7 +413,8 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
                   <span className="flex items-center gap-1">
                     <input
                       className="input !w-28 text-right"
-                      inputMode={splitType === "shares" ? "numeric" : "decimal"}
+                      inputMode={splitType === "shares" ? "numeric" : splitType === "adjust" ? "text" : "decimal"}
+                      placeholder={splitType === "adjust" ? "±0" : undefined}
                       aria-label={`${t(`expense.split.${splitType}` as MessageKey)} ${m.name}`}
                       value={values[m.id] ?? (splitType === "shares" ? "1" : "")}
                       onChange={(e) => setVal(m.id, e.target.value)}
@@ -414,6 +426,15 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
             ))}
             {splitType === "percent" && <p className="text-sm" data-testid="split-hint">{sumHint(10000 - pctSum, `${((10000 - pctSum) / 100).toLocaleString(locale)} %`)}</p>}
             {splitType === "exact" && total !== null && <p className="text-sm" data-testid="split-hint">{sumHint(total - exactSum, fmt(total - exactSum))}</p>}
+            {splitType === "adjust" && total !== null && included.size > 0 && (
+              <p className="text-sm" data-testid="split-hint">
+                {total - adjustSum < 0 ? (
+                  <span className="neg">{t("expense.adjustOver", { amount: fmt(adjustSum - total) })}</span>
+                ) : (
+                  <span className="muted">{t("expense.adjustHint", { amount: fmt(Math.floor((total - adjustSum) / included.size)) })}</span>
+                )}
+              </p>
+            )}
           </>
         )}
       </fieldset>

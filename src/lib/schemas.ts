@@ -100,6 +100,11 @@ export const splitSchema = z.discriminatedUnion("type", [
     type: z.literal("shares"),
     entries: z.array(z.object({ userId: id, shares: safeInt.min(0).max(1_000_000) })).min(1).max(100),
   }),
+  z.object({
+    type: z.literal("adjust"),
+    // Plus/minus je Person in Minor-Units; der Rest wird gleich verteilt
+    entries: z.array(z.object({ userId: id, adjustMinor: safeInt })).min(1).max(100),
+  }),
   z.object({ type: z.literal("full"), owner: id }),
   z.object({
     type: z.literal("items"),

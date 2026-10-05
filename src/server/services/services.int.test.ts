@@ -1684,4 +1684,18 @@ d("services (PostgreSQL)", () => {
       expect(await svc.payinfo.setOwnPayInfo(a.id, { holder: "", iban: "", paypal: "" }, PW)).toEqual({ holder: null, iban: null, paypal: null });
     });
   });
+
+  describe("Gleich mit Anpassungen", () => {
+    it("speichert Anpassungen als Eingabe, Summe stimmt, Fehler bei zu hohen Anpassungen", async () => {
+      const { a, b, c, g } = await setup();
+      const e = await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 1000, payers: [{ userId: a.id, amountMinor: 1000 }], split: { type: "adjust", entries: [{ userId: a.id, adjustMinor: 0 }, { userId: b.id, adjustMinor: 0 }, { userId: c.id, adjustMinor: -100 }] } }));
+      const got = await svc.expenses.getExpense(a.id, g.id, e.id);
+      expect(got.splitType).toBe("adjust");
+      expect(got.shares.reduce((x, y) => x + y.amountMinor, 0)).toBe(1000);
+      expect(got.shares.find((x) => x.userId === c.id)).toMatchObject({ amountMinor: 266, input: -100 });
+      await expect(
+        svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 1000, payers: [{ userId: a.id, amountMinor: 1000 }], split: { type: "adjust", entries: [{ userId: a.id, adjustMinor: 2000 }, { userId: b.id, adjustMinor: 0 }] } })),
+      ).rejects.toMatchObject({ code: "adjust_sum" });
+    });
+  });
 });

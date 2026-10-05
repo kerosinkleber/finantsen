@@ -1221,3 +1221,24 @@ test("pay when settling up: payment details with password, GiroCode and PayPal l
   await expect(page.getByTestId("pay-box")).toHaveCount(0);
   await ctx.close();
 });
+
+test("split equally with adjustments: rest is shared equally, adjustment added, reloads for editing", async ({ page }) => {
+  await login(page, "anna@example.com");
+  const groups = await (await page.request.get("/api/groups")).json();
+  const gid = groups.groups.find((g: { name: string }) => g.name === "Pay test").id;
+  await page.goto(`/groups/${gid}/expenses/new`);
+  await page.getByLabel("Title").fill("Taxi");
+  await page.getByLabel("Amount").fill("30");
+  await page.getByRole("radio", { name: "Equal + adjust" }).click();
+  await page.getByRole("textbox", { name: "Equal + adjust Anna" }).fill("10");
+  await expect(page.getByTestId("split-hint")).toContainText("€10.00");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Taxi" })).toBeVisible();
+  // Ben trägt 10 €, Anna 20 € (hat bezahlt) → Ben schuldet zusätzlich 10 € (vorher 23,50 €)
+  await page.goto(`/groups/${gid}?tab=balances`);
+  await expect(page.getByTestId("transfers-EUR")).toContainText("€33.50");
+  await page.goto(`/groups/${gid}`);
+  await page.getByTestId("expense-item").filter({ hasText: "Taxi" }).click();
+  await expect(page.getByRole("radio", { name: "Equal + adjust" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("textbox", { name: "Equal + adjust Anna" })).toHaveValue("10.00");
+});

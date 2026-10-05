@@ -63,6 +63,9 @@ Ohne Mailserver gibt der Admin Einmal-Links selbst weiter. Eingerichtet wird er 
 
 Für den lokalen Test (`docker-compose.local.yml`) läuft **Mailpit** mit: alle Mails landen unter <http://localhost:8025>, nichts verlässt den Rechner.
 
+### Aufteilungsarten
+Gleich, **gleich mit Anpassungen** (z. B. „Anna +5 €, Ben −2 €, Rest gleich“: erst die Anpassungen abziehen, den Rest gleich teilen, dann die Anpassung je Person addieren), Prozent, feste Beträge, Anteile (ganze Zahlen), Einzelposten mit Steuer/Trinkgeld und „eine Person trägt alles“. Summe der Anteile ist immer exakt der Betrag.
+
 ### Bezahlen beim Begleichen
 Unter *Konto → Bezahldaten* kann jede Person optional **IBAN mit Kontoinhaber** und/oder ihren **PayPal.me-Namen** hinterlegen (Ändern nur mit Passwort). Wer ihr in einer gemeinsamen Gruppe laut Ausgleichsvorschlag Geld schuldet, sieht im Reiter *Salden* „Bezahlen an …“: einen **GiroCode** (EPC-QR, nur Euro, jede Banking-App füllt Empfänger, IBAN, Betrag und Verwendungszweck aus), die IBAN zum Kopieren und einen **PayPal.me-Link mit Betrag**. Die App bewegt kein Geld; danach trägt man die Zahlung wie gewohnt mit „Begleichen“ ein. Andere sehen die Bezahldaten nie, auch nicht im Export.
 

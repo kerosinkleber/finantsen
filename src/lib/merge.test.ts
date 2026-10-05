@@ -38,3 +38,15 @@ describe("Gast durch Konto ersetzen", () => {
     expect(replaceUserInDefaultSplit({ type: "equal", entries: [{ userId: "g", value: 0 }, { userId: "a", value: 0 }, { userId: "b", value: 0 }] }, "g", "a")).toEqual({ type: "shares", entries: [{ userId: "a", value: 2 }, { userId: "b", value: 1 }] });
   });
 });
+
+describe("gleich mit Anpassungen beim Verknüpfen eines Gasts", () => {
+  it("nur der Gast: Anpassung wandert mit; beide beteiligt: feste Beträge mit gleicher Summe", () => {
+    expect(replaceUserInSplit({ type: "adjust", entries: [{ userId: "g", adjustMinor: 500 }, { userId: "b", adjustMinor: 0 }] }, "g", "a")).toEqual({
+      type: "adjust",
+      entries: [{ userId: "a", adjustMinor: 500 }, { userId: "b", adjustMinor: 0 }],
+    });
+    const merged = replaceUserInSplit({ type: "adjust", entries: [{ userId: "a", adjustMinor: 100 }, { userId: "g", adjustMinor: 0 }, { userId: "b", adjustMinor: 0 }] }, "g", "a", 3100);
+    // 3100 − 100 = 3000 → je 1000; a 1100 + g 1000 = 2100, b 1000
+    expect(merged).toEqual({ type: "exact", entries: [{ userId: "a", amountMinor: 2100 }, { userId: "b", amountMinor: 1000 }] });
+  });
+});

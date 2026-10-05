@@ -100,6 +100,9 @@ Use at least three people in one group so the results are interesting.
 - [ ] **Comments** on an expense. You can delete your own comments only.
 - [ ] **Search & filter** (group → *Expenses* → *Search & filter*): by text, amount range, date range, category, person. *Reset* clears it.
 
+- [ ] **Equal + adjust.** New expense 30 € for two people, split *Equal + adjust*, give one person `10`.
+  Expected: hint "about €10.00 per person"; saved shares are 20 € and 10 €. Try `-2.50` for someone (they pay less). Adjustments higher than the amount, or a negative share, are rejected with a clear message. Opening the expense again shows the adjustment in the field. Switching the split type clears the per-person fields.
+
 ### Other currencies (needs internet)
 - [ ] Create an expense in a currency different from the group's (e.g. USD in a EUR group). Expected: the exchange rate for the expense date is shown with a preview of the converted amount.
 - [ ] **Set the rate manually** (checkbox) and watch the preview change. After saving, the list shows the converted amount, balances are in the group currency, and re-opening the expense keeps the stored rate.
