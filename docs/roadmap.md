@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **Fertige Images über GitHub (amd64/arm64) und NAS-Betrieb** (`docker-compose.nas.yml`, `docs/anleitung-nas.md`): kein Bauen auf Server/NAS nötig.
 - **Belegfotos an Ausgaben** (Fragebogen 8): bis 5 Fotos je Ausgabe, im Browser verkleinert, in der Datenbank (im Backup).
 - **Gruppenbudget** (Fragebogen 8): je Monat oder insgesamt, Balken über der Ausgabenliste, einmalige Benachrichtigung bei Überschreitung.
 - **Rückerstattung, Zahlungsart, mehr Statistik** (Fragebogen 8): Rückerstattungen wirken umgekehrt auf Salden und mindern die Statistik; Zahlungsart mit Filter; Durchschnitte, Zahlungsarten, größte Ausgaben.

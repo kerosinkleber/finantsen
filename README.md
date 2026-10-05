@@ -20,6 +20,13 @@ Nützlich: `docker compose -f docker-compose.local.yml logs -f app` (Logs), `...
 
 Den produktiven Stack (mit Caddy/HTTPS) kannst du lokal mit `DOMAIN=localhost` in `.env` und `docker compose up -d` testen; der Browser warnt dann wegen des selbstsignierten Zertifikats.
 
+## Fertiges Image von GitHub (ohne Bauen)
+
+Bei jedem Push baut GitHub Actions (`.github/workflows/image.yml`) das App-Image für **amd64 und arm64** und legt es unter `ghcr.io/kerosinkleber/finantsen` ab. Tags: Branch-Name (z. B. `main`, `claude-magical-feynman-h8qjkz`), `latest` (nur `main`), `sha-<commit>`. Server oder NAS brauchen damit nichts zu bauen: `docker compose pull && docker compose up -d`. Die Version wählt `FINANTSEN_TAG` in der `.env` (Standard `latest`). Neue Pakete sind bei GitHub zunächst privat; einmal unter *Profil → Packages → finantsen → Package settings → Change visibility → Public* umstellen, dann lädt jeder Server ohne Anmeldung.
+
+- **NAS / Heimserver zum Ausprobieren:** `docker-compose.nas.yml` + `.env.nas.example`, Schritt-für-Schritt in [`docs/anleitung-nas.md`](docs/anleitung-nas.md) (Synology, QNAP, Portainer, SSH). Läuft über `http://IP:Port` ohne eigene Domain; Kamera-Scanner, Passkeys, App-Installation, Offline und Push brauchen später HTTPS.
+- **Produktiv-Stack** (`docker-compose.yml`): nutzt dasselbe Image (`docker compose pull`), kann aber weiterhin selbst bauen (`docker compose up -d --build`).
+
 ## Server-Setup (Schritt für Schritt)
 
 Voraussetzungen: ein Linux-Server mit Docker + Docker Compose, eine Domain, deren DNS-Eintrag (A/AAAA) auf den Server zeigt, offene Ports 80 und 443.

@@ -106,6 +106,10 @@ Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-
 - Schalter: `settings.testFeaturesEnabled()`; Default aus `TEST_FEATURES_DEFAULT` (nur `"true"`), DB-Wert hat Vorrang. Nur `docker-compose.local.yml`, Playwright und `.env.example` (auskommentiert) setzen ihn. Testnutzer erhalten nie Push (In-App-Benachrichtigungen ja). In `listGroups` tragen Testnutzer „(Test)“ im Namen, ebenso Verlauf/Kommentare/Benachrichtigungen.
 - Release: `docs/release-checkliste.md`.
 
+## Images und NAS
+- `.github/workflows/image.yml`: baut bei Push auf `main`, `claude/**` und Tags `v*` nativ für amd64 (`ubuntu-24.04`) und arm64 (`ubuntu-24.04-arm`), lädt per Digest hoch und führt zu einem Multi-Plattform-Image `ghcr.io/kerosinkleber/finantsen` zusammen (Tags: Branch, `latest` nur Default-Branch, `sha-…`, SemVer). GHCR-Paket muss einmal vom Auftraggeber auf „Public“ gestellt werden (geht nicht per API).
+- `docker-compose.yml` (`app.image` = `ghcr.io/…:${FINANTSEN_TAG:-latest}` plus `build: .`), `docker-compose.nas.yml` (nur db + app, Port `APP_PORT`, `http`, kein Caddy, kein Dev-Admin), `.env.nas.example`, Anleitung `docs/anleitung-nas.md`. Origin-Prüfung ist host-basiert, `http://IP:Port` funktioniert (Cookies ohne `Secure`, weil `APP_URL` http ist).
+
 ## Performance
 - Siehe `docs/performance.md` (Messung mit 3000 Ausgaben, vorher/nachher). Regeln: Listen von IDs als **ein** Array-Parameter (`sql\`${sql.param(ids)}::uuid[]\``, `= any(...)`), nie `inArray` mit beliebig vielen IDs; Zuordnungen per `Map`, nicht `filter` in Schleifen.
 - `balances.ts#netBalancesSql` summiert Nettosalden in SQL (vereinfachte Schulden, Übersicht in einer Abfrage); `groupBalancesFull` nur für paarweise Schulden. Ein Integrationstest prüft, dass beide Wege gleich rechnen.
