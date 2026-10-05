@@ -1,4 +1,5 @@
 "use client";
+import { downscaleToBase64 } from "@/lib/image-client";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
@@ -16,21 +17,6 @@ export type ScanResult = {
   mismatch: boolean;
   dropped: number;
 };
-
-/** Verkleinert das Foto im Browser (max. 1600 px, JPEG) - spart Upload-Zeit und berücksichtigt EXIF-Drehung. */
-async function downscale(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * scale);
-  canvas.height = Math.round(bmp.height * scale);
-  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("toBlob"))), "image/jpeg", 0.85));
-  const buf = new Uint8Array(await blob.arrayBuffer());
-  let bin = "";
-  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-  return btoa(bin);
-}
 
 /**
  * Foto aufnehmen/hochladen und per Vision-Modell auslesen. Das Ergebnis geht nur über `onResult`
@@ -57,7 +43,7 @@ export function ReceiptScan({ fallbackCurrency, onResult }: { fallbackCurrency: 
     setError(null);
     setInfo(null);
     try {
-      const image = await downscale(file).catch(() => {
+      const image = await downscaleToBase64(file).catch(() => {
         throw new ApiClientError(400, "invalid_image");
       });
       const { receipt } = await api<{ receipt: ScanResult }>("POST", "/api/receipts/scan", { image, fallbackCurrency });

@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer, budget] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer, budget, attachments] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -38,8 +38,9 @@ d("services (PostgreSQL)", () => {
       import("./reminders"),
       import("./import"),
       import("./budget"),
+      import("./attachments"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer, budget };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer, budget, attachments };
   }
 
   beforeAll(async () => {
@@ -1835,6 +1836,33 @@ d("services (PostgreSQL)", () => {
       expect((await svc.budget.budgetStatus(g.id))?.spentMinor).toBe(14500);
       await svc.groups.updateGroup(a.id, g.id, { budget: null });
       expect(await svc.budget.budgetStatus(g.id)).toBeNull();
+    });
+  });
+
+  describe("Belegfotos", () => {
+    // 1×1-PNG
+    const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+    it("nur Mitglieder, nur echte Bilder, höchstens 5, mit der Gruppe gelöscht", async () => {
+      const { a, b, g } = await setup();
+      const e = await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      const att = await svc.attachments.addAttachment(b.id, g.id, e.id, `data:image/png;base64,${PNG}`);
+      expect(att).toMatchObject({ mime: "image/png", size: 70 });
+      const got = await svc.attachments.getAttachment(a.id, g.id, e.id, att.id);
+      expect(got.data.subarray(1, 4).toString()).toBe("PNG");
+      await expect(svc.attachments.addAttachment(a.id, g.id, e.id, Buffer.from("<svg onload=alert(1)>").toString("base64"))).rejects.toMatchObject({ code: "invalid_image" });
+      const d = await mkUser(a, "dora");
+      await expect(svc.attachments.getAttachment(d.id, g.id, e.id, att.id)).rejects.toMatchObject({ status: 404 });
+      for (let i = 0; i < 4; i++) await svc.attachments.addAttachment(a.id, g.id, e.id, PNG);
+      await expect(svc.attachments.addAttachment(a.id, g.id, e.id, PNG)).rejects.toMatchObject({ code: "too_many_attachments" });
+      expect(await svc.attachments.listAttachments(a.id, g.id, e.id)).toHaveLength(5);
+      await svc.attachments.deleteAttachment(b.id, g.id, e.id, att.id);
+      expect(await svc.attachments.listAttachments(a.id, g.id, e.id)).toHaveLength(4);
+      // gelöschte Ausgabe: Fotos bleiben (Wiederherstellen), aber keine neuen
+      await svc.expenses.deleteExpense(a.id, g.id, e.id);
+      await expect(svc.attachments.addAttachment(a.id, g.id, e.id, PNG)).rejects.toMatchObject({ code: "invalid_state" });
+      await svc.groups.deleteGroup(a.id, g.id).catch(() => {});
+      const [{ n }] = (await svc.getDb().execute(svc.sql`select count(*)::int as n from expense_attachments`)) as unknown as { n: number }[];
+      expect(n).toBe(0);
     });
   });
 });

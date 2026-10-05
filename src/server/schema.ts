@@ -12,6 +12,7 @@ import {
   timestamp,
   uniqueIndex,
   type AnyPgColumn,
+  customType,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -445,4 +446,27 @@ export const imports = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("imports_group_hash_idx").on(t.groupId, t.hash)],
+);
+
+/** Binärdaten (bytea) als Buffer. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/**
+ * Belegfotos zu Ausgaben. Gespeichert in der Datenbank (damit im normalen Backup und mit der Ausgabe gelöscht),
+ * im Browser verkleinert (max. 1600 px, JPEG, ohne EXIF/GPS), höchstens 5 MB und 5 Fotos je Ausgabe.
+ */
+export const expenseAttachments = pgTable(
+  "expense_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    mime: varchar("mime", { length: 20 }).notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("attachments_expense_idx").on(t.expenseId)],
 );

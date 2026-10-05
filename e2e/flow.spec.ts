@@ -1373,3 +1373,24 @@ test("budget: owner sets a monthly budget, bar shows the state, exceeding notifi
   await expect(ben.getByTestId("notification").filter({ hasText: "Budget of Pay test exceeded" })).toHaveCount(1);
   await ctx.close();
 });
+
+test("receipt photo: attach to an expense, visible to members, served as image, delete", async ({ page }) => {
+  await login(page, "anna@example.com");
+  const groups = await (await page.request.get("/api/groups")).json();
+  const gid = groups.groups.find((g: { name: string }) => g.name === "Pay test").id;
+  await page.goto(`/groups/${gid}`);
+  await page.getByTestId("expense-item").filter({ hasText: "Taxi" }).click();
+  const box = page.getByTestId("attachments");
+  await expect(box).toContainText("No photo yet.");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==", "base64");
+  await page.getByTestId("attach-input").setInputFiles({ name: "receipt.png", mimeType: "image/png", buffer: png });
+  await expect(box.getByTestId("attachment")).toHaveCount(1);
+  const src = await box.getByRole("img", { name: "Receipt photo" }).getAttribute("src");
+  const res = await page.request.get(src!);
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toBe("image/jpeg"); // im Browser neu als JPEG erzeugt (ohne EXIF)
+  expect(res.headers()["x-content-type-options"]).toBe("nosniff");
+  await box.getByRole("button", { name: "Delete" }).click();
+  await page.getByTestId("confirm-yes").click();
+  await expect(box.getByTestId("attachment")).toHaveCount(0);
+});

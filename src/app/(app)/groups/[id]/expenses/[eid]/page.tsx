@@ -7,6 +7,8 @@ import { getGroup } from "@/server/services/groups";
 import { expenseHistoryFor, getExpense } from "@/server/services/expenses";
 import { listComments } from "@/server/services/comments";
 import { Comments } from "@/components/Comments";
+import { Attachments } from "@/components/Attachments";
+import { ATTACHMENTS_PER_EXPENSE, listAttachments } from "@/server/services/attachments";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { expenseToInitial } from "@/components/expenseInitial";
 import Link from "next/link";
@@ -24,13 +26,14 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       const expense = await getExpense(user.id, id, eid);
       const history = await expenseHistoryFor(user.id, id, eid);
       const comments = await listComments(user.id, id, eid);
-      return { group, expense, history, comments };
+      const attachments = await listAttachments(user.id, id, eid);
+      return { group, expense, history, comments, attachments };
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) notFound();
       throw e;
     }
   };
-  const { group, expense, history, comments } = await load();
+  const { group, expense, history, comments, attachments } = await load();
   const initial = expenseToInitial(expense);
   // Im Verlauf können übernommene Gäste als „guest:<Name>“ stehen (siehe claimGuest)
   const name = (uid: string) => (uid.startsWith("guest:") ? `${uid.slice(6)} (${t("guest.label")})` : (group.members.find((m) => m.id === uid)?.name ?? "?"));
@@ -53,6 +56,13 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
           )}
         </>
       )}
+      <Attachments
+        groupId={id}
+        expenseId={eid}
+        initial={attachments.map((a) => ({ id: a.id, size: a.size }))}
+        canAdd={!expense.deletedAt}
+        max={ATTACHMENTS_PER_EXPENSE}
+      />
       <Comments
         groupId={id}
         expenseId={eid}

@@ -126,6 +126,9 @@ Use at least three people in one group so the results are interesting.
   Expected: the heading changes to "Received by"; the list shows a "Refund" badge and "Cash"; balances move the other way (you now owe each of the two others 2 € more / they owe you 2 € less). Statistics total goes **down** by 6 €. Editing the refund keeps the tick. CSV export shows type "Refund" with negative amounts.
 - [ ] **Payment method.** Set a method on some expenses. Filter *Payment method = Card*: only those expenses. Statistics tab: section "By payment method", "Average: … per expense, … per month", "Largest expenses".
 
+- [ ] **Receipt photos.** Open an expense → *Receipt photos* → *Add photo* (on a phone the camera opens).
+  Expected: a thumbnail appears; tapping it opens the photo. Another member of the group sees it too; a person outside the group gets "not found" for the photo address. Non-image files are refused. After 5 photos the add button disappears. *Delete* asks for confirmation and removes it. A deleted expense keeps its photos (restore brings them back) but you cannot add new ones.
+
 ### Other currencies (needs internet)
 - [ ] Create an expense in a currency different from the group's (e.g. USD in a EUR group). Expected: the exchange rate for the expense date is shown with a preview of the converted amount.
 - [ ] **Set the rate manually** (checkbox) and watch the preview change. After saving, the list shows the converted amount, balances are in the group currency, and re-opening the expense keeps the stored rate.
