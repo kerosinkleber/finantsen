@@ -18,6 +18,7 @@ export const PATCH = route(async ({ req, user }) => {
       allowDuplicateEmails: z.boolean().optional(),
       testFeaturesEnabled: z.boolean().optional(),
       totpRequiredAll: z.boolean().optional(),
+      passwordResetEnabled: z.boolean().optional(),
       recoveryCodeCount: z.number().int().min(0).max(RECOVERY_CODES_MAX).optional(),
       linkValidityHours: z.number().int().min(LINK_VALIDITY_MIN).max(LINK_VALIDITY_MAX).optional(),
     }),

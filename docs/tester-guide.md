@@ -24,7 +24,9 @@ The first build takes a few minutes. When the log shows `migrations applied` and
 
 **Test password** that satisfies the rules: `Correct-Horse-Battery-9!`
 
-**Not available in this version** (please do not report these as bugs): e-mail sending (the admin hands out links himself), push notifications on a local setup, receipt scanning (needs an API key).
+**E-mails:** the local setup includes a test mailbox. Every e-mail the app sends (one-time links, "Forgot password", notifications) appears at <http://localhost:8025> (Mailpit). Nothing leaves your computer. Give the accounts you create an e-mail address such as `lena@example.com` to receive mails.
+
+**Not available in this version** (please do not report these as bugs): push notifications on a local setup, receipt scanning (needs an API key).
 
 ---
 
@@ -124,6 +126,24 @@ Use at least three people in one group so the results are interesting.
 ## 6. Notifications
 
 - [ ] When someone else adds an expense or comments, a **bell with a counter** appears for you. Open it, follow the entry, use *Mark all as read*. You never get notifications for your own actions.
+
+---
+
+## 6b. E-mail (local test mailbox at http://localhost:8025)
+
+- [ ] **Mail status and test mail.** Account → **Manage users** → section *E-mail sending*.
+  Expected: "Active (configured in the server configuration .env)", the server form is locked. The dev admin has no e-mail address: *Send test e-mail to me* shows "No e-mail address is stored for your account." Create a second admin with e-mail `boss@example.com` (password mode), sign in as boss, click *Send test e-mail to me*: "Test e-mail sent to boss@example.com", and the mail appears in Mailpit.
+- [ ] **One-time link by e-mail.** Create a user with the one-time link option **and** an e-mail address (e.g. `lena@example.com`).
+  Expected: the link box still shows the link, plus "The link was also sent by e-mail to lena@example.com". In Mailpit: subject "Finantsen: Konto aktivieren"/"activate your account" (language of the account), the same link, expiry in UTC. Opening the link from the mail works. A user **without** e-mail gets no mail and no such note.
+- [ ] **Forgot password.** Sign out. On the sign-in page click **Forgot password?**, enter the username (or the e-mail) of an active account with e-mail.
+  Expected: always the same message "If a matching account … exists, a link is on its way". In Mailpit a mail "set a new password" arrives; the link sets a new password and signs you in (with two-factor enabled you must still enter the code). Try an **unknown** name: exactly the same message, no mail. Try an account **without** e-mail, a **disabled** account and a **test user**: same message, no mail. Request it 4 times within an hour for the same account: only 3 mails arrive. A newer link makes the older one invalid.
+- [ ] **Admin switch.** As admin untick *Allow "Forgot password" on the sign-in page*.
+  Expected: the link disappears from the sign-in page; `/forgot-password` redirects to the sign-in page.
+- [ ] **E-mail settings of a user.** Account page → section *E-mail*.
+  Expected: change your e-mail address only with your current password (wrong password → "The password is wrong."; an address of another account → "already registered"). Both switches *Notifications by e-mail* and *Weekly summary* are **off** by default. Turn on notifications, then let another member add an expense or comment in a shared group.
+  Expected: a mail "Finantsen: <group>" with the text of the notification and a link to the expense. Your own actions never send you mail. Test users and guests never get mails.
+- [ ] **Weekly summary.** Turn it on. It is sent on Mondays from 06:00 UTC, only if you have open balances, and the first one only in the following week. Mark as SKIPPED if you cannot wait; check only that the switch saves.
+- [ ] **Mail server in the admin area (optional).** Only if you can restart the app: start it with `SMTP_URL= docker compose -f docker-compose.local.yml up` (empty value). Then the status is "Off", no "Forgot password?" link. Enter server `mailpit`, port `1025`, encryption *None*, sender `Finantsen <test@localhost>`, save, send a test mail. The password field never shows a stored password.
 
 ---
 

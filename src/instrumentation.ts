@@ -9,5 +9,8 @@ export async function register() {
     // Wiederkehrende Ausgaben: beim Start nachholen und danach alle 15 Minuten prüfen (SCHEDULER=off schaltet ab)
     const { startRecurringScheduler } = await import("./server/services/recurring");
     startRecurringScheduler();
+    // Wöchentliche Zusammenfassung per E-Mail (nur mit Mailversand; Montag ab 06:00 UTC)
+    const { startDigestScheduler } = await import("./server/services/digest");
+    startDigestScheduler();
   }
 }

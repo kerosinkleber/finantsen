@@ -1,6 +1,8 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 
 /** Setzt die Test-DB zurück, bevor der Server startet. */
 export default async function globalSetup() {
@@ -9,4 +11,5 @@ export default async function globalSetup() {
   await migrate(drizzle(sql), { migrationsFolder: "./drizzle" });
   await sql.unsafe("truncate users, groups, settings, exchange_rates, user_tokens cascade");
   await sql.end();
+  await rm(path.resolve(import.meta.dirname, "..", ".e2e-mails"), { recursive: true, force: true });
 }

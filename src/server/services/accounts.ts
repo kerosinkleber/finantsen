@@ -6,7 +6,10 @@ import { passkeys, sessions, userTokens, users } from "../schema";
 import { ApiError } from "../http";
 import { endSessions, hashPassword, sha256, verifyPassword, type SessionUser } from "../auth";
 import { passwordIssues } from "@/lib/password";
-import { allowDuplicateEmails, linkValidityHours, registrationEnabled } from "./settings";
+import { allowDuplicateEmails, linkValidityHours, passwordResetEnabled, registrationEnabled } from "./settings";
+import { mailEnabled, sendMail, sendMailOrThrow, trackBackground } from "../mail/mailer";
+import { linkMail, testMail } from "../mail/templates";
+import { normalizeLocale } from "@/i18n";
 
 type UserRow = typeof users.$inferSelect;
 
@@ -115,7 +118,7 @@ export async function createUserByAdmin(
       mustChangePassword: input.mode === "password" && input.mustChange,
     });
   });
-  const link = input.mode === "link" ? await issueLink(user, actor.id) : null;
+  const link = input.mode === "link" ? await issueAndDeliver(user, actor.id) : null;
   return { user: publicUser(user), link };
 }
 
@@ -147,8 +150,8 @@ export async function listUsers(actor: SessionUser) {
 // --------------------------------------------------------------- Einmal-Links
 
 /**
- * Zentrale Stelle für die Zustellung von Einmal-Links. Ohne Mailserver gibt der Admin den Link weiter.
- * Später: hier E-Mail-Versand ergänzen (SMTP-Adapter), der Rest bleibt unverändert.
+ * Zentrale Stelle für Einmal-Links. Der Admin sieht den Link immer; ist ein Mailserver eingerichtet und beim Konto
+ * eine E-Mail hinterlegt, geht er zusätzlich per Mail raus (`deliverLink`).
  */
 function linkUrl(token: string) {
   return `${env.appUrl.replace(/\/$/, "")}/activate/${token}`;
@@ -164,6 +167,101 @@ async function issueLink(user: UserRow, createdBy: string) {
     await tx.insert(userTokens).values({ tokenHash: sha256(token), userId: user.id, purpose, expiresAt, createdBy });
   });
   return { url: linkUrl(token), expiresAt, purpose };
+}
+
+type IssuedLink = Awaited<ReturnType<typeof issueLink>>;
+
+/** Schickt einen Einmal-Link per Mail. Liefert die Adresse, `false` bei Fehler, `null` ohne Mail/Adresse. */
+async function deliverLink(user: UserRow, link: IssuedLink): Promise<string | false | null> {
+  if (!user.email || user.kind !== "user" || !(await mailEnabled())) return null;
+  const mail = linkMail(normalizeLocale(user.locale) ?? env.defaultLocale, env.appUrl, { name: user.name, username: user.username, email: user.email }, link);
+  return (await sendMail(mail)) ? user.email : false;
+}
+
+async function issueAndDeliver(user: UserRow, createdBy: string) {
+  const link = await issueLink(user, createdBy);
+  const mailed = await deliverLink(user, link);
+  return { ...link, mailedTo: mailed || null, mailFailed: mailed === false };
+}
+
+/**
+ * „Passwort vergessen“: verrät nie, ob es das Konto gibt (Aufrufer antwortet immer gleich). Nur echte, aktive
+ * oder eingeladene Konten mit E-Mail. Der Versand läuft im Hintergrund, damit die Antwortzeit nichts verrät.
+ * Zwei-Faktor bleibt nach dem Zurücksetzen nötig (der Link meldet TOTP-Konten nicht an).
+ */
+export async function requestPasswordReset(identifier: string, allow: (userId: string) => boolean): Promise<void> {
+  if (!(await mailEnabled()) || !(await passwordResetEnabled())) throw new ApiError(404, "not_found");
+  const id = identifier.trim().toLowerCase();
+  if (!id || id.length > 320) return;
+  const rows = await getDb()
+    .select()
+    .from(users)
+    .where(
+      and(
+        eq(users.kind, "user"),
+        sql`${users.status} in ('active', 'invited')`,
+        sql`${users.email} is not null`,
+        id.includes("@") ? sql`lower(${users.email}) = ${id}` : eq(users.username, id),
+      ),
+    )
+    .limit(5);
+  for (const u of rows) {
+    if (!allow(u.id)) continue;
+    const p = issueLink(u, u.id).then((link) => deliverLink(u, link));
+    trackBackground(p.catch((e) => console.error("[forgot] failed", e)));
+  }
+}
+
+/** Eigene E-Mail-Adresse ändern oder entfernen (mit aktuellem Passwort, sofern eines gesetzt ist). */
+export async function setOwnEmail(userId: string, email: string | null, password: string) {
+  // Passwort vor dem Lock prüfen (argon2 ist bewusst langsam und soll andere Kontoänderungen nicht blockieren)
+  const [u] = await getDb().select().from(users).where(eq(users.id, userId));
+  if (!u || u.kind !== "user") throw new ApiError(403, "forbidden");
+  if (u.passwordHash && !(await verifyPassword(u.passwordHash, password))) throw new ApiError(403, "wrong_password");
+  await getDb().transaction(async (tx) => {
+    await lock(tx);
+    if (email && !(await allowDuplicateEmails())) {
+      const [dup] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(sql`lower(${users.email}) = ${email.toLowerCase()}`, ne(users.id, userId)))
+        .limit(1);
+      if (dup) throw new ApiError(409, "email_taken");
+    }
+    await tx.update(users).set({ email }).where(eq(users.id, userId));
+  });
+}
+
+export async function getEmailPrefs(userId: string) {
+  const [u] = await getDb()
+    .select({ email: users.email, emailNotifications: users.emailNotifications, weeklyDigest: users.weeklyDigest, hasPassword: sql<boolean>`${users.passwordHash} is not null` })
+    .from(users)
+    .where(eq(users.id, userId));
+  return { ...u, mailEnabled: await mailEnabled() };
+}
+
+/** Test-Mail an die eigene Adresse. `null` ohne Adresse; wirft `mail_disabled`/`mail_failed`. */
+export async function sendTestMail(userId: string): Promise<string | null> {
+  const [u] = await getDb().select().from(users).where(eq(users.id, userId));
+  if (!u?.email) return null;
+  if (!(await mailEnabled())) throw new ApiError(409, "mail_disabled");
+  try {
+    await sendMailOrThrow(testMail(normalizeLocale(u.locale) ?? env.defaultLocale, env.appUrl, { name: u.name, email: u.email }));
+  } catch (e) {
+    const detail = String((e as Error).message ?? e).slice(0, 300);
+    console.error("[mail] test failed", detail);
+    throw new ApiError(502, "mail_failed", "mail_failed", { detail }); // nur der Admin sieht das (Fehlersuche)
+  }
+  return u.email;
+}
+
+export async function setEmailPrefs(userId: string, p: { emailNotifications?: boolean; weeklyDigest?: boolean }) {
+  const set: Partial<typeof users.$inferInsert> = {};
+  if (p.emailNotifications !== undefined) set.emailNotifications = p.emailNotifications;
+  if (p.weeklyDigest !== undefined) set.weeklyDigest = p.weeklyDigest;
+  // Erst ab der nächsten Versandwoche, nicht sofort beim Einschalten
+  if (p.weeklyDigest) set.digestSentAt = new Date();
+  if (Object.keys(set).length) await getDb().update(users).set(set).where(eq(users.id, userId));
 }
 
 async function loadValidToken(token: string) {
@@ -330,7 +428,7 @@ export async function adminAction(actor: SessionUser, userId: string, a: AdminAc
   if (a.action === "link") {
     const u = await getDb().transaction((tx) => target(tx, userId));
     if (!["active", "invited"].includes(u.status)) throw new ApiError(409, "invalid_state");
-    return { link: await issueLink(u, actor.id) };
+    return { link: await issueAndDeliver(u, actor.id) };
   }
   if (a.action === "resetTotp") {
     const u = await getDb().transaction((tx) => target(tx, userId));

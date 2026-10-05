@@ -11,7 +11,17 @@ import { startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/br
 type Account = { id: string; name: string; username: string; createdAt: string };
 
 /** Anmeldung mit Nutzername oder E-Mail. Bei mehreren Konten zur selben E-Mail erscheint eine Auswahl. */
-export function LoginForm({ next, registrationEnabled, devAdmin = false }: { next?: string; registrationEnabled: boolean; devAdmin?: boolean }) {
+export function LoginForm({
+  next,
+  registrationEnabled,
+  devAdmin = false,
+  passwordReset = false,
+}: {
+  next?: string;
+  registrationEnabled: boolean;
+  devAdmin?: boolean;
+  passwordReset?: boolean;
+}) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const [error, setError] = useState<unknown>(null);
@@ -154,6 +164,11 @@ export function LoginForm({ next, registrationEnabled, devAdmin = false }: { nex
       <button className="btn" disabled={busy}>{t("auth.login")}</button>
       {typeof window !== "undefined" && browserSupportsWebAuthn() && (
         <button type="button" className="btn-secondary" disabled={busy} data-testid="passkey-login" onClick={(e) => passkeyLogin(e.currentTarget.form)}>{t("passkey.login")}</button>
+      )}
+      {passwordReset && (
+        <p className="text-center">
+          <Link className="font-medium text-brand underline" href="/forgot-password" data-testid="forgot-link">{t("forgot.link")}</Link>
+        </p>
       )}
       <p className="muted text-center">{t("auth.notActivated")}</p>
       {registrationEnabled && (

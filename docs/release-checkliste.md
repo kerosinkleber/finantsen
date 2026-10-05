@@ -13,6 +13,7 @@ Vor dem Produktivbetrieb abhaken.
 - [ ] **Zeitplaner** für wiederkehrende Ausgaben läuft im App-Prozess (nicht `SCHEDULER=off` setzen). Bei mehreren App-Instanzen ist Doppelbuchung durch die Datenbank ausgeschlossen.
 - [ ] Selbstregistrierung gewünscht? Standard ist aus.
 - [ ] Optional: `VAPID_*` (Push), `ANTHROPIC_API_KEY` (Belegscan), `EXCHANGE_RATE_PROVIDER`.
+- [ ] **E-Mail-Versand** gewünscht? `SMTP_URL` und `MAIL_FROM` in `.env` (oder im Admin-Bereich einrichten) und `APP_URL` korrekt (Links in Mails nutzen sie). Unter *Nutzer verwalten → E-Mail-Versand* „Test-E-Mail an mich“ senden. Absender-Domain mit SPF/DKIM beim Mailanbieter einrichten, sonst landen Mails im Spam. „Passwort vergessen“ ist bei eingerichtetem Mailversand an (abschaltbar). Das lokale Mailpit gibt es produktiv nicht.
 
 ## Sicherheit
 - [ ] Admin-Konto über `/setup` eingerichtet, **bevor** die Domain weitergegeben wurde (wer die Seite zuerst aufruft, wird Admin).

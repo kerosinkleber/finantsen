@@ -56,6 +56,12 @@ export const users = pgTable(
     totpFailedAttempts: integer("totp_failed_attempts").notNull().default(0),
     totpLockedUntil: timestamp("totp_locked_until", { withTimezone: true }),
     locale: varchar("locale", { length: 5 }).notNull().default("de"),
+    /** Benachrichtigungen zusätzlich per E-Mail (nur mit Mailversand und hinterlegter Adresse) */
+    emailNotifications: boolean("email_notifications").notNull().default(false),
+    /** Wöchentliche Zusammenfassung der offenen Salden per E-Mail */
+    weeklyDigest: boolean("weekly_digest").notNull().default(false),
+    /** Zuletzt verschickte Zusammenfassung (atomar beansprucht, gegen Doppelversand) */
+    digestSentAt: timestamp("digest_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("users_username_idx").on(t.username), index("users_email_idx").on(sql`lower(${t.email})`)],

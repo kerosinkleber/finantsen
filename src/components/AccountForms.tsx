@@ -201,3 +201,47 @@ export function ChangePasswordForm({ required, username, email }: { required: bo
     </form>
   );
 }
+
+/** „Passwort vergessen“: Antwort ist immer gleich, egal ob es das Konto gibt. */
+export function ForgotPasswordForm() {
+  const { t } = useI18n();
+  const [identifier, setIdentifier] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api("POST", "/api/auth/forgot", { identifier });
+      setSent(true);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (sent)
+    return (
+      <div className="card flex flex-col gap-3 text-center" data-testid="forgot-sent">
+        <h2 className="text-xl font-semibold">{t("forgot.title")}</h2>
+        <p role="status">{t("forgot.sent")}</p>
+        <Link className="btn" href="/login">{t("forgot.back")}</Link>
+      </div>
+    );
+  return (
+    <form onSubmit={submit} className="card flex flex-col gap-4">
+      <h2 className="text-xl font-semibold">{t("forgot.title")}</h2>
+      <p className="muted">{t("forgot.help")}</p>
+      <div>
+        <label className="label" htmlFor="identifier">{t("auth.identifier")}</label>
+        <input id="identifier" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required autoComplete="username" autoCapitalize="none" />
+      </div>
+      <ErrorMessage error={error} />
+      <button className="btn" disabled={busy}>{t("forgot.submit")}</button>
+      <Link className="text-center text-brand underline" href="/login">{t("forgot.back")}</Link>
+    </form>
+  );
+}

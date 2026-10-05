@@ -3,10 +3,14 @@ import { getT } from "@/i18n/server";
 import Link from "next/link";
 import { PushToggle } from "@/components/PushToggle";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { EmailSettings } from "@/components/EmailSettings";
+import { getEmailPrefs } from "@/server/services/accounts";
 
 export default async function SettingsPage() {
   const user = await requireUser();
   const { t } = await getT();
+  // Beim Handeln als Testnutzer keine Mail-Einstellungen (Testnutzer bekommen nie Mails)
+  const emailPrefs = user.impersonating ? null : await getEmailPrefs(user.id);
   return (
     <>
       <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
@@ -20,6 +24,7 @@ export default async function SettingsPage() {
       {user.isAdmin && <Link href="/admin/users" className="btn-secondary" data-testid="admin-link">{t("admin.usersLink")}</Link>}
       <a href="/api/account/export" download className="btn-secondary" data-testid="export-account">{t("export.account")}</a>
       <PushToggle />
+      {emailPrefs && <EmailSettings initial={emailPrefs} />}
       <SettingsPanel />
       <p className="muted">{t("settings.install")}</p>
     </>

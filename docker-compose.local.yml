@@ -2,6 +2,8 @@
 #   docker compose -f docker-compose.local.yml up --build
 # Danach: http://localhost:3000 (Port änderbar: LOCAL_PORT=3001 docker compose -f ... up --build)
 # Aufräumen inkl. Daten: docker compose -f docker-compose.local.yml down -v
+# Mails (Einmal-Links, Passwort vergessen, Benachrichtigungen) landen im lokalen Postfach Mailpit:
+#   http://localhost:8025 (Port änderbar: LOCAL_MAIL_PORT=8026). Nichts verlässt den Rechner.
 name: finantsen-local
 
 services:
@@ -19,11 +21,19 @@ services:
       timeout: 3s
       retries: 15
 
+  # Lokales Test-Postfach (MIT-Lizenz): fängt alle Mails ab und zeigt sie im Browser an
+  mailpit:
+    image: axllent/mailpit:v1.31
+    ports:
+      - "${LOCAL_MAIL_PORT:-8025}:8025"
+
   app:
     build: .
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     ports:
       - "${LOCAL_PORT:-3000}:3000"
     environment:
@@ -39,6 +49,10 @@ services:
       DEV_ADMIN: "true"
       # Optional: aus der Shell durchreichen, z. B. ANTHROPIC_API_KEY=sk-... docker compose -f ... up
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Mailversand an Mailpit. Mit SMTP_URL= (leer) aus der Shell ist er aus und lässt sich im Admin-Bereich
+      # einrichten (Server "mailpit", Port 1025, Verschlüsselung "Keine").
+      SMTP_URL: ${SMTP_URL-smtp://mailpit:1025}
+      MAIL_FROM: ${MAIL_FROM:-Finantsen lokal <finantsen@localhost>}
       EXCHANGE_RATE_PROVIDER: ${EXCHANGE_RATE_PROVIDER:-fawazahmed0}
       EXCHANGE_RATES_STATIC: ${EXCHANGE_RATES_STATIC:-}
 

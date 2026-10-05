@@ -23,7 +23,7 @@ export type AdminUser = {
   totpRequired: boolean;
   passkeyCount: number;
 };
-type LinkInfo = { url: string; expiresAt: string; for: string };
+type LinkInfo = { url: string; expiresAt: string; for: string; mailedTo?: string | null; mailFailed?: boolean };
 
 function LinkBox({ link }: { link: LinkInfo }) {
   const { t, locale } = useI18n();
@@ -49,6 +49,8 @@ function LinkBox({ link }: { link: LinkInfo }) {
           {copied ? t("common.copied") : t("common.copy")}
         </button>
       </div>
+      {link.mailedTo && <p className="pos text-sm" data-testid="link-mailed">{t("admin.linkMailed", { email: link.mailedTo })}</p>}
+      {link.mailFailed && <p className="text-sm text-red-700 dark:text-red-300" data-testid="link-mail-failed">{t("admin.linkMailFailed")}</p>}
       <QrCode text={url} label={t("invite.qrAlt")} />
     </div>
   );
@@ -71,7 +73,7 @@ function CreateUser({ onCreated }: { onCreated: (link: LinkInfo | null) => void 
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ user: { name: string }; link: { url: string; expiresAt: string } | null }>("POST", "/api/admin/users", {
+      const r = await api<{ user: { name: string }; link: Omit<LinkInfo, "for"> | null }>("POST", "/api/admin/users", {
         name,
         username,
         email: email || undefined,
@@ -174,7 +176,7 @@ function UserCard({ u, meId, onChanged, onLink }: { u: AdminUser; meId: string; 
       <div className="flex flex-wrap gap-2">
         {u.status === "pending" && <button className={btn} onClick={() => act({ action: "approve" })}>{t("admin.action.approve")}</button>}
         {(u.status === "active" || u.status === "invited") && (
-          <button className={btn} onClick={() => act({ action: "link" }, (r) => onLink({ ...(r.link as { url: string; expiresAt: string }), for: u.name }))}>
+          <button className={btn} onClick={() => act({ action: "link" }, (r) => onLink({ ...(r.link as Omit<LinkInfo, "for">), for: u.name }))}>
             {t("admin.action.link")}
           </button>
         )}

@@ -1480,4 +1480,156 @@ d("services (PostgreSQL)", () => {
       expect(await svc.passkeys.passkeyCount(b.id)).toBe(0);
     });
   });
+
+  describe("E-Mail-Versand", () => {
+    type Mail = { to: string; subject: string; text: string };
+    let mails: Mail[] = [];
+    let mailer: typeof import("../mail/mailer");
+    let digest: typeof import("./digest");
+    beforeAll(async () => {
+      mailer = await import("../mail/mailer");
+      digest = await import("./digest");
+    });
+    beforeEach(() => {
+      mails = [];
+      mailer.setMailSink((m) => void mails.push(m));
+    });
+    afterEach(() => mailer.setMailSink(null));
+    const tokenOf = (m: Mail) => /\/activate\/([A-Za-z0-9_-]+)/.exec(m.text)![1];
+
+    it("ohne Mailserver: kein Versand, „Passwort vergessen“ gibt es nicht", async () => {
+      mailer.setMailSink(null);
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW, email: "a@x.de" });
+      const r = await svc.users.createUserByAdmin(actor(a), { username: "ben", email: "b@x.de", mode: "link", mustChange: false, isAdmin: false });
+      expect(r.link).toMatchObject({ mailedTo: null, mailFailed: false });
+      await expect(svc.users.requestPasswordReset("ben", () => true)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("Einmal-Links gehen zusätzlich per Mail raus (Sprache des Kontos), ohne Adresse nicht", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      const r = await svc.users.createUserByAdmin(actor(a), { username: "ben", email: "b@x.de", mode: "link", mustChange: false, isAdmin: false });
+      expect(r.link?.mailedTo).toBe("b@x.de");
+      expect(mails).toHaveLength(1);
+      expect(mails[0]).toMatchObject({ to: "b@x.de", subject: "Finantsen: Konto aktivieren" });
+      expect(r.link?.url).toContain(tokenOf(mails[0]));
+      const none = await svc.users.createUserByAdmin(actor(a), { username: "cleo", mode: "link", mustChange: false, isAdmin: false });
+      expect(none.link?.mailedTo).toBeNull();
+      expect(mails).toHaveLength(1);
+      // Versandfehler: Admin sieht den Link trotzdem, mit Hinweis
+      mailer.setMailSink(() => {
+        throw new Error("smtp down");
+      });
+      const again = await svc.users.adminAction(actor(a), r.user.id, { action: "link" });
+      expect(again.link).toMatchObject({ mailedTo: null, mailFailed: true });
+    });
+
+    it("„Passwort vergessen“: per Nutzername oder E-Mail, gleiche Antwort für unbekannte Konten, nie für Test-/gesperrte Konten", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW });
+      const b = await mkUser(a, "ben", { email: "Ben@X.de" });
+      await mkUser(a, "cleo"); // ohne E-Mail
+      const d2 = await mkUser(a, "dora", { email: "d@x.de" });
+      await svc.users.adminAction(actor(a), d2.id, { action: "disable" });
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: true });
+      await svc.testUsers.createTestUsers(actor(a), { count: 1 });
+
+      for (const id of ["niemand", "cleo", "dora", "d@x.de", "test-1", ""]) await svc.users.requestPasswordReset(id, () => true);
+      await mailer.flushMail();
+      expect(mails).toHaveLength(0);
+
+      await svc.users.requestPasswordReset("ben@x.de", () => true);
+      await mailer.flushMail();
+      expect(mails).toHaveLength(1);
+      expect(mails[0].to).toBe("Ben@X.de"); // Adresse wie gespeichert (Suche ohne Groß-/Kleinschreibung)
+      // Begrenzung pro Konto: Callback sagt nein → still nichts
+      await svc.users.requestPasswordReset("BEN", () => false);
+      await mailer.flushMail();
+      expect(mails).toHaveLength(1);
+      // Neuer Link ersetzt den alten; Einlösen setzt das Passwort
+      await svc.users.requestPasswordReset("ben", () => true);
+      await mailer.flushMail();
+      expect(await svc.users.peekLink(tokenOf(mails[0]))).toBeNull();
+      const u = await svc.users.redeemLink(tokenOf(mails[1]), "Another-Horse-Battery-7!");
+      expect(u.id).toBe(b.id);
+      // Admin schaltet ab
+      await svc.settings.updateAdminSettings({ passwordResetEnabled: false });
+      await expect(svc.users.requestPasswordReset("ben", () => true)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("eigene E-Mail-Adresse ändern nur mit Passwort, eindeutig; Einstellungen", async () => {
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW, email: "a@x.de" });
+      const b = await mkUser(a, "ben");
+      await expect(svc.users.setOwnEmail(b.id, "b@x.de", "falsch")).rejects.toMatchObject({ code: "wrong_password" });
+      await expect(svc.users.setOwnEmail(b.id, "a@x.de", PW)).rejects.toMatchObject({ code: "email_taken" });
+      await svc.users.setOwnEmail(b.id, "b@x.de", PW);
+      await svc.users.setEmailPrefs(b.id, { emailNotifications: true });
+      expect(await svc.users.getEmailPrefs(b.id)).toMatchObject({ email: "b@x.de", emailNotifications: true, weeklyDigest: false, mailEnabled: true });
+      await svc.users.setOwnEmail(b.id, null, PW);
+      expect((await svc.users.getEmailPrefs(b.id)).email).toBeNull();
+    });
+
+    it("Benachrichtigungen per Mail nur für eingeschaltete, echte Konten mit Adresse", async () => {
+      const { a, b, c, g } = await setup();
+      await svc.users.setOwnEmail(b.id, "b@x.de", PW);
+      await svc.users.setOwnEmail(c.id, "c@x.de", PW);
+      await svc.users.setEmailPrefs(b.id, { emailNotifications: true });
+      await svc.users.setEmailPrefs(a.id, { emailNotifications: true }); // Handelnde Person bekommt nichts
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      await mailer.flushMail();
+      expect(mails.map((m) => m.to)).toEqual(["b@x.de"]);
+      expect(mails[0].subject).toBe("Finantsen: WG");
+      expect(mails[0].text).toContain("Pizza");
+      expect(mails[0].text).toMatch(/\/groups\/[0-9a-f-]+\/expenses\/[0-9a-f-]+/);
+    });
+
+    it("wöchentliche Zusammenfassung: Montag ab 06:00 UTC, einmal pro Woche, nur mit offenen Salden", async () => {
+      expect(digest.digestWeekStart(new Date("2026-10-07T12:00:00Z")).toISOString()).toBe("2026-10-05T06:00:00.000Z"); // Mittwoch
+      expect(digest.digestWeekStart(new Date("2026-10-05T05:59:00Z")).toISOString()).toBe("2026-09-28T06:00:00.000Z"); // Montag früh
+      expect(digest.digestWeekStart(new Date("2026-10-11T23:00:00Z")).toISOString()).toBe("2026-10-05T06:00:00.000Z"); // Sonntag
+
+      const { a, b, c, g } = await setup();
+      await svc.users.setOwnEmail(b.id, "b@x.de", PW);
+      await svc.users.setOwnEmail(c.id, "c@x.de", PW);
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      await mailer.flushMail();
+      mails = [];
+      await svc.users.setEmailPrefs(b.id, { weeklyDigest: true });
+      await svc.users.setEmailPrefs(c.id, { weeklyDigest: true }); // c hat keinen offenen Saldo
+      const now = Date.now();
+      expect(await digest.runWeeklyDigest(new Date(now))).toBe(0); // gerade eingeschaltet: erst nächste Woche
+      const next = new Date(now + 8 * 86400_000);
+      expect(await digest.runWeeklyDigest(next)).toBe(1);
+      expect(mails).toHaveLength(1);
+      expect(mails[0].to).toBe("b@x.de");
+      expect(mails[0].text).toContain("WG: du schuldest 15,00");
+      expect(await digest.runWeeklyDigest(new Date(next.getTime() + 3600_000))).toBe(0); // gleiche Woche: nichts
+    });
+
+    it("Mailserver im Admin-Bereich: verschlüsselt gespeichert, Passwort nie ausgegeben, .env hat Vorrang", async () => {
+      mailer.setMailSink(null);
+      const a = await svc.users.setupAdmin({ username: "anna", password: PW, email: "a@x.de" });
+      expect(await mailer.mailSource()).toBeNull();
+      const cfg = { host: "mail.example.org", port: 587, security: "starttls" as const, user: "u", pass: "geheim-123", from: "Finantsen <n@example.org>" };
+      await svc.settings.setSmtpSettings(cfg);
+      expect(await mailer.mailSource()).toBe("admin");
+      const raw = await svc.getDb().execute(svc.sql`select value from settings where key = 'smtp_config'`);
+      expect(JSON.stringify(raw)).not.toContain("geheim-123");
+      expect(await svc.settings.smtpSettingsPublic()).toEqual({ host: "mail.example.org", port: 587, security: "starttls", user: "u", from: cfg.from, hasPassword: true });
+      await svc.settings.setSmtpSettings({ ...cfg, pass: "" }); // leer = behalten
+      expect((await svc.settings.smtpSettings())?.pass).toBe("geheim-123");
+      await svc.settings.setSmtpSettings({ ...cfg, host: "other.example.org", pass: "" }); // anderer Server: altes Passwort nicht mitnehmen
+      expect((await svc.settings.smtpSettings())?.pass).toBe("");
+      process.env.SMTP_URL = "smtp://localhost:2525";
+      try {
+        expect(await mailer.mailSource()).toBe("env");
+      } finally {
+        delete process.env.SMTP_URL;
+      }
+      await svc.settings.setSmtpSettings(null);
+      expect(await mailer.mailSource()).toBeNull();
+      await expect(svc.users.sendTestMail(a.id)).rejects.toMatchObject({ code: "mail_disabled" });
+      mailer.setMailSink((m) => void mails.push(m));
+      expect(await svc.users.sendTestMail(a.id)).toBe("a@x.de");
+      expect(mails[0].subject).toBe("Finantsen: Test-E-Mail");
+    });
+  });
 });

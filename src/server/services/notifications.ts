@@ -4,6 +4,9 @@ import { groupMembers, groups, notifications, users } from "../schema";
 import { translate, normalizeLocale } from "@/i18n";
 import { formatMoney } from "@/lib/money";
 import { sendPush } from "./push";
+import { env } from "../env";
+import { mailEnabled, sendInBackground } from "../mail/mailer";
+import { notificationMail } from "../mail/templates";
 
 export type NotificationData = {
   actorName: string;
@@ -33,7 +36,15 @@ export async function notifyGroup(opts: {
     const [g] = await db.select({ name: groups.name, kind: groups.kind }).from(groups).where(eq(groups.id, opts.groupId));
     const [actor] = await db.select({ name: sql<string>`case when ${users.kind} = 'test' then ${users.name} || ' (Test)' else ${users.name} end` }).from(users).where(eq(users.id, opts.actorId));
     const recipients = await db
-      .select({ id: users.id, locale: users.locale, kind: users.kind })
+      .select({
+        id: users.id,
+        locale: users.locale,
+        kind: users.kind,
+        name: users.name,
+        email: users.email,
+        status: users.status,
+        emailNotifications: users.emailNotifications,
+      })
       .from(groupMembers)
       .innerJoin(users, eq(users.id, groupMembers.userId))
       .where(eq(groupMembers.groupId, opts.groupId));
@@ -63,6 +74,20 @@ export async function notifyGroup(opts: {
         });
       }),
     );
+    // E-Mail nur für echte, aktive Konten mit Adresse, die es eingeschaltet haben (nie Testnutzer/Gäste)
+    const mailTo = others.filter((r) => r.kind === "user" && r.status === "active" && r.email && r.emailNotifications);
+    if (mailTo.length && (await mailEnabled())) {
+      for (const r of mailTo) {
+        const locale = normalizeLocale(r.locale) ?? "de";
+        sendInBackground(
+          notificationMail(locale, env.appUrl, { name: r.name, email: r.email! }, {
+            group: groupName,
+            text: renderNotification(locale, opts.type, data),
+            path: `/groups/${opts.groupId}/expenses/${opts.expenseId}`,
+          }),
+        );
+      }
+    }
   } catch (e) {
     console.error("[notify] failed", e);
   }

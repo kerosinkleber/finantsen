@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const PORT = 3100;
+/** Mails landen als JSON-Dateien hier (Test-Transport `file://`), siehe e2e „e-mail“. */
+export const MAIL_DIR = path.resolve(import.meta.dirname, ".e2e-mails");
 const DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://finantsen:finantsen@localhost:5432/finantsen_test";
 
 export default defineConfig({
@@ -31,6 +35,8 @@ export default defineConfig({
       EXCHANGE_RATE_PROVIDER: "static",
       EXCHANGE_RATES_STATIC: '{"USD":1.25,"JPY":160}',
       ANTHROPIC_API_KEY: "",
+      SMTP_URL: pathToFileURL(MAIL_DIR).href,
+      MAIL_FROM: "Finantsen <noreply@example.test>",
     },
   },
 });

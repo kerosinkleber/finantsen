@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **E-Mail-Versand** (Fragebogen 7): Einmal-Links per Mail, „Passwort vergessen“, Benachrichtigungen und wöchentliche Zusammenfassung per Mail (je Person, Standard aus), Mailserver über `.env` oder Admin-Bereich, Test-Mail, Mailpit für den lokalen Test.
 - **QR-Scanner in der App** (Fragebogen 7): Kamera auf der Übersicht, öffnet nur Einladungslinks dieser App.
 - **Next.js 16**: Update von 15 (Turbopack-Build, neue ESLint-Konfiguration), `npm audit` ohne Befund, Docker geprüft.
 - **Mitglieder ohne Konto (Gäste)**: anlegen, mitrechnen, per Link (mit QR) mit einem Konto verknüpfen; alle Daten wandern mit, Beträge werden zusammengeführt.
@@ -23,5 +24,4 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 - **Alle vereinbarten Funktionen sind gebaut.** Nächster Schritt: Test durch den Auftraggeber bzw. den Test-Agenten (`docs/tester-guide.md`), Funde abarbeiten, dann Release nach `docs/release-checkliste.md`.
 
 ## Ideen ohne Termin
-- E-Mail-Versand (SMTP) für Einmal-Links und Benachrichtigungen, nachrüstbar über `linkUrl` in `services/accounts.ts` (bewusst nicht gebaut).
-- Weitere Belegscan-Anbieter.
+- Weitere Belegscan-Anbieter (OpenAI, OpenAI-kompatibel/Ollama): **vor dem Bau gemeinsam planen** (Wunsch des Auftraggebers, Fragebogen 7).

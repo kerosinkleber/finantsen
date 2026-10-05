@@ -17,14 +17,14 @@ So füllst du ihn aus: Kreuze mit `[x]` an oder schreibe unter **Antwort**. Mit 
 - [x] **Einmal-Links** (Konto aktivieren, Passwort neu setzen) an die hinterlegte E-Mail, zusätzlich zur Anzeige für den Admin (Empfehlung)
 - [x] **„Passwort vergessen“ auf der Anmeldeseite** (Selbstbedienung), nur wenn SMTP eingerichtet ist; vom Admin abschaltbar (Empfehlung)
 - [x] **Benachrichtigungen per E-Mail** (neue Ausgabe, Kommentar, Wiederherstellung), **pro Person einschaltbar, Standard aus** (Empfehlung)
-- [ ] Wöchentliche Zusammenfassung der offenen Salden
+- [x] Wöchentliche Zusammenfassung der offenen Salden, **pro Person einschaltbar, Standard aus**
 
-Antwort / Anmerkung:
+Antwort / Anmerkung: ich habe zu "Wöchentliche Zusammenfassung der offenen Salden" hinzugefügt: ", **pro Person einschaltbar, Standard aus**"
 
 ## Frage 2: Wo konfiguriere ich den Mailserver?
 
 - [x] **In der `.env`** (`SMTP_URL`, `MAIL_FROM`), wie alle anderen Zugangsdaten. Admin-Seite zeigt nur „E-Mail aktiv/aus“ und hat einen Knopf „Test-E-Mail an mich“. (Empfehlung, keine Passwörter in der Datenbank)
-- [ ] Im Admin-Bereich der App (Zugangsdaten in der Datenbank)
+- [x] Im Admin-Bereich der App (Zugangsdaten in der Datenbank)
 
 Antwort / Anmerkung:
 
@@ -37,11 +37,11 @@ Antwort / Anmerkung:
 
 ## Frage 4: Welche weiteren Belegscan-Anbieter?
 
-- [x] **OpenAI** (GPT mit Bilderkennung) über API-Schlüssel (Empfehlung)
-- [x] **Beliebiger OpenAI-kompatibler Dienst**, z. B. ein **lokales Modell mit Ollama** auf deinem Server: die Fotos verlassen dann dein Netz nicht (Empfehlung)
+- [ ] **OpenAI** (GPT mit Bilderkennung) über API-Schlüssel (Empfehlung)
+- [ ] **Beliebiger OpenAI-kompatibler Dienst**, z. B. ein **lokales Modell mit Ollama** auf deinem Server: die Fotos verlassen dann dein Netz nicht (Empfehlung)
 - [ ] Google Gemini
 
-Antwort / Anmerkung:
+Antwort / Anmerkung: bevor das feature angegangen wird, planen wir das bitte nochmal gemeinsam
 
 ---
 
@@ -52,3 +52,22 @@ Antwort / Anmerkung:
 3. Testnutzer, Gäste und deaktivierte Konten bekommen nie Mails.
 4. Belegscan-Anbieter wählt der Betreiber in der `.env` (`RECEIPT_SCAN_PROVIDER`); in der App sieht man keinen Unterschied.
 5. Der QR-Scanner nutzt die eingebaute Barcode-Erkennung des Browsers, wo vorhanden, sonst eine mitgelieferte Bibliothek (auch für iPhone).
+
+---
+
+## Umsetzung (meine Auslegung deiner Antworten)
+
+**Frage 1 – E-Mails:** alle vier Punkte gebaut.
+- Einmal-Links gehen zusätzlich an die hinterlegte Adresse; der Admin sieht den Link weiterhin und einen Hinweis, ob der Versand geklappt hat.
+- „Passwort vergessen?“ auf der Anmeldeseite, nur mit Mailserver; im Admin-Bereich abschaltbar (Standard an). Immer dieselbe Antwort, Begrenzung pro IP (10/Stunde) und pro Konto (3/Stunde). Zwei-Faktor bleibt nach dem Zurücksetzen nötig.
+- Benachrichtigungen per E-Mail (neue Ausgabe, Kommentar, Wiederherstellung), unter *Konto → E-Mail* pro Person einschaltbar, Standard aus.
+- Wöchentliche Zusammenfassung der offenen Salden, pro Person einschaltbar, Standard aus. Versand montags ab 06:00 UTC (verpasste Läufe werden in derselben Woche nachgeholt), nur wenn etwas offen ist, die erste erst in der Woche nach dem Einschalten.
+- Damit jemand Mails bekommen kann, kann jede Person ihre E-Mail-Adresse jetzt selbst unter *Konto* ändern (nur mit aktuellem Passwort, gegen Übernahme per „Passwort vergessen“).
+
+**Frage 2 – Mailserver:** beides angekreuzt, beides gebaut. `.env` (`SMTP_URL`, `MAIL_FROM`) hat Vorrang; dann ist das Formular im Admin-Bereich gesperrt. Ohne `.env` richtet der Admin Server, Port, Verschlüsselung, Zugang und Absender im Admin-Bereich ein. Das Passwort wird mit `APP_SECRET` verschlüsselt gespeichert und nie wieder angezeigt (leer lassen = behalten; bei anderem Server oder Benutzer wird es nicht übernommen). „Test-E-Mail an mich“ zeigt bei Fehlern die Meldung des Mailservers.
+
+**Frage 3 – QR-Scanner:** wie empfohlen gebaut (schon im letzten Stand).
+
+**Frage 4 – Belegscan-Anbieter:** **nicht gebaut**, wie gewünscht planen wir das vorher gemeinsam. Ein Entwurf (OpenAI und OpenAI-kompatibel, z. B. Ollama, mit Tests) lag schon vor; ich habe ihn wieder herausgenommen und baue ihn erst nach unserer Abstimmung.
+
+**Zusätzlich für den lokalen Test:** `docker-compose.local.yml` startet das Test-Postfach **Mailpit** (MIT-Lizenz). Alle Mails erscheinen unter http://localhost:8025, nichts verlässt den Rechner. Der Test-Agent prüft die Mails dort (Tester-Guide Abschnitt 6b).

@@ -48,7 +48,9 @@ self.addEventListener("fetch", (event) => {
         try {
           const res = await fetch(req);
           // Nur erfolgreiche, nicht umgeleitete HTML-Seiten cachen (Login-Redirects nicht).
-          if (res.ok && !res.redirected && !url.pathname.startsWith("/login") && !url.pathname.startsWith("/register") && !url.pathname.startsWith("/join/")) {
+          // Auch keine Seiten mit Einmal-Links im Pfad (Aktivierung, Einladung).
+          const noCache = ["/login", "/register", "/join/", "/activate/", "/forgot-password"].some((p) => url.pathname.startsWith(p));
+          if (res.ok && !res.redirected && !noCache) {
             cache.put(req, res.clone());
           }
           return res;

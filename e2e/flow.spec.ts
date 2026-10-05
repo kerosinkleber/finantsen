@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import path from "node:path";
 import { base32Decode, stepAt, totpAt } from "../src/server/totp";
 
 const PASSWORD = "Correct-Horse-Battery-9!";
@@ -1041,6 +1042,8 @@ test("members without an account: add guest, use in expense, link to an account;
 
   // Archiv: nur für mich
   await page.getByTestId("archive-toggle").click();
+  // erst navigieren, wenn die Änderung gespeichert ist (sonst bricht die Navigation die Anfrage ab)
+  await expect(page.getByTestId("archive-toggle")).toHaveText("Restore from archive");
   await page.goto("/");
   await expect(page.getByTestId("archive")).toBeVisible();
   await expect(page.getByTestId("archive")).toContainText("Ski trip");
@@ -1048,6 +1051,7 @@ test("members without an account: add guest, use in expense, link to an account;
   await page.getByTestId("archive").getByText("Ski trip").click();
   await page.goto(`${groupUrl}?tab=members`);
   await page.getByTestId("archive-toggle").click();
+  await expect(page.getByTestId("archive-toggle")).toHaveText("Archive group (just for me)");
   await page.goto("/");
   await expect(page.getByTestId("archive")).toHaveCount(0);
 });
@@ -1099,4 +1103,73 @@ test("QR scanner on the overview: opens, accepts a pasted invitation link, refus
   await page.getByLabel("Or paste an invitation link").fill(url);
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page).toHaveURL(/\/join\//);
+});
+
+type SentMail = { to: string; subject: string; text: string };
+async function mailsTo(to: string): Promise<SentMail[]> {
+  const { readdir, readFile } = await import("node:fs/promises");
+  const dir = path.resolve(import.meta.dirname, "..", ".e2e-mails");
+  const files = (await readdir(dir).catch(() => [] as string[])).sort();
+  const all = await Promise.all(files.map(async (f) => JSON.parse(await readFile(path.join(dir, f), "utf8")) as SentMail));
+  return all.filter((m) => m.to.toLowerCase() === to.toLowerCase());
+}
+
+test("e-mail: admin test mail, forgot password via mailed link, e-mail settings", async ({ page, browser, baseURL }) => {
+  await login(page, "anna@example.com");
+  await page.goto("/admin/users");
+  await expect(page.getByTestId("mail-status")).toContainText("server configuration");
+  await expect(page.locator("#smtp-host")).toBeDisabled(); // .env hat Vorrang
+  await page.getByTestId("mail-test").click();
+  await expect(page.getByTestId("admin-mail").getByRole("status")).toContainText("Test e-mail sent to anna@example.com");
+  await expect.poll(async () => (await mailsTo("anna@example.com")).map((m) => m.subject)).toContain("Finantsen: test e-mail");
+
+  const created = await page.request.post("/api/admin/users", {
+    data: { name: "Mia", username: "mia", email: "mia@example.com", mode: "password", password: PASSWORD, mustChange: false, isAdmin: false },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  const ctx = await browser.newContext({ baseURL });
+  const p = await ctx.newPage();
+  await p.goto("/login");
+  await p.getByTestId("forgot-link").click();
+  await expect(p).toHaveURL(/\/forgot-password/);
+  // Unbekannte Konten bekommen dieselbe Antwort
+  await p.getByLabel("Username or email").fill("nobody-here");
+  await p.getByRole("button", { name: "Request link" }).click();
+  await expect(p.getByTestId("forgot-sent")).toBeVisible();
+  const sameText = await p.getByTestId("forgot-sent").getByRole("status").textContent();
+  await p.goto("/forgot-password");
+  await p.getByLabel("Username or email").fill("mia");
+  await p.getByRole("button", { name: "Request link" }).click();
+  await expect(p.getByTestId("forgot-sent").getByRole("status")).toHaveText(sameText!);
+  await expect.poll(async () => (await mailsTo("mia@example.com")).length).toBe(1);
+  const [mail] = await mailsTo("mia@example.com");
+  expect(mail.subject).toBe("Finantsen: set a new password");
+  const link = /https?:\/\/\S+\/activate\/[A-Za-z0-9_-]+/.exec(mail.text)![0];
+  await p.goto(new URL(link).pathname);
+  const NEW = "Mia-New-Horse-Battery-4!";
+  await p.getByLabel("Password", { exact: true }).fill(NEW);
+  await p.getByLabel("Repeat password").fill(NEW);
+  await p.getByRole("button", { name: /Save|Activate|Set/ }).click();
+  await expect(p).toHaveURL("/");
+
+  // E-Mail-Einstellungen: Benachrichtigungen und Zusammenfassung einschaltbar (Standard aus)
+  await p.goto("/settings");
+  const box = p.getByTestId("email-settings");
+  await expect(box.locator("#own-email")).toHaveValue("mia@example.com");
+  await expect(p.getByTestId("email-notifications")).not.toBeChecked();
+  await expect(p.getByTestId("weekly-digest")).not.toBeChecked();
+  await p.getByTestId("email-notifications").check();
+  await expect(box.getByRole("status")).toBeVisible();
+  await p.reload();
+  await expect(p.getByTestId("email-notifications")).toBeChecked();
+  // Adresse ändern verlangt das Passwort
+  await box.locator("#own-email").fill("mia2@example.com");
+  await box.getByLabel("Current password").fill("wrong-password");
+  await box.getByRole("button", { name: "Save e-mail address" }).click();
+  await expect(box.getByRole("alert")).toContainText("wrong");
+  await box.getByLabel("Current password").fill(NEW);
+  await box.getByRole("button", { name: "Save e-mail address" }).click();
+  await expect(box.getByRole("status")).toBeVisible();
+  await ctx.close();
 });

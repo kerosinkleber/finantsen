@@ -58,7 +58,8 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - **Sicherheits-Stichproben** (Abschnitt 9 der Anleitung), alle im Browser: fremde Gruppen-URLs, Admin-Seiten als normaler Nutzer (`/admin/users`, `/admin/test-users`), im **abgemeldeten** Kontext die Adresse `http://localhost:3000/api/groups` öffnen (muss einen Fehler „unauthorized“ zeigen, keine Daten), HTML in Titeln/Kommentaren (muss als Text erscheinen), sehr lange und absurde Eingaben.
 - **Offline (optional):** Nur wenn dein Werkzeug das Netzwerk abschalten kann: Seiten besuchen, offline gehen, neu laden. Bereits besuchte Seiten sollen lesbar bleiben, nie besuchte die Offline-Seite zeigen. Sonst als „nicht getestet“ vermerken.
 - Wenn ein Testfall scheitert: Beleg (Screenshot oder genaue Beschreibung), exakte **Schritte zur Reproduktion**, erwartetes und tatsächliches Ergebnis notieren, dann **weitermachen** (nicht hängen bleiben). Versuche einmal zu wiederholen, um sicher zu sein, dass es reproduzierbar ist.
-- Bekannte Lücken (**keine Fehler**, nur mit „SKIPPED – bekannt“ vermerken): E-Mail-Versand, Push lokal, Belegscan (ohne API-Key).
+- **E-Mails** prüfst du im lokalen Test-Postfach **Mailpit** unter `http://localhost:8025` (nur im Browser; es ist Teil der lokalen App). Abschnitt 6b der Anleitung.
+- Bekannte Lücken (**keine Fehler**, nur mit „SKIPPED – bekannt“ vermerken): Push lokal, Belegscan (ohne API-Key), wöchentliche Zusammenfassung (Versand erst montags), Mailserver im Admin-Bereich (braucht Neustart mit anderer Konfiguration).
 
 ### 5. Bericht
 Schreibe `test-report/bericht-<Datum>.md` (Deutsch; lege den Ordner `test-report/` dafür an, das ist das Einzige, was du schreiben darfst) mit:

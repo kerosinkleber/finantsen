@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { settings } from "../schema";
+import { decryptSecret, encryptSecret } from "../secrets";
 
 /** Instanz-Einstellungen (Tabelle `settings`), nur vom Admin änderbar. */
 const KEYS = {
@@ -10,6 +11,8 @@ const KEYS = {
   testFeatures: "test_features_enabled",
   totpRequiredAll: "totp_required_all",
   recoveryCodeCount: "recovery_code_count",
+  passwordResetEnabled: "password_reset_enabled",
+  smtp: "smtp_config",
 } as const;
 
 export const RECOVERY_CODES_MAX = 20;
@@ -56,6 +59,52 @@ export async function testFeaturesEnabled(): Promise<boolean> {
   return process.env.TEST_FEATURES_DEFAULT === "true";
 }
 
+/** „Passwort vergessen“ per Mail (Standard an; wirkt nur, wenn der Mailversand eingerichtet ist). */
+export const passwordResetEnabled = async () => (await get(KEYS.passwordResetEnabled)) !== "false";
+
+export type SmtpSettings = {
+  host: string;
+  port: number;
+  /** tls = direkt verschlüsselt (meist 465), starttls = Upgrade (meist 587), none = unverschlüsselt (nur im eigenen Netz) */
+  security: "tls" | "starttls" | "none";
+  user: string;
+  pass: string;
+  from: string;
+};
+
+/** Mailserver aus dem Admin-Bereich (verschlüsselt mit APP_SECRET gespeichert). */
+export async function smtpSettings(): Promise<SmtpSettings | null> {
+  const raw = await get(KEYS.smtp);
+  if (!raw) return null;
+  try {
+    return JSON.parse(decryptSecret(raw)) as SmtpSettings;
+  } catch {
+    console.error("[settings] smtp_config nicht lesbar (APP_SECRET geändert?)");
+    return null;
+  }
+}
+
+/**
+ * Speichert den Mailserver. Ein leeres Passwort behält das bisherige, `null` löscht die ganze Konfiguration.
+ */
+export async function setSmtpSettings(s: SmtpSettings | null) {
+  if (s === null) {
+    await getDb().delete(settings).where(eq(settings.key, KEYS.smtp));
+    return;
+  }
+  const prev = await smtpSettings();
+  const pass = s.pass || (prev && prev.host === s.host && prev.user === s.user ? prev.pass : "");
+  await set(KEYS.smtp, encryptSecret(JSON.stringify({ ...s, pass })));
+}
+
+/** Für die Admin-Oberfläche: nie das Passwort, nur ob eines hinterlegt ist. */
+export async function smtpSettingsPublic() {
+  const s = await smtpSettings();
+  if (!s) return null;
+  const { pass, ...rest } = s;
+  return { ...rest, hasPassword: pass.length > 0 };
+}
+
 export async function getAdminSettings() {
   return {
     registrationEnabled: await registrationEnabled(),
@@ -64,6 +113,7 @@ export async function getAdminSettings() {
     testFeaturesEnabled: await testFeaturesEnabled(),
     totpRequiredAll: await totpRequiredAll(),
     recoveryCodeCount: await recoveryCodeCount(),
+    passwordResetEnabled: await passwordResetEnabled(),
   };
 }
 
@@ -74,6 +124,7 @@ export async function updateAdminSettings(data: {
   testFeaturesEnabled?: boolean;
   totpRequiredAll?: boolean;
   recoveryCodeCount?: number;
+  passwordResetEnabled?: boolean;
 }) {
   if (data.registrationEnabled !== undefined) await set(KEYS.registrationEnabled, String(data.registrationEnabled));
   if (data.allowDuplicateEmails !== undefined) await set(KEYS.allowDuplicateEmails, String(data.allowDuplicateEmails));
@@ -81,5 +132,6 @@ export async function updateAdminSettings(data: {
   if (data.testFeaturesEnabled !== undefined) await set(KEYS.testFeatures, String(data.testFeaturesEnabled));
   if (data.totpRequiredAll !== undefined) await set(KEYS.totpRequiredAll, String(data.totpRequiredAll));
   if (data.recoveryCodeCount !== undefined) await set(KEYS.recoveryCodeCount, String(data.recoveryCodeCount));
+  if (data.passwordResetEnabled !== undefined) await set(KEYS.passwordResetEnabled, String(data.passwordResetEnabled));
   return getAdminSettings();
 }
