@@ -256,6 +256,40 @@ export async function addFriend(actor: SessionUser, testUserId: string, otherId:
  */
 export async function deleteTestUser(actor: SessionUser, id: string) {
   await requireTestAdmin(actor);
+  return removeTestUser(id);
+}
+
+/** Für den Warnhinweis im Admin-Bereich: Testfunktionen an? Wie viele Testnutzer gibt es noch? */
+export async function testLeftovers(actor: SessionUser) {
+  if (!actor.isAdmin || actor.impersonating) throw new ApiError(403, "forbidden");
+  const [{ n }] = await getDb().select({ n: sql<number>`count(*)::int` }).from(users).where(eq(users.kind, "test"));
+  return { enabled: await testFeaturesEnabled(), testUsers: n };
+}
+
+/**
+ * Löscht alle Testnutzer (Aufräumen vor dem echten Betrieb). Geht auch bei ausgeschalteten Testfunktionen. Testnutzer
+ * mit Daten in Gruppen mit echten Nutzern bleiben stehen und werden mit diesen Gruppen gemeldet.
+ */
+export async function deleteAllTestUsers(actor: SessionUser) {
+  if (!actor.isAdmin || actor.impersonating) throw new ApiError(403, "forbidden");
+  const rows = await getDb().select({ id: users.id, username: users.username }).from(users).where(eq(users.kind, "test")).orderBy(asc(users.createdAt));
+  const deleted: string[] = [];
+  const blocked: { username: string; groups: { name: string; users: string[] }[] }[] = [];
+  for (const r of rows) {
+    try {
+      await removeTestUser(r.id);
+      deleted.push(r.username);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "test_user_in_real_group") {
+        const groups = ((e.extra?.groups as { name: string; users: string[] }[] | undefined) ?? []).map((g) => ({ name: g.name, users: g.users }));
+        blocked.push({ username: r.username, groups });
+      } else if (!(e instanceof ApiError && e.status === 404)) throw e; // schon weg: egal
+    }
+  }
+  return { deleted, blocked };
+}
+
+async function removeTestUser(id: string) {
   const db = getDb();
   const u = await loadTestUser(db, id);
 

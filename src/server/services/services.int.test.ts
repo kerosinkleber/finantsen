@@ -843,6 +843,24 @@ d("services (PostgreSQL)", () => {
       expect(await svc.getDb().execute(svc.sql`select 1 from users where id = ${t3}`)).toHaveLength(0);
     });
 
+    it("Warnhinweis/Aufräumen: Status, alle löschen auch bei ausgeschalteten Testfunktionen, Blockierte werden gemeldet", async () => {
+      const { a, b, g } = await setup();
+      expect(await svc.testUsers.testLeftovers(actor(a))).toEqual({ enabled: true, testUsers: 0 });
+      await expect(svc.testUsers.testLeftovers(actor(b))).rejects.toMatchObject({ status: 403 });
+      const [t1, t2, t3] = await mkTest(a, 3);
+      await svc.testUsers.addToGroup(actor(a), t3, g.id, { role: "member", confirmed: true });
+      await svc.expenses.createExpense(a.id, g.id, base({ payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, t3] } }));
+      await svc.settings.updateAdminSettings({ testFeaturesEnabled: false });
+      expect(await svc.testUsers.testLeftovers(actor(a))).toEqual({ enabled: false, testUsers: 3 });
+      await expect(svc.testUsers.deleteAllTestUsers(actor(b))).rejects.toMatchObject({ status: 403 });
+      const r = await svc.testUsers.deleteAllTestUsers(actor(a));
+      expect(r.deleted.sort()).toEqual(["test-1", "test-2"]);
+      expect(r.blocked).toEqual([{ username: "test-3", groups: [{ name: "WG", users: expect.arrayContaining(["Anna"]) }] }]);
+      for (const id of [t1, t2]) expect(await svc.getDb().execute(svc.sql`select 1 from users where id = ${id}`)).toHaveLength(0);
+      expect(await svc.testUsers.testLeftovers(actor(a))).toEqual({ enabled: false, testUsers: 1 });
+      expect((await svc.expenses.listExpenses(a.id, g.id)).length).toBe(1); // echte Daten unangetastet
+    });
+
     it("Löschen beendet „Handeln als“-Sitzungen sauber", async () => {
       const { a } = await setup();
       const [t] = await mkTest(a);
