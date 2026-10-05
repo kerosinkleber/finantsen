@@ -118,16 +118,16 @@ Use at least three people in one group so the results are interesting.
   Expected: hint "about €10.00 per person"; saved shares are 20 € and 10 €. Try `-2.50` for someone (they pay less). Adjustments higher than the amount, or a negative share, are rejected with a clear message. Opening the expense again shows the adjustment in the field. Switching the split type clears the per-person fields.
 
 - [ ] **Calculator.** In the amount field type `12.50+3*4` (German: `12,50+3*4`).
-  Expected: below the field "= €24.50"; leaving the field replaces the text with 24.50. `(30+15)/3` → 15.00, `10/3` → 3.33, `10/0` or `abc` → "Invalid calculation" and saving is refused. On a phone the "±×" button switches the keyboard so you can type + and *.
+  Expected: below the field "= €24.50"; leaving the field replaces the text with 24.50. `(30+15)/3` → 15.00, `10/3` → 3.33, `10/0` → "Invalid calculation" and saving is refused; plain nonsense like `abc` immediately shows "Invalid amount." below the field. On a phone the "±×" button switches the keyboard so you can type + and *.
 - [ ] **Copy an expense.** Open an expense → *Copy*.
   Expected: page "Copy expense" with the same title, amount, payer and split, today's date, no Delete button. Saving creates a **new** expense; the original stays unchanged.
 
 - [ ] **Refund.** New expense "Bottle deposit" 6 €, tick *Refund*, "Received by" yourself, split equally among three people, payment method *Cash*.
-  Expected: the heading changes to "Received by"; the list shows a "Refund" badge and "Cash"; balances move the other way (you now owe each of the two others 2 € more / they owe you 2 € less). Statistics total goes **down** by 6 €. Editing the refund keeps the tick. CSV export shows type "Refund" with negative amounts.
+  Expected: the heading changes to "Received by"; the list shows a "Refund" badge, "Cash" and "You got €6.00 back" (not "You paid"); other members get the notification "… recorded the refund …"; balances move the other way (you now owe each of the two others 2 € more / they owe you 2 € less). Statistics total goes **down** by 6 €. Editing the refund keeps the tick. CSV export shows type "Refund" with negative amounts and a column "Payment method"; importing that file into another group keeps refund and payment method.
 - [ ] **Payment method.** Set a method on some expenses. Filter *Payment method = Card*: only those expenses. Statistics tab: section "By payment method", "Average: … per expense, … per month", "Largest expenses".
 
 - [ ] **Receipt photos.** Open an expense → *Receipt photos* → *Add photo* (on a phone the camera opens).
-  Expected: a thumbnail appears; tapping it opens the photo. Another member of the group sees it too; a person outside the group gets "not found" for the photo address. Non-image files are refused. After 5 photos the add button disappears. *Delete* asks for confirmation and removes it. A deleted expense keeps its photos (restore brings them back) but you cannot add new ones.
+  Expected: a thumbnail appears; tapping it opens the photo. Another member of the group sees it too; a person outside the group gets "not found" for the photo address. Non-image files (e.g. a PDF) are refused with "Please choose a photo (JPEG, PNG or WebP)". After 5 photos the add button disappears. *Delete* asks for confirmation and removes it. A deleted expense keeps its photos (restore brings them back); while it is in the trash you can neither add nor delete photos.
 
 ### Other currencies (needs internet)
 - [ ] Create an expense in a currency different from the group's (e.g. USD in a EUR group). Expected: the exchange rate for the expense date is shown with a preview of the converted amount.
