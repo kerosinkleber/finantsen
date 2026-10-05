@@ -24,7 +24,13 @@ export default async function Dashboard() {
             {Object.entries(bal).length === 0 ? (
               <span className="muted">{t("dash.allSettled")}</span>
             ) : (
-              Object.entries(bal).map(([cur, v]) => <Money key={cur} minor={v} currency={cur} locale={locale} signed />)
+              // wie beim Gesamtsaldo: Richtung als Text, Betrag ohne Vorzeichen
+              Object.entries(bal).map(([cur, v]) => (
+                <span key={cur} className="block text-right">
+                  <span className="muted">{t(v > 0 ? "dash.youAreOwed" : "dash.youOwe")} </span>
+                  <Money minor={v} currency={cur} locale={locale} absolute />
+                </span>
+              ))
             )}
           </span>
         </Link>

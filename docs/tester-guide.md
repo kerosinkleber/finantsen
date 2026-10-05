@@ -167,7 +167,7 @@ Use at least three people in one group so the results are interesting.
 ## 6b. E-mail (local test mailbox at http://localhost:8025)
 
 - [ ] **Mail status and test mail.** Account → **Manage users** → section *E-mail sending*.
-  Expected: "Active (configured in the server configuration .env)", the server form is locked. The dev admin has no e-mail address: *Send test e-mail to me* shows "No e-mail address is stored for your account." Create a second admin with e-mail `boss@example.com` (password mode), sign in as boss, click *Send test e-mail to me*: "Test e-mail sent to boss@example.com", and the mail appears in Mailpit.
+  Expected: "Active (configured in the server configuration .env)", the server form is locked. The dev admin has no e-mail address at first: *Send test e-mail to me* shows "No e-mail address is stored for your account." Then go to *Account → E-mail*, enter `admin@example.com` and save (the dev admin has no password, so none is asked). Back in *Manage users*, *Send test e-mail to me*: "Test e-mail sent to admin@example.com", and the mail appears in Mailpit.
 - [ ] **One-time link by e-mail.** Create a user with the one-time link option **and** an e-mail address (e.g. `lena@example.com`).
   Expected: the link box still shows the link, plus "The link was also sent by e-mail to lena@example.com". In Mailpit: subject "Finantsen: Konto aktivieren"/"activate your account" (language of the account), the same link, expiry in UTC. Opening the link from the mail works. A user **without** e-mail gets no mail and no such note.
 - [ ] **Forgot password.** Sign out. On the sign-in page click **Forgot password?**, enter the username (or the e-mail) of an active account with e-mail.
