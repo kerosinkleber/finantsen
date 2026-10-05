@@ -1347,3 +1347,29 @@ test("refund and payment method: refund lowers what others owe, badge, filter an
   await expect(page.getByTestId("stats-avg")).toContainText("per expense");
   await expect(page.getByTestId("stats-top")).toBeVisible();
 });
+
+test("budget: owner sets a monthly budget, bar shows the state, exceeding notifies members once", async ({ page, browser, baseURL }) => {
+  await login(page, "anna@example.com");
+  const groups = await (await page.request.get("/api/groups")).json();
+  const gid = groups.groups.find((g: { name: string }) => g.name === "Pay test").id;
+  await page.goto(`/groups/${gid}?tab=members`);
+  const form = page.getByTestId("budget-form");
+  await form.getByLabel("Amount (EUR)").fill("50");
+  await form.getByRole("combobox", { name: "Budget" }).selectOption("month");
+  await form.getByRole("button", { name: "Save budget" }).click();
+  await expect(form.getByRole("status")).toBeVisible();
+  await page.goto(`/groups/${gid}`);
+  await expect(page.getByTestId("budget")).toContainText("of €50.00");
+  await expect(page.getByTestId("budget")).toContainText("exceeded by");
+  // nächste Buchung meldet die Überschreitung
+  const me = (await (await page.request.get("/api/auth/me")).json()).user.id;
+  await page.request.post(`/api/groups/${gid}/expenses`, {
+    data: { title: "Gum", amountMinor: 100, currency: "EUR", date: new Date().toISOString().slice(0, 10), category: "other", payers: [{ userId: me, amountMinor: 100 }], split: { type: "full", owner: me } },
+  });
+  const ctx = await browser.newContext({ baseURL });
+  const ben = await ctx.newPage();
+  await login(ben, "ben");
+  await ben.getByTestId("bell").click();
+  await expect(ben.getByTestId("notification").filter({ hasText: "Budget of Pay test exceeded" })).toHaveCount(1);
+  await ctx.close();
+});

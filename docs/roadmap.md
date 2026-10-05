@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **Gruppenbudget** (Fragebogen 8): je Monat oder insgesamt, Balken über der Ausgabenliste, einmalige Benachrichtigung bei Überschreitung.
 - **Rückerstattung, Zahlungsart, mehr Statistik** (Fragebogen 8): Rückerstattungen wirken umgekehrt auf Salden und mindern die Statistik; Zahlungsart mit Filter; Durchschnitte, Zahlungsarten, größte Ausgaben.
 - **Import** (Fragebogen 8): Splitwise, Tricount, eigener Finantsen-Export und einfaches CSV; Vorschau, Personen zuordnen (unbekannte → Gäste), kein Doppelimport.
 - **Rechner im Betragsfeld und „Ausgabe kopieren“** (Fragebogen 8).

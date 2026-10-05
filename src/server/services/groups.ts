@@ -70,12 +70,23 @@ export async function listGroups(userId: string): Promise<GroupSummary[]> {
 export async function getGroup(
   userId: string,
   groupId: string,
-): Promise<GroupSummary & { simplifyDebts: boolean; defaultSplit: DefaultSplit | null; recurringPolicy: "members" | "owner" }> {
+): Promise<
+  GroupSummary & {
+    simplifyDebts: boolean;
+    defaultSplit: DefaultSplit | null;
+    recurringPolicy: "members" | "owner";
+    budget: { amountMinor: number; period: "month" | "total"; currency: string } | null;
+  }
+> {
   const { group } = await requireMember(userId, groupId);
   const all = await listGroups(userId);
   const g = all.find((x) => x.id === group.id);
   if (!g) throw notFound();
-  return { ...g, simplifyDebts: group.simplifyDebts, defaultSplit: (group.defaultSplit as DefaultSplit | null) ?? null, recurringPolicy: group.recurringPolicy as "members" | "owner" };
+  const budget =
+    group.budgetMinor && group.budgetPeriod && group.budgetCurrency
+      ? { amountMinor: group.budgetMinor, period: group.budgetPeriod as "month" | "total", currency: group.budgetCurrency }
+      : null;
+  return { ...g, simplifyDebts: group.simplifyDebts, defaultSplit: (group.defaultSplit as DefaultSplit | null) ?? null, recurringPolicy: group.recurringPolicy as "members" | "owner", budget };
 }
 
 export async function createGroup(
@@ -95,8 +106,16 @@ export async function createGroup(
 export async function updateGroup(
   userId: string,
   groupId: string,
-  data: { name?: string; defaultCurrency?: string; simplifyDebts?: boolean; defaultSplit?: DefaultSplit | null; recurringPolicy?: "members" | "owner" },
+  input: {
+    name?: string;
+    defaultCurrency?: string;
+    simplifyDebts?: boolean;
+    defaultSplit?: DefaultSplit | null;
+    recurringPolicy?: "members" | "owner";
+    budget?: { amountMinor: number; period: "month" | "total" } | null;
+  },
 ) {
+  const { budget, ...data } = input;
   const { role, group } = await requireMember(userId, groupId);
   if (role !== "owner" && group.kind === "group") throw forbidden();
   if (data.defaultSplit) {
@@ -107,7 +126,13 @@ export async function updateGroup(
     if (d.type === "percent" && d.entries.reduce((a, e) => a + e.value, 0) !== 10000) throw new ApiError(400, "percent_sum");
     if (d.type === "shares" && d.entries.reduce((a, e) => a + e.value, 0) <= 0) throw new ApiError(400, "invalid_weight");
   }
-  const [g] = await getDb().update(groups).set(data).where(eq(groups.id, groupId)).returning();
+  const set: Partial<typeof groups.$inferInsert> = { ...data };
+  if (budget !== undefined) {
+    // Budget gilt in der aktuellen Gruppenwährung; neue Einstellung = Warnung darf wieder kommen
+    const cur = data.defaultCurrency ?? group.defaultCurrency;
+    Object.assign(set, budget ? { budgetMinor: budget.amountMinor, budgetPeriod: budget.period, budgetCurrency: cur, budgetAlertKey: null } : { budgetMinor: null, budgetPeriod: null, budgetCurrency: null, budgetAlertKey: null });
+  }
+  const [g] = await getDb().update(groups).set(set).where(eq(groups.id, groupId)).returning();
   return g;
 }
 

@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer, budget] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -37,8 +37,9 @@ d("services (PostgreSQL)", () => {
       import("./payinfo"),
       import("./reminders"),
       import("./import"),
+      import("./budget"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders, importer, budget };
   }
 
   beforeAll(async () => {
@@ -1808,6 +1809,32 @@ d("services (PostgreSQL)", () => {
       expect(imp.failed).toEqual([]);
       const net2 = (await svc.balances.groupBalances(g2.id)).net.EUR;
       expect(Object.values(net2).sort((x, y) => x - y)).toEqual([-1400, -800, 2200]);
+    });
+  });
+
+  describe("Budget", () => {
+    it("Monatsbudget zählt nur den laufenden Monat, Rückerstattungen mindern, Warnung genau einmal je Zeitraum", async () => {
+      const { a, b, c, g } = await setup();
+      const today = new Date().toISOString().slice(0, 10);
+      const exp = (amountMinor: number, date: string, isRefund = false) =>
+        svc.expenses.createExpense(a.id, g.id, base({ amountMinor, date, isRefund, payers: [{ userId: a.id, amountMinor }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      await expect(svc.groups.updateGroup(b.id, g.id, { budget: { amountMinor: 5000, period: "month" } })).rejects.toMatchObject({ status: 403 });
+      await svc.groups.updateGroup(a.id, g.id, { budget: { amountMinor: 5000, period: "month" } });
+      await exp(3000, today);
+      await exp(9000, "2020-01-01"); // anderer Monat
+      await exp(600, today, true); // Rückerstattung
+      expect(await svc.budget.budgetStatus(g.id)).toMatchObject({ limitMinor: 5000, spentMinor: 2400, currency: "EUR", period: "month" });
+      const before = (await svc.notifications.listNotifications(b.id)).filter((n) => n.type === "budget_exceeded").length;
+      await exp(3000, today); // 5400 > 5000 → Warnung
+      await exp(100, today); // schon gemeldet → keine zweite
+      const notes = (await svc.notifications.listNotifications(b.id)).filter((n) => n.type === "budget_exceeded");
+      expect(notes.length - before).toBe(1);
+      expect(svc.notifications.renderNotification("de", "budget_exceeded", notes[0].data as never)).toMatch(/^Budget von WG überschritten: 54,00\s€ von 50,00\s€\.$/);
+      // Gesamtbudget zählt alles
+      await svc.groups.updateGroup(a.id, g.id, { budget: { amountMinor: 100000, period: "total" } });
+      expect((await svc.budget.budgetStatus(g.id))?.spentMinor).toBe(14500);
+      await svc.groups.updateGroup(a.id, g.id, { budget: null });
+      expect(await svc.budget.budgetStatus(g.id)).toBeNull();
     });
   });
 });

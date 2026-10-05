@@ -8,6 +8,7 @@ import { getRate } from "../rates";
 import type { ExpenseBody } from "@/lib/schemas";
 import { memberIds, requireMember } from "./access";
 import { notifyGroup } from "./notifications";
+import { checkBudgetAlert } from "./budget";
 
 export type ExpenseDetail = {
   id: string;
@@ -325,6 +326,7 @@ export async function createExpense(
     amountMinor: detail.amountMinor,
     currency: detail.currency,
   });
+  await checkBudgetAlert(groupId);
   return detail;
 }
 
@@ -358,6 +360,7 @@ export async function updateExpense(userId: string, groupId: string, expenseId: 
   });
   const detail = await getExpense(userId, groupId, expenseId);
   await getDb().insert(expenseHistory).values({ expenseId, userId, actedBy, action: "update", snapshot: snapshot(detail) });
+  await checkBudgetAlert(groupId);
   return detail;
 }
 

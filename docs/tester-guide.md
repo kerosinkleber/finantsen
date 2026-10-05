@@ -83,6 +83,9 @@ Create people first, you need at least two accounts to test sharing.
 - [ ] If you have a **Splitwise** or **Tricount** account, export a group as CSV there and import it. Expected: same balances per person as in the source app. Please report the file format (first line) if it is not recognised.
 - [ ] Export a group (*Export as CSV*), create a new group and import that file. Expected: format "Finantsen export", balances identical. Only the group owner sees the import link.
 
+### Budget (group owner)
+- [ ] *Members* tab → **Budget**: enter 50, *per month*, save. Expected: above the expense list "Budget <month>: … of €50.00" with a bar and "… left" (yellow from 80 %). Add expenses this month beyond 50 €: the bar turns red, "exceeded by …", and every member gets **one** notification "Budget of <group> exceeded" (a further expense the same month sends no second one). Expenses from other months do not count; a refund lowers the sum. Switch to *in total*: all expenses count. *Remove budget*: the bar disappears. Non-owners do not see the budget form.
+
 ### Members without an account (guests)
 - [ ] Group → *Members* → **Members without an account** → enter a name (e.g. `qa-grandma`) → *Add guest*. Expected: the guest appears with "(guest)" behind the name everywhere (member list, expense form, balances).
 - [ ] Use the guest in an expense as **payer** and as **participant**. Balances include the guest. The guest never gets notifications.

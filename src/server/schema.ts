@@ -150,6 +150,12 @@ export const groups = pgTable("groups", {
   defaultSplit: jsonb("default_split"),
   /** Wer wiederkehrende Ausgaben verwalten darf: members (alle Mitglieder) | owner (nur Besitzer) */
   recurringPolicy: varchar("recurring_policy", { length: 10 }).notNull().default("members"),
+  /** Budget (optional): Betrag in `budget_currency`, je Monat oder für die ganze Gruppe (z. B. eine Reise) */
+  budgetMinor: bigint("budget_minor", { mode: "number" }),
+  budgetPeriod: varchar("budget_period", { length: 10 }),
+  budgetCurrency: varchar("budget_currency", { length: 3 }),
+  /** Zeitraum, für den die Überschreitung schon gemeldet wurde (z. B. „2026-10“ oder „total“) */
+  budgetAlertKey: varchar("budget_alert_key", { length: 20 }),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id),

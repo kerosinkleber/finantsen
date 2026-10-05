@@ -8,6 +8,8 @@ import { listPayments } from "@/server/services/payments";
 import { getGroupBalances } from "@/server/services/balances";
 import { payInfoForCreditors } from "@/server/services/payinfo";
 import { PayBox } from "@/components/PayBox";
+import { BudgetForm } from "@/components/BudgetForm";
+import { getBudgetStatus, type BudgetStatus } from "@/server/services/budget";
 import { RemindButton } from "@/components/RemindButton";
 import { ApiError } from "@/server/http";
 import { RestoreButton } from "@/components/RestoreButton";
@@ -96,6 +98,9 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
             meId={user.id}
           />
           <DefaultSplitForm groupId={id} members={group.members} initial={group.defaultSplit} />
+          {group.role === "owner" && !isDirect && (
+            <BudgetForm groupId={id} currency={group.defaultCurrency} initial={group.budget} />
+          )}
           <ArchiveButton groupId={id} archived={group.archived} />
           <div className="card flex flex-col gap-2">
             <a href={`/api/groups/${id}/export`} download className="btn-secondary" data-testid="export-csv">{t("export.csv")}</a>
@@ -152,6 +157,8 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
     </details>
   );
   const payments = active ? [] : allPayments; // Zahlungen gehören nicht zu Ausgaben-Filtern
+  const budget = active ? null : await getBudgetStatus(userId, groupId);
+  const budgetBar = budget && <BudgetBar b={budget} locale={locale} t={t} />;
   const form = <FilterForm groupId={groupId} members={group.members.map((m) => ({ id: m.id, name: m.id === userId ? t("common.you") : m.name }))} currency={group.defaultCurrency} values={sp} active={active} t={t} />;
   type Item = { kind: "e"; date: string; at: number; e: (typeof expenses)[number] } | { kind: "p"; date: string; at: number; p: (typeof payments)[number] };
   const items: Item[] = [
@@ -163,9 +170,10 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
   const moreParams = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && k !== "show") moreParams.set(k, v);
   moreParams.set("show", String(show + PAGE));
-  if (items.length === 0) return <>{form}<Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link><p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
+  if (items.length === 0) return <>{budgetBar}{form}<Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link><p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
   return (
     <>
+    {budgetBar}
     {form}
     <Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link>
     <ul className="flex flex-col gap-2">
@@ -289,5 +297,24 @@ async function BalancesTab({ groupId, groupName, guests, userId, names, locale, 
         ))
       )}
     </>
+  );
+}
+
+/** Budgetstand als Balken: bis 80 % normal, darüber gelb, überschritten rot. */
+function BudgetBar({ b, locale, t }: { b: BudgetStatus; locale: string; t: TFn }) {
+  const pct = b.limitMinor > 0 ? (b.spentMinor / b.limitMinor) * 100 : 0;
+  const color = pct > 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-brand";
+  const fmt = (n: number) => formatMoney(n, b.currency, locale);
+  const month = b.month ? new Date(`${b.month}-01T00:00:00Z`).toLocaleDateString(locale, { month: "long", year: "numeric", timeZone: "UTC" }) : "";
+  return (
+    <section className="card flex flex-col gap-2" data-testid="budget">
+      <div className="flex justify-between gap-2 text-sm">
+        <span>{b.period === "month" ? t("budget.statusMonth", { month, spent: fmt(b.spentMinor), limit: fmt(b.limitMinor) }) : t("budget.statusTotal", { spent: fmt(b.spentMinor), limit: fmt(b.limitMinor) })}</span>
+        <span className={pct > 100 ? "neg" : "muted"}>{pct > 100 ? t("budget.over", { amount: fmt(b.spentMinor - b.limitMinor) }) : t("budget.left", { amount: fmt(b.limitMinor - b.spentMinor) })}</span>
+      </div>
+      <div className="h-2 rounded bg-slate-100 dark:bg-slate-800" role="img" aria-label={`${Math.round(pct)} %`}>
+        <div className={`h-2 rounded ${color}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      </div>
+    </section>
   );
 }

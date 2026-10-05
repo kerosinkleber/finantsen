@@ -100,6 +100,7 @@ export async function notifyGroup(opts: {
 /** Link einer Benachrichtigung (Erinnerungen führen zu den Salden der Gruppe). */
 export function notificationPath(n: { type: string; groupId: string; expenseId: string | null }) {
   if (n.type === "reminder") return `/groups/${n.groupId}?tab=balances`;
+  if (n.type === "budget_exceeded") return `/groups/${n.groupId}?tab=stats`;
   return n.expenseId ? `/groups/${n.groupId}/expenses/${n.expenseId}` : `/groups/${n.groupId}`;
 }
 
@@ -107,7 +108,7 @@ export function notificationPath(n: { type: string; groupId: string; expenseId: 
  * Benachrichtigung an genau eine Person (z. B. Erinnerung): In-App-Eintrag, Push (nie für Testnutzer), E-Mail wenn
  * eingeschaltet (nur echte, aktive Konten). Gäste bekommen nichts.
  */
-export async function notifyUser(opts: { type: "reminder"; userId: string; groupId: string; data: NotificationData }) {
+export async function notifyUser(opts: { type: "reminder" | "budget_exceeded"; userId: string; groupId: string; data: NotificationData }) {
   const db = getDb();
   const [r] = await db
     .select({ id: users.id, locale: users.locale, kind: users.kind, name: users.name, email: users.email, status: users.status, emailNotifications: users.emailNotifications })
@@ -129,6 +130,12 @@ export async function notifyUser(opts: { type: "reminder"; userId: string; group
 }
 
 export function renderNotification(locale: "de" | "en", type: string, d: NotificationData): string {
+  if (type === "budget_exceeded")
+    return translate(locale, "notif.budget", {
+      group: d.groupName,
+      spent: d.amounts?.[0] ? formatMoney(d.amounts[0].amountMinor, d.amounts[0].currency, locale) : "",
+      limit: d.amounts?.[1] ? formatMoney(d.amounts[1].amountMinor, d.amounts[1].currency, locale) : "",
+    });
   if (type === "reminder")
     return translate(locale, "notif.reminder", {
       actor: d.actorName,

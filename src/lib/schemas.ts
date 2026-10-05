@@ -84,6 +84,8 @@ export const groupUpdateSchema = z.object({
   defaultCurrency: currencySchema.optional(),
   simplifyDebts: z.boolean().optional(),
   recurringPolicy: z.enum(["members", "owner"]).optional(),
+  /** Budget in der Gruppenwährung; `null` entfernt es */
+  budget: z.object({ amountMinor: safeInt.min(1), period: z.enum(["month", "total"]) }).nullable().optional(),
 });
 
 export const splitSchema = z.discriminatedUnion("type", [
