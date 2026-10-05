@@ -15,7 +15,9 @@ Diese Anleitung bringt Finantsen auf einen NAS (oder einen anderen Rechner mit D
   - Unraid: eingebaut
 - Prozessor: **Intel/AMD (x86-64)** oder **ARM 64 Bit**. Ganz alte 32-Bit-ARM-Modelle gehen nicht.
   - Synology: Welches Modell welchen Prozessor hat, steht in der Synology-Liste „What kind of CPU does my NAS have“. „x86_64“, „armv8“ und „aarch64“ passen.
-- Arbeitsspeicher: mindestens **1 GB frei**. Die App braucht im Betrieb etwa 300–600 MB.
+- Arbeitsspeicher: mindestens **512 MB frei**. Gemessen: App ca. 110 MB im Leerlauf, 250–370 MB unter Last, Datenbank ca. 70 MB.
+
+**UGREEN-NAS:** eigene Schritt-für-Schritt-Anleitung in `docs/anleitung-ugreen.md`.
 
 ## 1. Einmalig auf GitHub: Das Image öffentlich machen
 
