@@ -144,6 +144,7 @@ Use at least three people in one group so the results are interesting.
 
 - [ ] **Balances tab:** shows who owes whom, plus the net balance per person. Check the numbers by hand for at least one expense.
 - [ ] **Settle up:** *Settle up* on a suggested transfer (amount is pre-filled) or *Record payment*. Expected: the balance goes down and the payment appears in the expense list.
+- [ ] **Payment date:** the payment form has a *Date* field, pre-filled with today (your device's date, also right after midnight). Pick an earlier date: the payment appears at that date in the expense list, between the expenses of that day.
 - [ ] **Overview page** ("Overview"): your total balance, per person across all groups, per group.
 - [ ] Settle everything: "All settled up".
 - [ ] **Statistics tab:** totals by category, by month and by person (paid vs. share), optional date range. Check that deleted expenses are not counted.
@@ -199,7 +200,7 @@ For trying things out without creating many real accounts. Account → *Manage u
 - [ ] **Test users are marked "(Test)"** everywhere other people can see them.
 - [ ] **Test users can never sign in** (try their username with any password) and you cannot act as a real account.
 - [ ] **Delete** a test user. Expected: refused with an explanation if their data is in a group with real users; otherwise removed together with test-only groups.
-- [ ] **Clean-up warning:** while test features are on **or** test users exist, *Manage users* shows a yellow box "Clean up test features before real use" at the top. *Switch off test features* turns them off (the "Test features" checkbox below follows at once). *Delete all test users* asks first, then deletes every test user it can; test users with data in groups with real people stay and are listed with those groups. Nothing is deleted without clicking. With test features off and no test users left, the box disappears.
+- [ ] **Clean-up warning:** while test features are on **or** test users exist, *Manage users* shows a yellow box "Clean up test features before real use" at the top. *Switch off test features* turns them off (the "Test features" checkbox below follows at once). *Delete all test users* asks first (confirmation box inside the page, like everywhere else), then deletes every test user it can; test users with data in groups with real people stay and are listed with those groups. Nothing is deleted without clicking. With test features off and no test users left, the box disappears. With exactly one test user left the text is singular ("There is still 1 test user"). When you add a test user to a group, the warning about real members names only people with an account, not members without an account (guests), and not yourself.
 - [ ] **Start lock for the dev admin** (only for the owner, needs editing a file): in `docker-compose.local.yml` set `APP_URL` to the computer's network address (e.g. `http://192.168.178.20:3000`) while `DEV_ADMIN: "true"` stays, then start. Expected: the app does **not** start; the log says "START ABGEBROCHEN: DEV_ADMIN=true ist nur für lokale Tests erlaubt …". Undo the change afterwards.
 
 ---

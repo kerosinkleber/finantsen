@@ -24,7 +24,7 @@ Im Projektordner `finantsen`:
 ### 2. Regeln
 - Getestet wird **nur im Browser** unter `http://localhost:3000`. Keine anderen Adressen.
 - Nur erfundene Daten mit Präfix `qa-`. Passwort für erfundene Konten: `Correct-Horse-Battery-9!`. Darfst du Passwörter nicht selbst eintippen, bitte mich genau an dieser Stelle.
-- Bestätigungen erscheinen als Fenster **in der Seite** („Bestätigen“/„Abbrechen“). **Ausnahme:** „Alle Testnutzer löschen“ fragt mit einem **Browser-Dialog** (OK/Abbrechen).
+- Bestätigungen erscheinen als Fenster **in der Seite** („Bestätigen“/„Abbrechen“), auch bei „Alle Testnutzer löschen“.
 - Lies `docs/tester-guide.md`, Abschnitte **7**, **8b** und **8c**. Das ist die Spezifikation (Checkboxen = Testfälle mit Erwartung).
 
 ### 3. Testfälle
@@ -36,7 +36,7 @@ Viele Einträge legst du per **Import** an, nicht von Hand:
    `date,title,amount,currency,paid_by,split_between,category`
    und **120 Zeilen**, z. B. `2026-01-15,qa-Einkauf 001,12.50,EUR,qa-anna,qa-anna|qa-ben,groceries`. Titel fortlaufend nummeriert (001–120), Datum über mehrere Monate verteilt, Beträge verschieden, Zahler abwechselnd `qa-anna` und `qa-ben`.
 3. In der Gruppe Reiter *Mitglieder* → „Ausgaben importieren (CSV)“, Datei hochladen, Vorschau prüfen (120 Ausgaben, 0 Fehler), Personen als neue Gäste anlegen lassen, importieren.
-4. Eine **Zahlung** (Begleichen) mit einem Datum mitten im Zeitraum buchen.
+4. Eine **Zahlung** (Begleichen) buchen und im Feld *Datum* ein Datum mitten im Zeitraum wählen.
 5. Prüfe alle Checkboxen aus 8b, insbesondere:
    - 50 Einträge, „Seite 1 von 3“, „Ältere →“, „← Neuere“. Auf Seite 1 gibt es kein „← Neuere“, auf der letzten kein „Ältere →“.
    - Kein Eintrag doppelt, keiner fehlt: Notiere den letzten Titel von Seite 1 und den ersten von Seite 2 (direkt aufeinanderfolgend nach Datum). Über alle Seiten zusammen müssen es 120 Ausgaben + 1 Zahlung sein.
@@ -51,7 +51,7 @@ Viele Einträge legst du per **Import** an, nicht von Hand:
 1. *Konto → Nutzer verwalten*: Oben steht der gelbe Kasten „Testfunktionen vor dem echten Betrieb aufräumen“ (lokal sind die Testfunktionen an), mit Knopf „Testfunktionen ausschalten“.
 2. Über *Testnutzer verwalten* 3 Testnutzer anlegen (`test-1` bis `test-3`). Zurück auf *Nutzer verwalten*: Der Kasten nennt **3 Testnutzer** und zeigt zusätzlich „Alle Testnutzer löschen“.
 3. `test-3` zur Gruppe `qa-paging` hinzufügen (Warnung bestätigen) und als Admin eine Ausgabe buchen, an der `test-3` beteiligt ist.
-4. „Alle Testnutzer löschen“ → Browser-Dialog mit OK bestätigen. Erwartet: `test-1` und `test-2` sind weg; `test-3` bleibt und wird mit der Gruppe `qa-paging` und dem Namen des Admins genannt. Der Kasten nennt danach 1 Testnutzer.
+4. „Alle Testnutzer löschen“ → im Seitenfenster „Bestätigen“. Erwartet: `test-1` und `test-2` sind weg; `test-3` bleibt und wird mit der Gruppe `qa-paging` und dem Namen des Admins genannt. Der Kasten nennt danach 1 Testnutzer.
 5. „Testfunktionen ausschalten“ → Der Knopf verschwindet, und das Häkchen „Testfunktionen“ in den Einstellungen darunter ist **sofort** aus (ohne Neuladen). Der Kasten bleibt, weil `test-3` noch existiert.
 6. Testfunktionen über das Häkchen wieder einschalten (für spätere Tests).
 7. Als **normaler Nutzer** (ein `qa-`-Konto ohne Admin-Rechte anlegen und damit anmelden): `/admin/users` ist nicht erreichbar, der Kasten also nicht sichtbar.
