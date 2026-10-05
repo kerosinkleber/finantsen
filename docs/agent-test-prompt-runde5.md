@@ -15,7 +15,10 @@ Im Projektordner `finantsen`:
 1. `git fetch origin claude/magical-feynman-h8qjkz` und `git checkout claude/magical-feynman-h8qjkz` und `git pull origin claude/magical-feynman-h8qjkz`. Hat der Ordner lokale Änderungen, die `git pull` verhindern, **stopp und frag mich**.
 2. `git log -1 --oneline` muss Commit `8ad11fd` oder neuer zeigen. Notiere die Commit-ID im Bericht.
 3. Frische Test-Umgebung: `docker compose -f docker-compose.local.yml down -v`, dann `docker compose -f docker-compose.local.yml up -d --build`. Warte, bis `http://localhost:3000/api/health` `{"status":"ok","db":"ok"}` liefert (bis zu 5 Minuten, der Bau dauert).
-4. Prüfe im Browser, dass es das Testsystem ist: Auf `http://localhost:3000/login` gibt es den Knopf „Als admin anmelden (Entwicklung)“, nach der Anmeldung ein rotes Banner „ENTWICKLUNGSMODUS“. Fehlt das, **stopp und frag mich**.
+4. Prüfe im Browser, dass es das Testsystem ist (Adresse `http://localhost:3000`). Für die Admin-Anmeldung gibt es zwei Fälle, beide sind in Ordnung:
+   - **Mit Dev-Admin:** Auf `/login` gibt es den Knopf „Als admin anmelden (Entwicklung)“, nach der Anmeldung ein rotes Banner „ENTWICKLUNGSMODUS“. Damit anmelden.
+   - **Ohne Dev-Admin** (der Auftraggeber hat ihn evtl. abgeschaltet): `/login` leitet auf `/setup` (Ersteinrichtung). Lege dort den Admin `qa-admin` mit dem Passwort `Correct-Horse-Battery-9!` an (darfst du keine Passwörter tippen: mich an dieser Stelle bitten) und melde dich damit an. Kein rotes Banner ist dann richtig.
+   - Hat `git pull` wegen einer lokal geänderten `docker-compose.local.yml` nicht geklappt, oder erscheint weder der Knopf noch die Ersteinrichtung, sondern eine normale Anmeldeseite mit vorhandenen Konten: **stopp und frag mich.**
 5. Erlaubt ist außerdem **eine** Datei: eine Test-CSV in `test-report/` (siehe 3.1) und dein Bericht. Sonst schreibst und änderst du nichts.
 
 ### 2. Regeln
