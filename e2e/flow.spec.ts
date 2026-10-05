@@ -1121,7 +1121,7 @@ test("e-mail: admin test mail, forgot password via mailed link, e-mail settings"
   await expect(page.locator("#smtp-host")).toBeDisabled(); // .env hat Vorrang
   await page.getByTestId("mail-test").click();
   await expect(page.getByTestId("admin-mail").getByRole("status")).toContainText("Test e-mail sent to anna@example.com");
-  await expect.poll(async () => (await mailsTo("anna@example.com")).map((m) => m.subject)).toContain("Finantsen: test e-mail");
+  await expect.poll(async () => (await mailsTo("anna@example.com")).map((m) => m.subject)).toContain("Finantsen: Test-E-Mail"); // Mails in der Kontosprache (Anna hat auf Deutsch umgestellt)
 
   const created = await page.request.post("/api/admin/users", {
     data: { name: "Mia", username: "mia", email: "mia@example.com", mode: "password", password: PASSWORD, mustChange: false, isAdmin: false },
@@ -1144,10 +1144,10 @@ test("e-mail: admin test mail, forgot password via mailed link, e-mail settings"
   await expect(p.getByTestId("forgot-sent").getByRole("status")).toHaveText(sameText!);
   await expect.poll(async () => (await mailsTo("mia@example.com")).length).toBe(1);
   const [mail] = await mailsTo("mia@example.com");
-  expect(mail.subject).toBe("Finantsen: set a new password");
+  expect(mail.subject).toBe("Finantsen: Passwort neu festlegen"); // Kontosprache (Standard Deutsch), nicht Browsersprache
   const link = /https?:\/\/\S+\/activate\/[A-Za-z0-9_-]+/.exec(mail.text)![0];
   await p.goto(new URL(link).pathname);
-  const NEW = "Mia-New-Horse-Battery-4!";
+  const NEW = "New-Horse-Battery-Staple-4!"; // darf den Nutzernamen nicht enthalten
   await p.getByLabel("Password", { exact: true }).fill(NEW);
   await p.getByLabel("Repeat password").fill(NEW);
   await p.getByRole("button", { name: /Save|Activate|Set/ }).click();
