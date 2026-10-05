@@ -545,6 +545,7 @@ const en: Record<MessageKey, string> = {
   "qrscan.noCamera": "No camera available or access denied. You can paste the link below.",
   "qrscan.foreign": "This is not an invitation link of this app and will not be opened:",
   "qrscan.paste": "Or paste an invitation link",
+  "group.showMore": "Show older",
   "qrscan.go": "Open",
   "qrscan.invalid": "This is not an invitation link of this app.",
   "mail.footer": "This e-mail was sent by Finantsen ({url}).",

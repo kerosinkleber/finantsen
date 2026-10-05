@@ -197,6 +197,13 @@ Needs a browser/device with a platform authenticator (fingerprint, face, device 
 
 ---
 
+## 8b. Speed and long lists
+
+- [ ] In a group with **more than 100** entries (expenses and payments) the list shows the newest 100 and a button **"Show older"** at the end; it loads 100 more each time. Balances and statistics always count **all** expenses (compare the balance before and after loading older entries: unchanged).
+- [ ] Pages should feel instant (well under a second) for normal groups. Note any page that takes noticeably longer, with the number of expenses in that group.
+
+---
+
 ## 9. Try to break it (please do!)
 
 - [ ] Open a group URL of a group you are **not** a member of (copy a link from another user). Expected: "not found".

@@ -543,6 +543,7 @@ const de = {
   "qrscan.noCamera": "Keine Kamera verfügbar oder Zugriff verweigert. Du kannst den Link unten einfügen.",
   "qrscan.foreign": "Das ist kein Einladungslink dieser App und wird nicht geöffnet:",
   "qrscan.paste": "Oder Einladungslink einfügen",
+  "group.showMore": "Ältere anzeigen",
   "qrscan.go": "Öffnen",
   "qrscan.invalid": "Das ist kein Einladungslink dieser App.",
   "mail.footer": "Diese E-Mail wurde von Finantsen ({url}) verschickt.",

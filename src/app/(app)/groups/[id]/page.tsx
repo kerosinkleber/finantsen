@@ -24,6 +24,9 @@ import { formatMoney } from "@/lib/money";
 
 type Tab = "expenses" | "balances" | "stats" | "members" | "recurring";
 
+/** Einträge pro Seite in der Ausgabenliste */
+const PAGE = 100;
+
 export default async function GroupPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser();
   const { id } = await params;
@@ -118,7 +121,13 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
   sp: Record<string, string | string[] | undefined>;
 }) {
   const { filter, active } = parseExpenseFilter(sp, group.defaultCurrency);
-  const [expenses, allPayments, trash] = await Promise.all([listExpenses(userId, groupId, { filter }), listPayments(userId, groupId), listExpenses(userId, groupId, { onlyDeleted: true })]);
+  // Große Gruppen: nur die neuesten Einträge rendern, „Ältere anzeigen“ lädt weitere (Salden zählen immer alles)
+  const show = Math.min(Math.max(Number(sp.show) || PAGE, PAGE), 100_000);
+  const [expenses, allPayments, trash] = await Promise.all([
+    listExpenses(userId, groupId, { filter, limit: show + 1 }),
+    listPayments(userId, groupId),
+    listExpenses(userId, groupId, { onlyDeleted: true }),
+  ]);
   const trashBox = trash.length > 0 && !active && (
     <details className="card" data-testid="trash">
       <summary className="cursor-pointer font-medium">{t("expense.trash", { n: trash.length })}</summary>
@@ -143,13 +152,18 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
     ...expenses.map((e) => ({ kind: "e" as const, date: e.date, at: +e.createdAt, e })),
     ...payments.map((p) => ({ kind: "p" as const, date: p.date, at: +p.createdAt, p })),
   ].sort((a, b) => (a.date === b.date ? b.at - a.at : a.date < b.date ? 1 : -1));
+  const hasMore = items.length > show;
+  const visible = items.slice(0, show);
+  const moreParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && k !== "show") moreParams.set(k, v);
+  moreParams.set("show", String(show + PAGE));
   if (items.length === 0) return <>{form}<Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link><p className="muted" data-testid="no-results">{active ? t("filter.noResults") : t("group.noExpenses")}</p>{trashBox}</>;
   return (
     <>
     {form}
     <Link href={`/groups/${groupId}?tab=recurring`} className="btn-secondary" data-testid="recurring-link">{t("recurring.title")}</Link>
     <ul className="flex flex-col gap-2">
-      {items.map((it) => {
+      {visible.map((it) => {
         if (it.kind === "p") {
           const p = it.p;
           return (
@@ -198,6 +212,9 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
         );
       })}
     </ul>
+    {hasMore && (
+      <Link href={`/groups/${groupId}?${moreParams}`} scroll={false} className="btn-secondary" data-testid="show-more">{t("group.showMore")}</Link>
+    )}
     {trashBox}
     </>
   );

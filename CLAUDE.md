@@ -92,6 +92,11 @@ Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-
 - Schalter: `settings.testFeaturesEnabled()`; Default aus `TEST_FEATURES_DEFAULT` (nur `"true"`), DB-Wert hat Vorrang. Nur `docker-compose.local.yml`, Playwright und `.env.example` (auskommentiert) setzen ihn. Testnutzer erhalten nie Push (In-App-Benachrichtigungen ja). In `listGroups` tragen Testnutzer „(Test)“ im Namen, ebenso Verlauf/Kommentare/Benachrichtigungen.
 - Release: `docs/release-checkliste.md`.
 
+## Performance
+- Siehe `docs/performance.md` (Messung mit 3000 Ausgaben, vorher/nachher). Regeln: Listen von IDs als **ein** Array-Parameter (`sql\`${sql.param(ids)}::uuid[]\``, `= any(...)`), nie `inArray` mit beliebig vielen IDs; Zuordnungen per `Map`, nicht `filter` in Schleifen.
+- `balances.ts#netBalancesSql` summiert Nettosalden in SQL (vereinfachte Schulden, Übersicht in einer Abfrage); `groupBalancesFull` nur für paarweise Schulden. Ein Integrationstest prüft, dass beide Wege gleich rechnen.
+- Gruppenansicht zeigt die neuesten 100 Einträge, „Ältere anzeigen“ (`?show=`), `loadExpenses(..., { limit })`.
+
 ## Lizenz
 Proprietär (`LICENSE`, `package.json` → `UNLICENSED`). Keine Open-Source-Lizenz, keine Copyleft-Abhängigkeiten hinzufügen (aktuell nur MIT/Apache/Unlicense/MPL-2.0). Neue Dateien brauchen keinen Lizenzkopf.
 

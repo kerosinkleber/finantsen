@@ -1,5 +1,5 @@
 import { alias } from "drizzle-orm/pg-core";
-import { and, desc, eq, exists, gte, ilike, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, exists, gte, ilike, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { getDb, type Tx } from "../db";
 import { expenseHistory, expensePayers, expenseShares, expenses, users } from "../schema";
 import { ApiError, notFound } from "../http";
@@ -74,10 +74,24 @@ async function hydrate(rows: (typeof expenses.$inferSelect)[]): Promise<ExpenseD
   if (!rows.length) return [];
   const db = getDb();
   const ids = rows.map((r) => r.id);
+  // Ein Array-Parameter statt einer IN-Liste: keine Grenze bei 65 535 Parametern, ein vorbereitbares Statement
+  const idArray = sql`${sql.param(ids)}::uuid[]`;
   const [payers, shares] = await Promise.all([
-    db.select().from(expensePayers).where(inArray(expensePayers.expenseId, ids)),
-    db.select().from(expenseShares).where(inArray(expenseShares.expenseId, ids)),
+    db.select().from(expensePayers).where(sql`${expensePayers.expenseId} = any(${idArray})`),
+    db.select().from(expenseShares).where(sql`${expenseShares.expenseId} = any(${idArray})`),
   ]);
+  // Einmal gruppieren (linear); vorher wurde je Ausgabe die ganze Liste gefiltert (quadratisch)
+  const byExpense = <T extends { expenseId: string }>(list: T[]) => {
+    const m = new Map<string, T[]>();
+    for (const x of list) {
+      const a = m.get(x.expenseId);
+      if (a) a.push(x);
+      else m.set(x.expenseId, [x]);
+    }
+    return m;
+  };
+  const payersOf = byExpense(payers);
+  const sharesOf = byExpense(shares);
   return rows.map((r) => ({
     id: r.id,
     groupId: r.groupId,
@@ -97,12 +111,8 @@ async function hydrate(rows: (typeof expenses.$inferSelect)[]): Promise<ExpenseD
     rateSource: r.rateSource,
     items: (r.items as ItemsData | null) ?? null,
     recurringId: r.recurringId,
-    payers: payers
-      .filter((p) => p.expenseId === r.id)
-      .map((p) => ({ userId: p.userId, amountMinor: p.amountMinor, baseAmountMinor: p.baseAmountMinor })),
-    shares: shares
-      .filter((s) => s.expenseId === r.id)
-      .map((s) => ({ userId: s.userId, amountMinor: s.amountMinor, baseAmountMinor: s.baseAmountMinor, input: s.input })),
+    payers: (payersOf.get(r.id) ?? []).map((p) => ({ userId: p.userId, amountMinor: p.amountMinor, baseAmountMinor: p.baseAmountMinor })),
+    shares: (sharesOf.get(r.id) ?? []).map((s) => ({ userId: s.userId, amountMinor: s.amountMinor, baseAmountMinor: s.baseAmountMinor, input: s.input })),
   }));
 }
 
@@ -122,13 +132,14 @@ export type ExpenseFilter = {
 export async function listExpenses(
   userId: string,
   groupId: string,
-  opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter } = {},
+  opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter; limit?: number } = {},
 ) {
   await requireMember(userId, groupId);
   return loadExpenses(groupId, opts);
 }
 
-export async function loadExpenses(groupId: string, opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter } = {}) {
+/** `limit`: nur die neuesten n Ausgaben (Liste der Gruppenansicht); Salden/Statistik/Export laden immer alles. */
+export async function loadExpenses(groupId: string, opts: { includeDeleted?: boolean; onlyDeleted?: boolean; filter?: ExpenseFilter; limit?: number } = {}) {
   const f = opts.filter ?? {};
   const conds: (SQL | undefined)[] = [eq(expenses.groupId, groupId)];
   if (opts.onlyDeleted) conds.push(isNotNull(expenses.deletedAt));
@@ -154,7 +165,8 @@ export async function loadExpenses(groupId: string, opts: { includeDeleted?: boo
     .select()
     .from(expenses)
     .where(and(...conds))
-    .orderBy(desc(expenses.date), desc(expenses.createdAt));
+    .orderBy(desc(expenses.date), desc(expenses.createdAt))
+    .limit(opts.limit ?? 1_000_000_000);
   return hydrate(rows);
 }
 

@@ -1632,4 +1632,33 @@ d("services (PostgreSQL)", () => {
       expect(mails[0].subject).toBe("Finantsen: Test-E-Mail");
     });
   });
+
+  describe("Performance-Pfade", () => {
+    it("SQL-Nettosalden stimmen mit der vollständigen Berechnung überein (Währungen, Zahlungen, Gelöschtes)", async () => {
+      const { a, b, c, g } = await setup();
+      const e1 = await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 1001, payers: [{ userId: a.id, amountMinor: 1001 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      await svc.expenses.createExpense(b.id, g.id, base({ amountMinor: 700, payers: [{ userId: b.id, amountMinor: 400 }, { userId: c.id, amountMinor: 300 }], split: { type: "shares", entries: [{ userId: a.id, shares: 2 }, { userId: c.id, shares: 1 }] } }));
+      const gone = await svc.expenses.createExpense(c.id, g.id, base({ amountMinor: 999, payers: [{ userId: c.id, amountMinor: 999 }], split: { type: "full", owner: a.id } }));
+      await svc.expenses.deleteExpense(c.id, g.id, gone.id);
+      await svc.payments.createPayment(b.id, g.id, { fromUser: b.id, toUser: a.id, amountMinor: 123, currency: "EUR", date: "2026-01-03" });
+      expect(e1.id).toBeTruthy();
+      const fast = await svc.balances.groupBalances(g.id);
+      const full = await svc.balances.groupBalancesFull(g.id, true);
+      expect(fast).toEqual(full);
+      const sum = Object.values(fast.net.EUR).reduce((x, y) => x + y, 0);
+      expect(sum).toBe(0);
+      // Übersicht: gleiche Werte wie die Gruppe
+      const overall = await svc.balances.overallBalances(a.id);
+      expect(overall.perGroup[g.id]).toEqual({ EUR: fast.net.EUR[a.id] });
+    });
+
+    it("Ausgabenliste mit Limit liefert die neuesten Einträge", async () => {
+      const { a, b, g } = await setup();
+      for (const d of ["2026-01-01", "2026-03-01", "2026-02-01"])
+        await svc.expenses.createExpense(a.id, g.id, base({ title: d, date: d, payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      const two = await svc.expenses.listExpenses(a.id, g.id, { limit: 2 });
+      expect(two.map((e) => e.title)).toEqual(["2026-03-01", "2026-02-01"]);
+      expect(two[0].shares).toHaveLength(2);
+    });
+  });
 });
