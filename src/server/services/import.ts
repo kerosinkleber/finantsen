@@ -10,6 +10,7 @@ import { addGuest } from "./guests";
 import { listGroups } from "./groups";
 import { parseImport, type ImportEntry, type ParsedImport } from "@/lib/import";
 import { CATEGORIES, type Category } from "@/lib/categories";
+import { expenseSchema, paymentSchema } from "@/lib/schemas";
 import { translate } from "@/i18n";
 
 export const IMPORT_MAX_BYTES = 2_000_000;
@@ -115,7 +116,9 @@ export async function runImport(userId: string, groupId: string, text: string, m
       failed.push({ line: e.line, code: err instanceof ApiError ? err.code : ((err as { code?: string }).code ?? "error") });
     }
   }
-  await getDb().update(imports).set({ expenses, payments }).where(eq(imports.id, claimed[0].id));
+  // Nichts gebucht (z. B. Kurse nicht abrufbar): Datei wieder freigeben, damit ein neuer Versuch möglich ist
+  if (expenses + payments === 0) await getDb().delete(imports).where(eq(imports.id, claimed[0].id));
+  else await getDb().update(imports).set({ expenses, payments }).where(eq(imports.id, claimed[0].id));
   return { expenses, payments, failed: [...p.errors, ...failed].sort((a, b) => a.line - b.line) };
 }
 
@@ -127,25 +130,24 @@ function merge(parts: { name: string; amountMinor: number }[], idOf: (n: string)
 }
 
 async function bookExpense(userId: string, groupId: string, e: Extract<ImportEntry, { kind: "expense" }>, idOf: (n: string) => string) {
-  await createExpense(
-    userId,
-    groupId,
-    {
-      title: (e.title || "Import").slice(0, 200),
-      amountMinor: e.amountMinor,
-      currency: e.currency,
-      date: e.date,
-      category: matchCategory(e.category),
-      payers: merge(e.payers, idOf),
-      split: { type: "exact", entries: merge(e.shares, idOf) },
-      isRefund: e.isRefund,
-    },
-    null,
-    { silent: true },
-  );
+  // dieselbe Prüfung wie bei Eingaben über die Oberfläche (Währung, Grenzen, Anzahl Beteiligte)
+  const parsed = expenseSchema.safeParse({
+    title: (e.title || "Import").slice(0, 200),
+    amountMinor: e.amountMinor,
+    currency: e.currency,
+    date: e.date,
+    category: matchCategory(e.category),
+    payers: merge(e.payers, idOf),
+    split: { type: "exact", entries: merge(e.shares, idOf) },
+    isRefund: e.isRefund,
+  });
+  if (!parsed.success) throw new ApiError(400, "validation");
+  await createExpense(userId, groupId, parsed.data, null, { silent: true });
 }
 
 async function bookPayment(userId: string, groupId: string, e: Extract<ImportEntry, { kind: "payment" }>, idOf: (n: string) => string) {
   if (idOf(e.from) === idOf(e.to)) return; // beide Namen derselben Person zugeordnet: nichts zu buchen
-  await createPayment(userId, groupId, { fromUser: idOf(e.from), toUser: idOf(e.to), amountMinor: e.amountMinor, currency: e.currency, date: e.date, note: (e.title || undefined)?.slice(0, 200) });
+  const parsed = paymentSchema.safeParse({ fromUser: idOf(e.from), toUser: idOf(e.to), amountMinor: e.amountMinor, currency: e.currency, date: e.date, note: (e.title || undefined)?.slice(0, 200) });
+  if (!parsed.success) throw new ApiError(400, "validation");
+  await createPayment(userId, groupId, parsed.data);
 }

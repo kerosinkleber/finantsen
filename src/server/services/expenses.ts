@@ -388,6 +388,7 @@ export async function restoreExpense(userId: string, groupId: string, expenseId:
     amountMinor: detail.amountMinor,
     currency: detail.currency,
   });
+  await checkBudgetAlert(groupId);
   return detail;
 }
 

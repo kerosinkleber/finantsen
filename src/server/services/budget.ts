@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { expenses, groupMembers, groups, users } from "../schema";
 import { requireMember } from "./access";
@@ -28,7 +28,9 @@ export async function budgetStatus(groupId: string, now = new Date()): Promise<B
   if (!g?.limit || !g.period || !g.currency) return null;
   const month = now.toISOString().slice(0, 7);
   const conds = [eq(expenses.groupId, groupId), isNull(expenses.deletedAt), eq(expenses.baseCurrency, g.currency)];
-  if (g.period === "month") conds.push(gte(expenses.date, `${month}-01`), lte(expenses.date, `${month}-31`));
+  // halboffener Bereich [1. dieses Monats, 1. nächsten Monats) – kein ungültiges Datum wie der 31.02.
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString().slice(0, 10);
+  if (g.period === "month") conds.push(gte(expenses.date, `${month}-01`), lt(expenses.date, next));
   const [r] = await getDb()
     .select({ spent: sql<string>`coalesce(sum(case when ${expenses.isRefund} then -${expenses.baseAmountMinor} else ${expenses.baseAmountMinor} end), 0)::text` })
     .from(expenses)

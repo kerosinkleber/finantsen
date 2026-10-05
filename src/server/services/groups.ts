@@ -127,6 +127,10 @@ export async function updateGroup(
     if (d.type === "shares" && d.entries.reduce((a, e) => a + e.value, 0) <= 0) throw new ApiError(400, "invalid_weight");
   }
   const set: Partial<typeof groups.$inferInsert> = { ...data };
+  if (budget === undefined && data.defaultCurrency && data.defaultCurrency !== group.defaultCurrency && group.budgetMinor) {
+    // Gruppenwährung gewechselt: Budget gilt künftig in der neuen Währung (neue Ausgaben werden darin abgerechnet)
+    Object.assign(set, { budgetCurrency: data.defaultCurrency, budgetAlertKey: null });
+  }
   if (budget !== undefined) {
     // Budget gilt in der aktuellen Gruppenwährung; neue Einstellung = Warnung darf wieder kommen
     const cur = data.defaultCurrency ?? group.defaultCurrency;

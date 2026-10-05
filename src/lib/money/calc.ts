@@ -21,13 +21,23 @@ export function evaluateAmount(input: string, fractionDigits: number): number | 
   const s = input.replace(/\s+/g, "").replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-");
   if (!s || s.length > 200) return null;
   let i = 0;
+  let bad = false;
   const peek = () => s[i];
 
   function number(): Frac | null {
     const m = /^\d+(?:[.,]\d+)?|^[.,]\d+/.exec(s.slice(i));
     if (!m) return null;
     i += m[0].length;
-    const [int, frac = ""] = m[0].replace(",", ".").split(".");
+    let [int, frac = ""] = m[0].replace(",", ".").split(".");
+    // „1.234“ wie im Betragsfeld als Tausendertrenner lesen; sonst nie mehr Nachkommastellen als die Währung hat
+    if (frac.length === 3 && fractionDigits < 3 && int && int !== "0") {
+      int += frac;
+      frac = "";
+    }
+    if (frac.length > fractionDigits && /[1-9]/.test(frac.slice(fractionDigits))) {
+      bad = true;
+      return null;
+    }
     return norm({ n: BigInt((int || "0") + frac), d: 10n ** BigInt(frac.length) });
   }
   function factor(): Frac | null {
@@ -72,7 +82,7 @@ export function evaluateAmount(input: string, fractionDigits: number): number | 
   }
 
   const v = expr();
-  if (!v || i !== s.length) return null;
+  if (!v || bad || i !== s.length) return null;
   // auf Minor-Units runden (halb auf: 0,005 → 0,01)
   const scaled = v.n * 10n ** BigInt(fractionDigits);
   if (scaled < 0n) return null;

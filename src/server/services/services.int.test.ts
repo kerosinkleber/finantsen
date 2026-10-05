@@ -1865,4 +1865,34 @@ d("services (PostgreSQL)", () => {
       expect(n).toBe(0);
     });
   });
+
+  describe("Funde der Code-Prüfung", () => {
+    const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+    it("Monatsbudget in Monaten mit 30/28 Tagen; Budget folgt der Gruppenwährung", async () => {
+      const { a, b, g } = await setup();
+      await svc.groups.updateGroup(a.id, g.id, { budget: { amountMinor: 5000, period: "month" } });
+      await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 1200, date: "2026-09-30", payers: [{ userId: a.id, amountMinor: 1200 }], split: { type: "equal", participants: [a.id, b.id] } }));
+      expect((await svc.budget.budgetStatus(g.id, new Date("2026-09-15T12:00:00Z")))?.spentMinor).toBe(1200);
+      expect((await svc.budget.budgetStatus(g.id, new Date("2027-02-10T12:00:00Z")))?.spentMinor).toBe(0);
+      await svc.groups.updateGroup(a.id, g.id, { defaultCurrency: "USD" });
+      expect((await svc.budget.budgetStatus(g.id))?.currency).toBe("USD");
+    });
+
+    it("Import ohne eine einzige Buchung gibt die Datei wieder frei; ungültige Währung wird abgelehnt", async () => {
+      const { a, g } = await setup();
+      const csv = "date,title,amount,currency,paid_by,split_between\n2026-03-01,X,10.00,XYZ,Anna,Anna";
+      const r = await svc.importer.runImport(a.id, g.id, csv, { Anna: a.id });
+      expect(r).toMatchObject({ expenses: 0, payments: 0, failed: [{ line: 2 }] });
+      expect((await svc.importer.previewImport(a.id, g.id, csv)).alreadyImported).toBe(false);
+    });
+
+    it("parallele Erinnerungen und Uploads halten die Grenzen ein", async () => {
+      const { a, b, c, g } = await setup();
+      const e = await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 3000, payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      const rem = await Promise.allSettled([1, 2, 3].map(() => svc.reminders.remind(a.id, g.id, b.id)));
+      expect(rem.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+      const up = await Promise.allSettled([1, 2, 3, 4, 5, 6, 7].map(() => svc.attachments.addAttachment(a.id, g.id, e.id, PNG)));
+      expect(up.filter((x) => x.status === "fulfilled")).toHaveLength(5);
+    });
+  });
 });

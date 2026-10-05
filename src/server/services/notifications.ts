@@ -110,12 +110,20 @@ export function notificationPath(n: { type: string; groupId: string; expenseId: 
  */
 export async function notifyUser(opts: { type: "reminder" | "budget_exceeded"; userId: string; groupId: string; data: NotificationData }) {
   const db = getDb();
+  const [k] = await db.select({ kind: users.kind }).from(users).where(eq(users.id, opts.userId));
+  if (!k || k.kind === "guest") return;
+  await db.insert(notifications).values({ userId: opts.userId, type: opts.type, groupId: opts.groupId, expenseId: null, data: opts.data });
+  await deliverToUser(opts);
+}
+
+/** Push und ggf. E-Mail zu einer schon gespeicherten Benachrichtigung (ohne In-App-Eintrag). */
+export async function deliverToUser(opts: { type: "reminder" | "budget_exceeded"; userId: string; groupId: string; data: NotificationData }) {
+  const db = getDb();
   const [r] = await db
     .select({ id: users.id, locale: users.locale, kind: users.kind, name: users.name, email: users.email, status: users.status, emailNotifications: users.emailNotifications })
     .from(users)
     .where(eq(users.id, opts.userId));
   if (!r || r.kind === "guest") return;
-  await db.insert(notifications).values({ userId: r.id, type: opts.type, groupId: opts.groupId, expenseId: null, data: opts.data });
   const locale = normalizeLocale(r.locale) ?? "de";
   const text = renderNotification(locale, opts.type, opts.data);
   const path = notificationPath({ type: opts.type, groupId: opts.groupId, expenseId: null });

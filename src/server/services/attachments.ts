@@ -38,13 +38,17 @@ export async function addAttachment(userId: string, groupId: string, expenseId: 
   if (!mime) throw new ApiError(400, "invalid_image");
   const data = Buffer.from(c.b64, "base64");
   if (data.length > ATTACHMENT_MAX_BYTES) throw new ApiError(413, "image_too_large");
-  const [{ n }] = await getDb().select({ n: count() }).from(expenseAttachments).where(eq(expenseAttachments.expenseId, expenseId));
-  if (n >= ATTACHMENTS_PER_EXPENSE) throw new ApiError(409, "too_many_attachments");
-  const [row] = await getDb()
-    .insert(expenseAttachments)
-    .values({ expenseId, mime, size: data.length, data, createdBy: userId })
-    .returning({ id: expenseAttachments.id, mime: expenseAttachments.mime, size: expenseAttachments.size, createdAt: expenseAttachments.createdAt });
-  return row;
+  // Zählen und Einfügen unter Zeilensperre der Ausgabe: parallele Uploads überschreiten die Grenze nicht
+  return getDb().transaction(async (tx) => {
+    await tx.select({ id: expenses.id }).from(expenses).where(eq(expenses.id, expenseId)).for("update");
+    const [{ n }] = await tx.select({ n: count() }).from(expenseAttachments).where(eq(expenseAttachments.expenseId, expenseId));
+    if (n >= ATTACHMENTS_PER_EXPENSE) throw new ApiError(409, "too_many_attachments");
+    const [row] = await tx
+      .insert(expenseAttachments)
+      .values({ expenseId, mime, size: data.length, data, createdBy: userId })
+      .returning({ id: expenseAttachments.id, mime: expenseAttachments.mime, size: expenseAttachments.size, createdAt: expenseAttachments.createdAt });
+    return row;
+  });
 }
 
 export async function getAttachment(userId: string, groupId: string, expenseId: string, attachmentId: string) {
