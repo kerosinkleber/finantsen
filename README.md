@@ -63,6 +63,9 @@ Ohne Mailserver gibt der Admin Einmal-Links selbst weiter. Eingerichtet wird er 
 
 Für den lokalen Test (`docker-compose.local.yml`) läuft **Mailpit** mit: alle Mails landen unter <http://localhost:8025>, nichts verlässt den Rechner.
 
+### Bezahlen beim Begleichen
+Unter *Konto → Bezahldaten* kann jede Person optional **IBAN mit Kontoinhaber** und/oder ihren **PayPal.me-Namen** hinterlegen (Ändern nur mit Passwort). Wer ihr in einer gemeinsamen Gruppe laut Ausgleichsvorschlag Geld schuldet, sieht im Reiter *Salden* „Bezahlen an …“: einen **GiroCode** (EPC-QR, nur Euro, jede Banking-App füllt Empfänger, IBAN, Betrag und Verwendungszweck aus), die IBAN zum Kopieren und einen **PayPal.me-Link mit Betrag**. Die App bewegt kein Geld; danach trägt man die Zahlung wie gewohnt mit „Begleichen“ ein. Andere sehen die Bezahldaten nie, auch nicht im Export.
+
 ### Konten, Anmeldung und Passwörter
 - **Anmeldung** mit Nutzername (3–32 Zeichen, a–z 0–9 . _ -, eindeutig) oder E-Mail. Die E-Mail ist optional und wird nicht verifiziert; sie wird nur genutzt, wenn ein Mailserver eingerichtet ist (siehe „E-Mail-Versand“). Jede Person kann ihre Adresse unter *Konto* ändern (mit Passwort). Standardmäßig darf eine E-Mail nur einmal vorkommen. Erlaubt der Admin Duplikate, fragt der Login bei mehreren passenden Konten nach, welches gemeint ist.
 - **Konten legt der Admin an** (*Konto → Nutzer verwalten*): entweder mit einem **Einmal-Link**, über den der Nutzer sein Passwort selbst wählt (Standard 72 Stunden gültig, einstellbar, nur einmal verwendbar, ein neuer Link ersetzt den alten), oder mit einem vom Admin gesetzten Passwort, das beim ersten Login geändert werden muss (abwählbar). Den Link gibt der Admin selbst weiter; mit Mailserver geht er zusätzlich an die hinterlegte E-Mail. „Passwort vergessen“ läuft genauso über einen neuen Link (mit Mailserver auch als Selbstbedienung auf der Anmeldeseite).

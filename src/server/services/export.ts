@@ -127,7 +127,7 @@ export async function accountExport(userId: string) {
     format: "finantsen-export/1",
     exportedAt: new Date().toISOString(),
     note: "Beträge in Minor-Units (z. B. Cent). Keine Passwörter, TOTP-Geheimnisse oder Passkeys enthalten.",
-    user: { id: u.id, username: u.username, name: u.name, email: u.email, locale: u.locale, createdAt: u.createdAt },
+    user: { id: u.id, username: u.username, name: u.name, email: u.email, locale: u.locale, createdAt: u.createdAt, payment: { holder: u.payHolder, iban: u.payIban, paypal: u.payPaypal } },
     groups: out,
   };
 }

@@ -1173,3 +1173,51 @@ test("e-mail: admin test mail, forgot password via mailed link, e-mail settings"
   await expect(box.getByRole("status")).toBeVisible();
   await ctx.close();
 });
+
+/** Neue Gruppe nur mit Anna (page) und einem weiteren Konto (other); liefert die Gruppen-ID. */
+async function twoPersonGroup(page: Page, other: Page, name: string): Promise<string> {
+  const g = await (await page.request.post("/api/groups", { data: { name, defaultCurrency: "EUR" } })).json();
+  const { url } = await (await page.request.post(`/api/groups/${g.group.id}/invites`)).json();
+  const code = String(url).split("/join/")[1];
+  expect((await other.request.post(`/api/invites/${code}/accept`)).ok()).toBeTruthy();
+  return g.group.id;
+}
+
+test("pay when settling up: payment details with password, GiroCode and PayPal link only for debtors", async ({ page, browser, baseURL }) => {
+  await login(page, "anna@example.com");
+  await page.goto("/settings");
+  const box = page.getByTestId("payment-settings");
+  await box.getByLabel("Account holder").fill("Anna Example");
+  await box.getByLabel("IBAN").fill("DE89 3704 0044 0532 0130 01"); // falsche Prüfziffer
+  await box.getByLabel("PayPal.me name").fill("annaexample");
+  await box.getByLabel("Current password").fill(PASSWORD);
+  await box.getByRole("button", { name: "Save payment details" }).click();
+  await expect(box.getByRole("alert")).toContainText("IBAN is invalid");
+  await box.getByLabel("IBAN").fill("DE89 3704 0044 0532 0130 00");
+  await box.getByLabel("Current password").fill(PASSWORD);
+  await box.getByRole("button", { name: "Save payment details" }).click();
+  await expect(box.getByRole("status")).toBeVisible();
+
+  const ctx = await browser.newContext({ baseURL });
+  const ben = await ctx.newPage();
+  await login(ben, "ben");
+  const gid = await twoPersonGroup(page, ben, "Pay test");
+  const anna = (await (await page.request.get("/api/auth/me")).json()).user.id;
+  const benId = (await (await ben.request.get("/api/auth/me")).json()).user.id;
+  const r = await page.request.post(`/api/groups/${gid}/expenses`, {
+    data: { title: "Tickets", amountMinor: 4700, currency: "EUR", date: "2026-02-01", category: "other", payers: [{ userId: anna, amountMinor: 4700 }], split: { type: "equal", participants: [anna, benId] } },
+  });
+  expect(r.ok()).toBeTruthy();
+
+  // Ben schuldet Anna 23,50 €: Bezahlbox mit GiroCode, IBAN und PayPal-Link
+  await ben.goto(`/groups/${gid}?tab=balances`);
+  await ben.getByTestId("pay-box").locator("summary").click();
+  await expect(ben.getByTestId("pay-iban")).toHaveText("DE89 3704 0044 0532 0130 00");
+  await expect(ben.getByTestId("pay-paypal")).toHaveAttribute("href", "https://paypal.me/annaexample/23.50EUR");
+  await expect(ben.getByTestId("pay-box").getByTestId("qr")).toBeVisible();
+  // Anna (Gläubigerin) sieht keine Bezahlbox
+  await page.goto(`/groups/${gid}?tab=balances`);
+  await expect(page.getByTestId("transfers-EUR")).toBeVisible();
+  await expect(page.getByTestId("pay-box")).toHaveCount(0);
+  await ctx.close();
+});

@@ -62,6 +62,10 @@ export const users = pgTable(
     weeklyDigest: boolean("weekly_digest").notNull().default(false),
     /** Zuletzt verschickte Zusammenfassung (atomar beansprucht, gegen Doppelversand) */
     digestSentAt: timestamp("digest_sent_at", { withTimezone: true }),
+    /** Bezahldaten (optional): sichtbar nur für Mitglieder gemeinsamer Gruppen, die dieser Person Geld schulden */
+    payIban: varchar("pay_iban", { length: 34 }),
+    payHolder: varchar("pay_holder", { length: 70 }),
+    payPaypal: varchar("pay_paypal", { length: 30 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("users_username_idx").on(t.username), index("users_email_idx").on(sql`lower(${t.email})`)],

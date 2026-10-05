@@ -123,6 +123,15 @@ Use at least three people in one group so the results are interesting.
 
 ---
 
+### Paying when settling up
+- [ ] **Payment details.** Account page → *Payment details*: enter account holder, IBAN and PayPal.me name, confirm with your current password.
+  Expected: an IBAN with a wrong check digit (e.g. `DE89 3704 0044 0532 0130 01`) is rejected; `DE89 3704 0044 0532 0130 00` is accepted and shown in groups of four. IBAN without account holder → error. A pasted link `https://paypal.me/name` is shortened to the name. Saving without the right password fails.
+- [ ] **Pay someone.** In a group where you **owe** that person money (Balances tab), open *Pay <name>*.
+  Expected: for euro amounts a GiroCode (QR) appears; scanning it with a banking app (or any QR reader) shows a SEPA transfer with name, IBAN, the exact amount and "Finantsen: <group>". The IBAN can be copied. *Pay with PayPal* opens `paypal.me/<name>/<amount>EUR`. For other currencies there is no QR, only the PayPal link (if set).
+- [ ] **Privacy.** The person who is owed money does **not** see a pay box for themselves; members who do not owe that person see nothing; your own CSV export of a group does not contain anyone's IBAN.
+
+---
+
 ## 6. Notifications
 
 - [ ] When someone else adds an expense or comments, a **bell with a counter** appears for you. Open it, follow the entry, use *Mark all as read*. You never get notifications for your own actions.

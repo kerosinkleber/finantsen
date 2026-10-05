@@ -84,6 +84,10 @@ Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-
 - Admin: `components/AdminMail.tsx` (Status env/admin/aus, Formular gesperrt bei `.env`, Test-Mail mit Fehlerdetail, Schalter „Passwort vergessen“), API `api/admin/mail` (GET/PUT/DELETE), `api/admin/mail/test`.
 - Lokal: Mailpit in `docker-compose.local.yml` (Web-UI :8025); `SMTP_URL=` (leer) schaltet ab, dann im Admin-Bereich einrichtbar (`mailpit:1025`, keine Verschlüsselung). Service Worker cacht keine Seiten mit Einmal-Links (`/activate/`, `/join/`, `/forgot-password`).
 
+## Fragebogen 8 (weitere Funktionen)
+- Fragebogen `docs/fragen/08-weitere-funktionen.md`. Belegscan-Anbieter: Auftraggeber berät gesondert, nichts bauen.
+- **Bezahlen beim Begleichen**: `lib/payment.ts` (rein: `isValidIban` mod 97, `epcPayload` EPC069-12 v002 nur EUR ≤ 331 Bytes, `paypalMeUrl`), `users.pay_iban/pay_holder/pay_paypal`, `services/payinfo.ts` (`setOwnPayInfo` nur mit Passwort, Kontoinhaber Pflicht bei IBAN; `payInfoForCreditors` nur für Empfänger, denen der Betrachter laut Vorschlag schuldet, nur Mitglieder, nur `kind='user'`), UI `PaymentSettings` (Konto), `PayBox` (Salden-Reiter), API `PUT api/account/payment`. Eigene Bezahldaten im Konto-Export, fremde nie.
+
 ## Admin-Testfunktionen
 - Testnutzer: `users.kind = 'test'` (kein Passwort, `status active`, nie Admin). **Jede** Login-/Link-/Passwort-Funktion filtert auf `kind = 'user'` (`authenticate`, `loadValidToken`, `target` in `adminAction`, `changePassword`, `resolveSession`). Neue Konto-Funktionen müssen das beachten.
 - „Handeln als“: `sessions.acting_as_user_id`. `resolveSession` (cookie-frei, testbar) liefert die **effektive** Identität (`SessionUser.id/isAdmin` = Testnutzer, `isAdmin` dann false) und die echte unter `user.real`; es greift nur, wenn das echte Konto Admin ist, das Ziel `kind='test'` ist **und** Testfunktionen an sind. Admin-Seiten/-APIs prüfen die effektive Identität, sind also beim Handeln als Testnutzer gesperrt; `/api/admin/act` DELETE beendet es.

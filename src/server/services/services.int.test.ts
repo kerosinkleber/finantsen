@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -34,8 +34,9 @@ d("services (PostgreSQL)", () => {
       import("@/lib/recurrence"),
       import("./guests"),
       import("./export"),
+      import("./payinfo"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo };
   }
 
   beforeAll(async () => {
@@ -1659,6 +1660,28 @@ d("services (PostgreSQL)", () => {
       const two = await svc.expenses.listExpenses(a.id, g.id, { limit: 2 });
       expect(two.map((e) => e.title)).toEqual(["2026-03-01", "2026-02-01"]);
       expect(two[0].shares).toHaveLength(2);
+    });
+  });
+
+  describe("Bezahlen beim Begleichen", () => {
+    it("Bezahldaten nur mit Passwort, geprüft; sichtbar nur für Mitglieder und nur von Gläubigern", async () => {
+      const { a, b, c, g } = await setup();
+      await expect(svc.payinfo.setOwnPayInfo(a.id, { holder: "Anna", iban: "DE89370400440532013000", paypal: "" }, "falsch")).rejects.toMatchObject({ code: "wrong_password" });
+      await expect(svc.payinfo.setOwnPayInfo(a.id, { holder: "Anna", iban: "DE89370400440532013001", paypal: "" }, PW)).rejects.toMatchObject({ code: "invalid_iban" });
+      await expect(svc.payinfo.setOwnPayInfo(a.id, { holder: "", iban: "DE89370400440532013000", paypal: "" }, PW)).rejects.toMatchObject({ code: "holder_required" });
+      await expect(svc.payinfo.setOwnPayInfo(a.id, { holder: "", iban: "", paypal: "an/na" }, PW)).rejects.toMatchObject({ code: "invalid_paypal" });
+      const saved = await svc.payinfo.setOwnPayInfo(a.id, { holder: " Anna  Muster ", iban: "de89 3704 0044 0532 0130 00", paypal: "https://paypal.me/annam" }, PW);
+      expect(saved).toEqual({ holder: "Anna Muster", iban: "DE89370400440532013000", paypal: "annam" });
+      // Ben sieht Annas Daten (Gläubigerin in derselben Gruppe), Cleos nicht (hat keine), sich selbst nie
+      const seen = await svc.payinfo.payInfoForCreditors(b.id, g.id, [a.id, c.id, b.id]);
+      expect([...seen.keys()]).toEqual([a.id]);
+      // Fremde Gruppe: 404; Person, die nicht Mitglied ist: nichts
+      const other = await mkUser(a, "dora");
+      const g2 = await svc.groups.createGroup(other.id, { name: "Fremd", defaultCurrency: "EUR" });
+      await expect(svc.payinfo.payInfoForCreditors(b.id, g2.id, [a.id])).rejects.toMatchObject({ status: 404 });
+      expect((await svc.payinfo.payInfoForCreditors(other.id, g2.id, [a.id])).size).toBe(0);
+      // Leeren entfernt alles
+      expect(await svc.payinfo.setOwnPayInfo(a.id, { holder: "", iban: "", paypal: "" }, PW)).toEqual({ holder: null, iban: null, paypal: null });
     });
   });
 });

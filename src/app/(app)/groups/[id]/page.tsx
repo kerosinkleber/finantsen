@@ -6,6 +6,8 @@ import { getGroup } from "@/server/services/groups";
 import { listExpenses } from "@/server/services/expenses";
 import { listPayments } from "@/server/services/payments";
 import { getGroupBalances } from "@/server/services/balances";
+import { payInfoForCreditors } from "@/server/services/payinfo";
+import { PayBox } from "@/components/PayBox";
 import { ApiError } from "@/server/http";
 import { RestoreButton } from "@/components/RestoreButton";
 import { Money } from "@/components/Money";
@@ -71,7 +73,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
       )}
       {tab === "recurring" && <RecurringTab groupId={id} userId={user.id} isOwner={group.role === "owner"} />}
       {tab === "stats" && <StatsTab groupId={id} userId={user.id} names={names} locale={locale} t={t} sp={sp} />}
-      {tab === "balances" && <BalancesTab groupId={id} userId={user.id} names={names} locale={locale} t={t} />}
+      {tab === "balances" && <BalancesTab groupId={id} groupName={group.displayName} userId={user.id} names={names} locale={locale} t={t} />}
       {tab === "members" && (
         <>
           <ul className="card divide-y divide-slate-100 dark:divide-slate-800">
@@ -220,8 +222,10 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
   );
 }
 
-async function BalancesTab({ groupId, userId, names, locale, t }: { groupId: string; userId: string; names: Map<string, string>; locale: string; t: TFn }) {
+async function BalancesTab({ groupId, groupName, userId, names, locale, t }: { groupId: string; groupName: string; userId: string; names: Map<string, string>; locale: string; t: TFn }) {
   const b = await getGroupBalances(userId, groupId);
+  // Bezahldaten nur der Personen, denen ich laut Vorschlag Geld schulde
+  const pay = await payInfoForCreditors(userId, groupId, Object.values(b.transfers).flat().filter((tr) => tr.from === userId).map((tr) => tr.to));
   const currencies = Object.keys(b.net);
   return (
     <>
@@ -234,7 +238,8 @@ async function BalancesTab({ groupId, userId, names, locale, t }: { groupId: str
             <h2 className="font-semibold">{t("balances.title")} · {cur}</h2>
             <ul className="flex flex-col gap-2" data-testid={`transfers-${cur}`}>
               {(b.transfers[cur] ?? []).map((tr, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 text-sm">
+                <li key={i} className="flex flex-col gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-2">
                   <span>
                     {t(tr.from === userId ? "balances.youOwe" : tr.to === userId ? "balances.owesYou" : "balances.owes", {
                       from: names.get(tr.from) ?? "?",
@@ -249,6 +254,16 @@ async function BalancesTab({ groupId, userId, names, locale, t }: { groupId: str
                     >
                       {t("group.settleUp")}
                     </Link>
+                  )}
+                  </div>
+                  {tr.from === userId && pay.get(tr.to) && (
+                    <PayBox
+                      to={names.get(tr.to) ?? "?"}
+                      amountMinor={tr.amount}
+                      currency={cur}
+                      text={t("pay.remittance", { group: groupName })}
+                      {...pay.get(tr.to)!}
+                    />
                   )}
                 </li>
               ))}
