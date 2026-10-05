@@ -2,7 +2,7 @@ import { LocalTime } from "@/components/LocalTime";
 import Link from "next/link";
 import { requireUser } from "@/server/auth";
 import { getT } from "@/i18n/server";
-import { listNotifications, renderNotification, type NotificationData } from "@/server/services/notifications";
+import { listNotifications, notificationPath, renderNotification, type NotificationData } from "@/server/services/notifications";
 import { MarkRead } from "@/components/MarkRead";
 
 export default async function NotificationsPage() {
@@ -19,7 +19,7 @@ export default async function NotificationsPage() {
         {list.map((n) => (
           <li key={n.id}>
             <Link
-              href={n.expenseId ? `/groups/${n.groupId}/expenses/${n.expenseId}` : `/groups/${n.groupId}`}
+              href={notificationPath(n)}
               className={`card block hover:border-brand ${n.readAt ? "" : "border-l-4 border-l-brand"}`}
               data-testid="notification"
             >

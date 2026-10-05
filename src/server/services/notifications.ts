@@ -16,6 +16,10 @@ export type NotificationData = {
   currency?: string;
   excerpt?: string;
   auto?: boolean;
+  /** Erinnerung: offene Beträge je Währung */
+  amounts?: { amountMinor: number; currency: string }[];
+  /** Erinnerung: wer erinnert hat (für die Drossel) */
+  actorId?: string;
 };
 
 /** Legt In-App-Benachrichtigungen für alle anderen Gruppenmitglieder an und stößt Web Push an. */
@@ -93,7 +97,44 @@ export async function notifyGroup(opts: {
   }
 }
 
+/** Link einer Benachrichtigung (Erinnerungen führen zu den Salden der Gruppe). */
+export function notificationPath(n: { type: string; groupId: string; expenseId: string | null }) {
+  if (n.type === "reminder") return `/groups/${n.groupId}?tab=balances`;
+  return n.expenseId ? `/groups/${n.groupId}/expenses/${n.expenseId}` : `/groups/${n.groupId}`;
+}
+
+/**
+ * Benachrichtigung an genau eine Person (z. B. Erinnerung): In-App-Eintrag, Push (nie für Testnutzer), E-Mail wenn
+ * eingeschaltet (nur echte, aktive Konten). Gäste bekommen nichts.
+ */
+export async function notifyUser(opts: { type: "reminder"; userId: string; groupId: string; data: NotificationData }) {
+  const db = getDb();
+  const [r] = await db
+    .select({ id: users.id, locale: users.locale, kind: users.kind, name: users.name, email: users.email, status: users.status, emailNotifications: users.emailNotifications })
+    .from(users)
+    .where(eq(users.id, opts.userId));
+  if (!r || r.kind === "guest") return;
+  await db.insert(notifications).values({ userId: r.id, type: opts.type, groupId: opts.groupId, expenseId: null, data: opts.data });
+  const locale = normalizeLocale(r.locale) ?? "de";
+  const text = renderNotification(locale, opts.type, opts.data);
+  const path = notificationPath({ type: opts.type, groupId: opts.groupId, expenseId: null });
+  try {
+    if (r.kind !== "test") await sendPush(r.id, { title: "Finantsen", body: text, url: path });
+    if (r.kind === "user" && r.status === "active" && r.email && r.emailNotifications && (await mailEnabled())) {
+      sendInBackground(notificationMail(locale, env.appUrl, { name: r.name, email: r.email }, { group: opts.data.groupName, text, path }));
+    }
+  } catch (e) {
+    console.error("[notify] user delivery failed", e);
+  }
+}
+
 export function renderNotification(locale: "de" | "en", type: string, d: NotificationData): string {
+  if (type === "reminder")
+    return translate(locale, "notif.reminder", {
+      actor: d.actorName,
+      group: d.groupName,
+      amount: (d.amounts ?? []).map((a) => formatMoney(a.amountMinor, a.currency, locale)).join(", "),
+    });
   if (type === "comment")
     return translate(locale, "notif.comment", { actor: d.actorName, title: d.title, excerpt: d.excerpt ?? "" });
   return translate(locale, type === "expense_restored" ? "notif.expense_restored" : d.auto ? "notif.expense_auto" : "notif.expense_created", {

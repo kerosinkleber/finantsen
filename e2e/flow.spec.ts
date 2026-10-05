@@ -1242,3 +1242,27 @@ test("split equally with adjustments: rest is shared equally, adjustment added, 
   await expect(page.getByRole("radio", { name: "Equal + adjust" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("textbox", { name: "Equal + adjust Anna" })).toHaveValue("10.00");
 });
+
+test("remind: creditor reminds a debtor once a day; debtor gets a notification linking to balances", async ({ page, browser, baseURL }) => {
+  await login(page, "anna@example.com");
+  const groups = await (await page.request.get("/api/groups")).json();
+  const gid = groups.groups.find((g: { name: string }) => g.name === "Pay test").id;
+  await page.goto(`/groups/${gid}?tab=balances`);
+  await page.getByTestId("remind").click();
+  await expect(page.getByTestId("remind")).toHaveText("Reminded");
+  await page.reload();
+  await page.getByTestId("remind").click();
+  await expect(page.getByTestId("transfers-EUR").getByRole("alert")).toContainText("already reminded");
+
+  const ctx = await browser.newContext({ baseURL });
+  const ben = await ctx.newPage();
+  await login(ben, "ben");
+  await ben.getByTestId("bell").click();
+  const note = ben.getByTestId("notification").filter({ hasText: "reminds you" }).first();
+  await expect(note).toContainText("€33.50");
+  await note.click();
+  await expect(ben).toHaveURL(new RegExp(`/groups/${gid}\\?tab=balances`));
+  // Schuldner sieht keinen Erinnern-Knopf
+  await expect(ben.getByTestId("remind")).toHaveCount(0);
+  await ctx.close();
+});

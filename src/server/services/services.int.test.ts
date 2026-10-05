@@ -11,7 +11,7 @@ d("services (PostgreSQL)", () => {
   async function load() {
     process.env.DATABASE_URL = url;
     process.env.APP_SECRET ??= "test-app-secret-for-integration-tests";
-    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo] = await Promise.all([
+    const [{ getDb, closeDb }, { runMigrations }, users, auth, testUsers, groups, expenses, balances, payments, { sql }, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders] = await Promise.all([
       import("../db"),
       import("../migrate"),
       import("./accounts"),
@@ -35,8 +35,9 @@ d("services (PostgreSQL)", () => {
       import("./guests"),
       import("./export"),
       import("./payinfo"),
+      import("./reminders"),
     ]);
-    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo };
+    return { getDb, closeDb, runMigrations, users, auth, testUsers, groups, expenses, balances, payments, sql, comments, notifications, stats, rates, settings, totp, totpLib, passkeys, recurring, recurrence, guests, exporter, payinfo, reminders };
   }
 
   beforeAll(async () => {
@@ -1699,6 +1700,29 @@ d("services (PostgreSQL)", () => {
       await expect(
         svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 1000, payers: [{ userId: a.id, amountMinor: 1000 }], split: { type: "adjust", entries: [{ userId: a.id, adjustMinor: 2000 }, { userId: b.id, adjustMinor: 0 }] } })),
       ).rejects.toMatchObject({ code: "adjust_sum" });
+    });
+  });
+
+  describe("Erinnern", () => {
+    it("nur Gläubiger erinnern Schuldner, höchstens einmal pro Tag, nie Gäste", async () => {
+      const { a, b, c, g } = await setup();
+      await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 3000, payers: [{ userId: a.id, amountMinor: 3000 }], split: { type: "equal", participants: [a.id, b.id, c.id] } }));
+      // b schuldet a 10 €; b kann a nicht erinnern
+      await expect(svc.reminders.remind(b.id, g.id, a.id)).rejects.toMatchObject({ code: "nothing_owed" });
+      const r = await svc.reminders.remind(a.id, g.id, b.id);
+      expect(r.amounts).toEqual([{ amountMinor: 1000, currency: "EUR" }]);
+      const notes = await svc.notifications.listNotifications(b.id);
+      const note = notes.find((n) => n.type === "reminder")!;
+      expect(svc.notifications.renderNotification("de", note.type, note.data as never)).toMatch(/^Anna erinnert dich: Du schuldest 10,00\s€ in WG\.$/);
+      expect(svc.notifications.notificationPath(note)).toBe(`/groups/${g.id}?tab=balances`);
+      await expect(svc.reminders.remind(a.id, g.id, b.id)).rejects.toMatchObject({ code: "already_reminded" });
+      // Fremde: 404
+      const d = await mkUser(a, "dora");
+      await expect(svc.reminders.remind(d.id, g.id, b.id)).rejects.toMatchObject({ status: 404 });
+      // Gast schuldet: nicht erinnerbar
+      const guest = await svc.guests.addGuest(a.id, g.id, "Gast");
+      await svc.expenses.createExpense(a.id, g.id, base({ amountMinor: 500, payers: [{ userId: a.id, amountMinor: 500 }], split: { type: "full", owner: guest.id } }));
+      await expect(svc.reminders.remind(a.id, g.id, guest.id)).rejects.toMatchObject({ code: "cannot_remind_guest" });
     });
   });
 });

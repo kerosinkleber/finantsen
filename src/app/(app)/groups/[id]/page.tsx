@@ -8,6 +8,7 @@ import { listPayments } from "@/server/services/payments";
 import { getGroupBalances } from "@/server/services/balances";
 import { payInfoForCreditors } from "@/server/services/payinfo";
 import { PayBox } from "@/components/PayBox";
+import { RemindButton } from "@/components/RemindButton";
 import { ApiError } from "@/server/http";
 import { RestoreButton } from "@/components/RestoreButton";
 import { Money } from "@/components/Money";
@@ -73,7 +74,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
       )}
       {tab === "recurring" && <RecurringTab groupId={id} userId={user.id} isOwner={group.role === "owner"} />}
       {tab === "stats" && <StatsTab groupId={id} userId={user.id} names={names} locale={locale} t={t} sp={sp} />}
-      {tab === "balances" && <BalancesTab groupId={id} groupName={group.displayName} userId={user.id} names={names} locale={locale} t={t} />}
+      {tab === "balances" && <BalancesTab groupId={id} groupName={group.displayName} guests={new Set(group.members.filter((m) => m.isGuest).map((m) => m.id))} userId={user.id} names={names} locale={locale} t={t} />}
       {tab === "members" && (
         <>
           <ul className="card divide-y divide-slate-100 dark:divide-slate-800">
@@ -222,7 +223,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
   );
 }
 
-async function BalancesTab({ groupId, groupName, userId, names, locale, t }: { groupId: string; groupName: string; userId: string; names: Map<string, string>; locale: string; t: TFn }) {
+async function BalancesTab({ groupId, groupName, guests, userId, names, locale, t }: { groupId: string; groupName: string; guests: Set<string>; userId: string; names: Map<string, string>; locale: string; t: TFn }) {
   const b = await getGroupBalances(userId, groupId);
   // Bezahldaten nur der Personen, denen ich laut Vorschlag Geld schulde
   const pay = await payInfoForCreditors(userId, groupId, Object.values(b.transfers).flat().filter((tr) => tr.from === userId).map((tr) => tr.to));
@@ -255,6 +256,7 @@ async function BalancesTab({ groupId, groupName, userId, names, locale, t }: { g
                       {t("group.settleUp")}
                     </Link>
                   )}
+                    {tr.to === userId && !guests.has(tr.from) && <RemindButton groupId={groupId} userId={tr.from} />}
                   </div>
                   {tr.from === userId && pay.get(tr.to) && (
                     <PayBox
