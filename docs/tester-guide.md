@@ -24,7 +24,7 @@ The first build takes a few minutes. When the log shows `migrations applied` and
 
 **Test password** that satisfies the rules: `Correct-Horse-Battery-9!`
 
-**Not available in this version** (please do not report these as bugs): scanning QR codes inside the app (showing them works), e-mail sending (the admin hands out links himself), push notifications on a local setup, receipt scanning (needs an API key).
+**Not available in this version** (please do not report these as bugs): e-mail sending (the admin hands out links himself), push notifications on a local setup, receipt scanning (needs an API key).
 
 ---
 
@@ -62,6 +62,7 @@ Create people first, you need at least two accounts to test sharing.
 - [ ] **Create a group** (name, default currency).
 - [ ] **Invite someone:** group → *Members* → *Invite a member* → copy the link. Open it while signed in as another user and click *Accept invitation*.
   Expected: they are now a member. If not signed in, the link asks to sign in first. A **QR code** of the link is shown below it; scanning it with a phone camera opens the same link.
+- [ ] **Scan inside the app:** on the overview tap **Scan QR code**, allow the camera and point it at an invitation QR code (e.g. shown on another screen). Expected: the invitation page opens. A QR code with any other content (e.g. a website) is shown but **not** opened. Without camera: paste the link into the field and press *Open*; a foreign link is refused.
 - [ ] **Friends:** *Friends* tab → *Add friend* → open the link as another user. Expected: a two-person space appears for both.
 - [ ] **Default split:** group → *Members* → *Default split*, choose percent or shares for specific people and save. New expenses are pre-filled accordingly.
 - [ ] **Simplify debts** switch (group → *Members*, group owner only): changes how balances are shown (fewest transfers vs. every single debt).

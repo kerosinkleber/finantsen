@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **QR-Scanner in der App** (Fragebogen 7): Kamera auf der Übersicht, öffnet nur Einladungslinks dieser App.
 - **Next.js 16**: Update von 15 (Turbopack-Build, neue ESLint-Konfiguration), `npm audit` ohne Befund, Docker geprüft.
 - **Mitglieder ohne Konto (Gäste)**: anlegen, mitrechnen, per Link (mit QR) mit einem Konto verknüpfen; alle Daten wandern mit, Beträge werden zusammengeführt.
 - **Gruppen archivieren** (je Mitglied) und **Export** (CSV je Gruppe, Konto-Export als JSON).
@@ -22,6 +23,5 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 - **Alle vereinbarten Funktionen sind gebaut.** Nächster Schritt: Test durch den Auftraggeber bzw. den Test-Agenten (`docs/tester-guide.md`), Funde abarbeiten, dann Release nach `docs/release-checkliste.md`.
 
 ## Ideen ohne Termin
-- QR-Codes in der App scannen (Anzeige gibt es; die Handy-Kamera öffnet Links ohnehin).
 - E-Mail-Versand (SMTP) für Einmal-Links und Benachrichtigungen, nachrüstbar über `linkUrl` in `services/accounts.ts` (bewusst nicht gebaut).
 - Weitere Belegscan-Anbieter.

@@ -537,5 +537,15 @@ const en: Record<MessageKey, string> = {
   "common.saved": "Saved.",
   "recurring.onlyOwner": "In this group only group owners manage recurring expenses.",
   "err.push_endpoint_invalid": "This push service is not supported.",
+  "common.close": "Close",
+  "qrscan.open": "Scan QR code",
+  "qrscan.title": "Scan an invitation",
+  "qrscan.hint": "Point the camera at the QR code of an invitation.",
+  "qrscan.starting": "Starting camera …",
+  "qrscan.noCamera": "No camera available or access denied. You can paste the link below.",
+  "qrscan.foreign": "This is not an invitation link of this app and will not be opened:",
+  "qrscan.paste": "Or paste an invitation link",
+  "qrscan.go": "Open",
+  "qrscan.invalid": "This is not an invitation link of this app.",
 };
 export default en;

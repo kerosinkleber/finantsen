@@ -4,6 +4,7 @@ import { getT } from "@/i18n/server";
 import { listGroups } from "@/server/services/groups";
 import { overallBalances } from "@/server/services/balances";
 import { Money } from "@/components/Money";
+import { QrScanner } from "@/components/QrScanner";
 
 export default async function Dashboard() {
   const user = await requireUser();
@@ -59,6 +60,7 @@ export default async function Dashboard() {
         )}
       </section>
 
+      <QrScanner />
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">{t("dash.groups")}</h2>

@@ -1086,3 +1086,17 @@ test("times are shown in the viewer's time zone everywhere; the service worker r
   expect(registered).toBe(true);
   await anna.close();
 });
+
+test("QR scanner on the overview: opens, accepts a pasted invitation link, refuses foreign links", async ({ page }) => {
+  await login(page, "ben");
+  await page.getByTestId("qr-scan-open").click();
+  await expect(page.getByTestId("qr-scanner")).toBeVisible();
+  await page.getByLabel("Or paste an invitation link").fill("https://evil.example/login");
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page.getByTestId("qr-scanner").getByRole("alert")).toContainText("not an invitation link");
+  const r = await page.request.post(`/api${groupUrl}/invites`);
+  const { url } = await r.json();
+  await page.getByLabel("Or paste an invitation link").fill(url);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page).toHaveURL(/\/join\//);
+});

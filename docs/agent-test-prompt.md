@@ -37,6 +37,7 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - **Zwei-Faktor (7b) und Passkeys (7c):** brauchen eine Authenticator-App bzw. einen Fingerabdruck-/PIN-Dialog des Systems. Kann dein Werkzeug das nicht, bitte mich an dieser Stelle um Übernahme oder markiere BLOCKED. Teste 2FA nie am Admin-Konto, nur an einem Wegwerfkonto.
 - **Wiederkehrende Ausgaben:** Termine in der Zukunft werden automatisch gebucht (Prüfung alle 15 Minuten). Teste das über einen ersten Termin in der Vergangenheit oder heute, nicht durch Warten.
 - **Offline/Service Worker:** Manche eingebetteten Browser unterstützen keine Service Worker. Wenn `navigator.serviceWorker` fehlt oder nichts registriert wird, markiere Offline-Tests als BLOCKED (Werkzeug), nicht als Fehler.
+- **QR-Scanner:** Hat dein Browser keine Kamera, teste nur das Einfügefeld und markiere das Scannen als BLOCKED (Werkzeug).
 - **Exporte (CSV/JSON)** werden als Datei heruntergeladen. Kannst du Downloads nicht öffnen, prüfe nur, dass der Download startet, und notiere den Rest als BLOCKED.
 - Teste **Sperren nach Fehlversuchen nur mit einem Wegwerfkonto** (nicht mit dem Admin), und warte die angezeigte Wartezeit ab.
 - Rechne bei Beträgen **selbst nach** und vergleiche mit der App. Beispiele:
@@ -57,7 +58,7 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - **Sicherheits-Stichproben** (Abschnitt 9 der Anleitung), alle im Browser: fremde Gruppen-URLs, Admin-Seiten als normaler Nutzer (`/admin/users`, `/admin/test-users`), im **abgemeldeten** Kontext die Adresse `http://localhost:3000/api/groups` öffnen (muss einen Fehler „unauthorized“ zeigen, keine Daten), HTML in Titeln/Kommentaren (muss als Text erscheinen), sehr lange und absurde Eingaben.
 - **Offline (optional):** Nur wenn dein Werkzeug das Netzwerk abschalten kann: Seiten besuchen, offline gehen, neu laden. Bereits besuchte Seiten sollen lesbar bleiben, nie besuchte die Offline-Seite zeigen. Sonst als „nicht getestet“ vermerken.
 - Wenn ein Testfall scheitert: Beleg (Screenshot oder genaue Beschreibung), exakte **Schritte zur Reproduktion**, erwartetes und tatsächliches Ergebnis notieren, dann **weitermachen** (nicht hängen bleiben). Versuche einmal zu wiederholen, um sicher zu sein, dass es reproduzierbar ist.
-- Bekannte Lücken (**keine Fehler**, nur mit „SKIPPED – bekannt“ vermerken): QR-Codes **in der App scannen** (Anzeigen geht), E-Mail-Versand, Push lokal, Belegscan (ohne API-Key).
+- Bekannte Lücken (**keine Fehler**, nur mit „SKIPPED – bekannt“ vermerken): E-Mail-Versand, Push lokal, Belegscan (ohne API-Key).
 
 ### 5. Bericht
 Schreibe `test-report/bericht-<Datum>.md` (Deutsch; lege den Ordner `test-report/` dafür an, das ist das Einzige, was du schreiben darfst) mit:

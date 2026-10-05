@@ -43,7 +43,7 @@ Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-
 - Einmal-Links laufen über **eine** Stelle (`linkUrl` in accounts.ts); SMTP wäre dort nachrüstbar (bewusst nicht gebaut).
 - Ersteinrichtung: `/setup` (ohne Schutzcode, vom Auftraggeber so gewollt), `/login` und `/register` leiten dorthin, solange es kein Konto gibt.
 - Gruppeneinladungen (`/join/[code]`) nimmt nur ein angemeldetes Konto an.
-- Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. QR-Anzeige (Etappe C): `components/QrCode.tsx` (clientseitig via `qrcode`) in `InviteBox` und Aktivierungslink; Scanner in der App bewusst nicht gebaut. Passkeys: siehe unten, Fragebogen `docs/fragen/03-passkeys.md`.
+- Fragebogen und Entscheidungen: `docs/fragen/01-konten-und-login.md`. QR-Anzeige (Etappe C): `components/QrCode.tsx` (clientseitig via `qrcode`) in `InviteBox` und Aktivierungslink; QR-Scanner: `components/QrScanner.tsx` auf der Übersicht (Kamera; `BarcodeDetector` wo vorhanden, sonst `jsqr` (Apache-2.0) per dynamischem Import, `lib/qr-decode.ts`), öffnet nur `/join/<code>` (`lib/qr-link.ts#appPathFromScan`, Host egal, sonst nichts), Einfügefeld als Fallback. Passkeys: siehe unten, Fragebogen `docs/fragen/03-passkeys.md`.
 
 ## Zwei-Faktor (TOTP, Etappe B)
 - `server/totp.ts` (RFC 6238 ohne Bibliothek: Base32, HOTP, `verifyTotp` mit Fenster ±1 und `afterStep`), `server/secrets.ts` (AES-256-GCM, HMAC, signierte kurzlebige Tokens, alles aus `APP_SECRET` abgeleitet; `env.appSecret` wirft ohne ≥16 Zeichen), `server/qr.ts` (QR als SVG-Data-URL, auch für Etappe C), `services/totp.ts`.

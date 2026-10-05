@@ -535,6 +535,16 @@ const de = {
   "common.saved": "Gespeichert.",
   "recurring.onlyOwner": "In dieser Gruppe verwalten nur Gruppenbesitzer wiederkehrende Ausgaben.",
   "err.push_endpoint_invalid": "Dieser Push-Dienst wird nicht unterstützt.",
+  "common.close": "Schließen",
+  "qrscan.open": "QR-Code scannen",
+  "qrscan.title": "Einladung scannen",
+  "qrscan.hint": "Halte die Kamera auf den QR-Code einer Einladung.",
+  "qrscan.starting": "Kamera wird gestartet …",
+  "qrscan.noCamera": "Keine Kamera verfügbar oder Zugriff verweigert. Du kannst den Link unten einfügen.",
+  "qrscan.foreign": "Das ist kein Einladungslink dieser App und wird nicht geöffnet:",
+  "qrscan.paste": "Oder Einladungslink einfügen",
+  "qrscan.go": "Öffnen",
+  "qrscan.invalid": "Das ist kein Einladungslink dieser App.",
 } as const;
 export default de;
 export type MessageKey = keyof typeof de;
