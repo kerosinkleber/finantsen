@@ -19,9 +19,9 @@ Vor dem Produktivbetrieb abhaken.
 - [ ] Admin-Konto über `/setup` eingerichtet, **bevor** die Domain weitergegeben wurde (wer die Seite zuerst aufruft, wird Admin).
 - [ ] HTTPS aktiv (Caddy holt das Zertifikat automatisch, DNS muss auf den Server zeigen, Port 80/443 offen).
 - [ ] Backup eingerichtet (`scripts/backup.sh` per Cron, siehe README), `APP_SECRET` getrennt gesichert, und einmal mit `scripts/restore-check.sh` geprüft.
-- [ ] `npm audit --omit=dev` angesehen (Stand Next.js 16: keine bekannten Schwachstellen).
+- [ ] `npm audit --omit=dev` angesehen (Stand 2026-10-05, Next.js 16, nodemailer 10: keine bekannten Schwachstellen). `npm audit` ohne `--omit=dev` meldet `braces` über Tailwind 3 (nur Build-Werkzeug, nicht im laufenden Image; verschwindet mit Tailwind 4).
 
 ## Prüfen
-- Zuletzt im Sandbox-Container geprüft (Build, alle 8 Migrationen, Sicherheits-Header, Health, TOTP- und Passkey-Endpunkte): Stand Passkeys + Release-Reife.
+- Zuletzt im Sandbox-Container geprüft (2026-10-05): Build, alle 11 Migrationen, Health, Dev-Login, echter SMTP-Versand an Mailpit (Test-Mail, Einmal-Link per Mail, „Passwort vergessen“ ohne Konto-Aufdeckung), Mailserver aus dem Admin-Bereich (verschlüsselt gespeichert, Fehlermeldung bei falschem Port).
 - [ ] `docker compose up -d --build`, `https://<DOMAIN>/api/health` liefert `ok`.
 - [ ] Anmelden, Gruppe anlegen, Ausgabe buchen.

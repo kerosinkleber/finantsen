@@ -25,4 +25,5 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 - **Alle vereinbarten Funktionen sind gebaut.** Nächster Schritt: Test durch den Auftraggeber bzw. den Test-Agenten (`docs/tester-guide.md`), Funde abarbeiten, dann Release nach `docs/release-checkliste.md`.
 
 ## Ideen ohne Termin
+- **Fragebogen 8** (`docs/fragen/08-weitere-funktionen.md`): Kandidaten aus der Recherche (Bezahlen per GiroCode/PayPal.me beim Begleichen, „gleich mit Anpassungen“, Import aus Splitwise/Tricount, Erinnern-Knopf, Rechner im Betragsfeld, Belegfoto speichern u. a.). Gebaut wird erst nach den Antworten.
 - Weitere Belegscan-Anbieter (OpenAI, OpenAI-kompatibel/Ollama): **vor dem Bau gemeinsam planen** (Wunsch des Auftraggebers, Fragebogen 7).
