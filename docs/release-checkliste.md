@@ -22,6 +22,6 @@ Vor dem Produktivbetrieb abhaken.
 - [ ] `npm audit --omit=dev` angesehen (Stand 2026-10-05, Next.js 16, nodemailer 10: keine bekannten Schwachstellen). `npm audit` ohne `--omit=dev` meldet `braces` über Tailwind 3 (nur Build-Werkzeug, nicht im laufenden Image; verschwindet mit Tailwind 4).
 
 ## Prüfen
-- Zuletzt im Sandbox-Container geprüft (2026-10-05): Build, alle 11 Migrationen, Health, Dev-Login, echter SMTP-Versand an Mailpit (Test-Mail, Einmal-Link per Mail, „Passwort vergessen“ ohne Konto-Aufdeckung), Mailserver aus dem Admin-Bereich (verschlüsselt gespeichert, Fehlermeldung bei falschem Port).
+- Zuletzt im Sandbox-Container geprüft (2026-10-05, Stand Fragebogen 8): Build, alle 16 Migrationen, Rückerstattung/Zahlungsart/Anpassung, Belegfoto, Budget, alle neuen Seiten; davor, Health, Dev-Login, echter SMTP-Versand an Mailpit (Test-Mail, Einmal-Link per Mail, „Passwort vergessen“ ohne Konto-Aufdeckung), Mailserver aus dem Admin-Bereich (verschlüsselt gespeichert, Fehlermeldung bei falschem Port).
 - [ ] `docker compose up -d --build`, `https://<DOMAIN>/api/health` liefert `ok`.
 - [ ] Anmelden, Gruppe anlegen, Ausgabe buchen.
