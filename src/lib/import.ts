@@ -9,7 +9,7 @@ import { minorUnits } from "./money/currency";
 export type ImportFormat = "finantsen" | "splitwise" | "tricount" | "simple";
 export type ImportPart = { name: string; amountMinor: number };
 export type ImportEntry =
-  | { kind: "expense"; line: number; date: string; title: string; category: string | null; currency: string; amountMinor: number; payers: ImportPart[]; shares: ImportPart[]; isRefund?: boolean }
+  | { kind: "expense"; line: number; date: string; title: string; category: string | null; currency: string; amountMinor: number; payers: ImportPart[]; shares: ImportPart[]; isRefund?: boolean; paymentMethod?: string | null }
   | { kind: "payment"; line: number; date: string; title: string; currency: string; amountMinor: number; from: string; to: string };
 export type ImportError = { line: number; code: string };
 export type ParsedImport = { format: ImportFormat; people: string[]; entries: ImportEntry[]; errors: ImportError[] };
@@ -244,7 +244,7 @@ export function parseImport(text: string): ParsedImport | { error: "unknown_form
       let bad = false;
       header.forEach((c, i) => {
         const m = /^(.+) (bezahlt|paid|anteil|share)$/i.exec(c.trim());
-        if (!m || i < 8) return;
+        if (!m || i < 8 || /^(zahlungsart|payment method)$/i.test(c.trim())) return;
         const v = parseDecimal(cell(i), currency);
         if (v === null) bad = true;
         const name = cleanName(m[1].replace(/ \((Test|Gast|Guest)\)$/, ""));
@@ -254,7 +254,7 @@ export function parseImport(text: string): ParsedImport | { error: "unknown_form
       if (kind === "zahlung" || kind === "payment") {
         return addPayment({ kind: "payment", line, date, title: cell(2), currency, amountMinor: total, from: payers.find((p) => p.amountMinor > 0)?.name ?? "", to: shares.find((p) => p.amountMinor > 0)?.name ?? "" });
       }
-      return addExpense({ kind: "expense", line, date, title: cell(2), category: cell(3) || null, currency, amountMinor: total, payers, shares, isRefund: refund || undefined });
+      return addExpense({ kind: "expense", line, date, title: cell(2), category: cell(3) || null, currency, amountMinor: total, payers, shares, isRefund: refund || undefined, paymentMethod: cell(col("zahlungsart", "payment method")) || null });
     }
     // Einfaches Format: date, title, amount, currency, paid_by, split_between (Namen mit | getrennt), optional category
     const currency = cell(col("currency")).toUpperCase();

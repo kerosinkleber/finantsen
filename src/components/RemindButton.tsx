@@ -5,10 +5,10 @@ import { useI18n } from "@/i18n/client";
 import { useErrorText } from "./ErrorMessage";
 
 /** „Erinnern“ an einem Ausgleichsvorschlag, bei dem mir jemand Geld schuldet (Server drosselt auf einmal pro Tag). */
-export function RemindButton({ groupId, userId }: { groupId: string; userId: string }) {
+export function RemindButton({ groupId, userId, done = false }: { groupId: string; userId: string; done?: boolean }) {
   const { t } = useI18n();
   const errorText = useErrorText();
-  const [state, setState] = useState<"idle" | "busy" | "sent">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "sent">(done ? "sent" : "idle");
   const [error, setError] = useState<string | null>(null);
   async function remind() {
     setState("busy");

@@ -316,10 +316,14 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
               )}
             </div>
             {splitType === "items" && <span id="amount-auto" className="muted block">{t("items.totalAuto")}</span>}
-            {isCalc && (
+            {isCalc ? (
               <span id="amount-calc" className="muted block" data-testid="calc-result">
                 {total === null ? t("expense.calcInvalid") : `= ${formatMoney(total, currency, locale)}`}
               </span>
+            ) : (
+              splitType !== "items" && amountText.trim() !== "" && total === null && (
+                <span className="neg block text-sm" data-testid="amount-invalid">{t("err.invalid_amount")}</span>
+              )
             )}
           </div>
           <div>

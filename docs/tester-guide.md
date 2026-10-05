@@ -160,7 +160,7 @@ Use at least three people in one group so the results are interesting.
 - [ ] **Privacy.** The person who is owed money does **not** see a pay box for themselves; members who do not owe that person see nothing; your own CSV export of a group does not contain anyone's IBAN.
 
 - [ ] **Remind.** On the Balances tab, next to a person who owes **you** money, click *Remind*.
-  Expected: the button changes to "Reminded". The other person gets a notification "<you> reminds you: you owe <amount> in <group>" (bell, and e-mail if they turned on e-mail notifications) that opens the balances tab. A second reminder the same day → "You already reminded this person today." People who owe you nothing, and members without an account, have no Remind button; the debtor never sees one for themselves.
+  Expected: the button changes to "Reminded". The other person gets a notification "<you> reminds you: you owe <amount> in <group>" (bell, and e-mail if they turned on e-mail notifications) that opens the balances tab. After reloading, the button still shows "Reminded" (disabled) for the rest of the day. People who owe you nothing, and members without an account, have no Remind button; the debtor never sees one for themselves.
 
 ---
 

@@ -49,3 +49,20 @@ export async function remind(actorId: string, groupId: string, debtorId: string)
   await deliverToUser({ type: "reminder", userId: debtorId, groupId, data });
   return { amounts };
 }
+
+/** Wen `actorId` in dieser Gruppe innerhalb der Drosselzeit schon erinnert hat (für den Knopfzustand). */
+export async function recentlyReminded(actorId: string, groupId: string): Promise<Set<string>> {
+  await requireMember(actorId, groupId);
+  const rows = await getDb()
+    .select({ userId: notifications.userId })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.groupId, groupId),
+        eq(notifications.type, "reminder"),
+        sql`${notifications.data}->>'actorId' = ${actorId}`,
+        gt(notifications.createdAt, sql`now() - make_interval(hours => ${REMIND_INTERVAL_HOURS})`),
+      ),
+    );
+  return new Set(rows.map((r) => r.userId));
+}

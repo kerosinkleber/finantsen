@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/client-api";
+import { api, ApiClientError } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { downscaleToBase64 } from "@/lib/image-client";
 import { useConfirm } from "./useConfirm";
@@ -26,7 +26,10 @@ export function Attachments({ groupId, expenseId, initial, canAdd, max }: { grou
     setBusy(true);
     setError(null);
     try {
-      const image = await downscaleToBase64(f);
+      // Kein lesbares Bild (z. B. PDF): klare Meldung statt „Etwas ist schiefgelaufen“
+      const image = await downscaleToBase64(f).catch(() => {
+        throw new ApiClientError(400, "invalid_image");
+      });
       const r = await api<{ attachment: Att }>("POST", base, { image });
       setList((l) => [r.attachment, ...l]);
       router.refresh();
@@ -61,7 +64,7 @@ export function Attachments({ groupId, expenseId, initial, canAdd, max }: { grou
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`${base}/${a.id}`} alt={t("attach.alt")} className="aspect-square w-full rounded-lg bg-slate-100 object-cover dark:bg-slate-800" loading="lazy" />
             </a>
-            <button type="button" className="btn-secondary !min-h-9 text-sm" onClick={() => remove(a.id)}>{t("common.delete")}</button>
+            {canAdd && <button type="button" className="btn-secondary !min-h-9 text-sm" onClick={() => remove(a.id)}>{t("common.delete")}</button>}
           </li>
         ))}
       </ul>

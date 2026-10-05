@@ -63,7 +63,9 @@ export async function getAttachment(userId: string, groupId: string, expenseId: 
 }
 
 export async function deleteAttachment(userId: string, groupId: string, expenseId: string, attachmentId: string) {
-  await requireExpense(userId, groupId, expenseId);
+  const e = await requireExpense(userId, groupId, expenseId);
+  // Ausgabe im Papierkorb: Fotos bleiben unverändert (fürs Wiederherstellen)
+  if (e.deletedAt) throw new ApiError(409, "invalid_state");
   if (!isUuid(attachmentId)) throw notFound();
   const r = await getDb()
     .delete(expenseAttachments)

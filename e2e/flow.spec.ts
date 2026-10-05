@@ -1251,8 +1251,11 @@ test("remind: creditor reminds a debtor once a day; debtor gets a notification l
   await page.getByTestId("remind").click();
   await expect(page.getByTestId("remind")).toHaveText("Reminded");
   await page.reload();
-  await page.getByTestId("remind").click();
-  await expect(page.getByTestId("transfers-EUR").getByRole("alert")).toContainText("already reminded");
+  // nach dem Neuladen bleibt der Knopf „Erinnert“ (heute schon erinnert); der Server würde eine zweite ablehnen
+  await expect(page.getByTestId("remind")).toHaveText("Reminded");
+  await expect(page.getByTestId("remind")).toBeDisabled();
+  const again = await page.request.post(`/api/groups/${gid}/remind`, { data: { userId: (await (await page.request.get(`/api/groups/${gid}`)).json()).group.members.find((m: { name: string }) => m.name === "Ben").id } });
+  expect(again.status()).toBe(429);
 
   const ctx = await browser.newContext({ baseURL });
   const ben = await ctx.newPage();

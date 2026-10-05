@@ -18,6 +18,8 @@ export type NotificationData = {
   auto?: boolean;
   /** Erinnerung: offene Beträge je Währung */
   amounts?: { amountMinor: number; currency: string }[];
+  /** Rückerstattung statt Ausgabe */
+  refund?: boolean;
   /** Erinnerung: wer erinnert hat (für die Drossel) */
   actorId?: string;
 };
@@ -27,6 +29,7 @@ export async function notifyGroup(opts: {
   type: "expense_created" | "expense_restored" | "comment";
   /** Automatische Buchung aus einer wiederkehrenden Vorlage */
   auto?: boolean;
+  refund?: boolean;
   groupId: string;
   expenseId: string;
   actorId: string;
@@ -64,6 +67,7 @@ export async function notifyGroup(opts: {
       currency: opts.currency,
       excerpt: opts.excerpt,
       auto: opts.auto,
+      refund: opts.refund || undefined,
     };
     await db.insert(notifications).values(
       others.map((r) => ({ userId: r.id, type: opts.type, groupId: opts.groupId, expenseId: opts.expenseId, data })),
@@ -152,7 +156,7 @@ export function renderNotification(locale: "de" | "en", type: string, d: Notific
     });
   if (type === "comment")
     return translate(locale, "notif.comment", { actor: d.actorName, title: d.title, excerpt: d.excerpt ?? "" });
-  return translate(locale, type === "expense_restored" ? "notif.expense_restored" : d.auto ? "notif.expense_auto" : "notif.expense_created", {
+  return translate(locale, type === "expense_restored" ? "notif.expense_restored" : d.auto ? "notif.expense_auto" : d.refund ? "notif.refund_created" : "notif.expense_created", {
     actor: d.actorName,
     title: d.title,
     group: d.groupName,

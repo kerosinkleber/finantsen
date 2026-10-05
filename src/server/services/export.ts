@@ -45,7 +45,7 @@ export async function groupCsv(userId: string, groupId: string, locale: Locale) 
 
   const header = [
     t("export.type"), t("export.date"), t("export.title"), t("export.category"), t("export.amount"), t("export.currency"),
-    t("export.baseAmount"), t("export.baseCurrency"),
+    t("export.baseAmount"), t("export.baseCurrency"), t("export.paymentMethod"),
     ...people.flatMap((p) => [t("export.paid", { name: names.get(p) ?? "?" }), t("export.share", { name: names.get(p) ?? "?" })]),
   ];
   type Row = { date: string; cells: (string | number)[] };
@@ -58,7 +58,7 @@ export async function groupCsv(userId: string, groupId: string, locale: Locale) 
       date: e.date,
       cells: [
         t(e.isRefund ? "export.refund" : "export.expense"), e.date, e.title, translate(locale, `cat.${e.category}` as never), money(sign * e.amountMinor, e.currency), e.currency,
-        money(sign * e.baseAmountMinor, cur), cur,
+        money(sign * e.baseAmountMinor, cur), cur, e.paymentMethod ? translate(locale, `pm.${e.paymentMethod}` as never) : "",
         ...people.flatMap((p) => {
           const paid = e.payers.find((x) => x.userId === p)?.baseAmountMinor ?? 0;
           const share = e.shares.find((x) => x.userId === p)?.baseAmountMinor ?? 0;
@@ -72,7 +72,7 @@ export async function groupCsv(userId: string, groupId: string, locale: Locale) 
       date: p.date,
       cells: [
         t("export.payment"), p.date, p.note ?? `${names.get(p.fromUser) ?? "?"} → ${names.get(p.toUser) ?? "?"}`, "", money(p.amountMinor, p.currency), p.currency,
-        money(p.amountMinor, p.currency), p.currency,
+        money(p.amountMinor, p.currency), p.currency, "",
         // Zahlung: der Zahlende „bezahlt“, der Empfänger „bekommt“ (zählt wie ein Anteil)
         ...people.flatMap((u) => [u === p.fromUser ? money(p.amountMinor, p.currency) : "", u === p.toUser ? money(p.amountMinor, p.currency) : ""]),
       ],
@@ -80,7 +80,7 @@ export async function groupCsv(userId: string, groupId: string, locale: Locale) 
   }
   rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const balanceRows = Object.entries(bal.net).map(([cur, m]) => [
-    t("export.balance"), "", "", "", "", "", "", cur,
+    t("export.balance"), "", "", "", "", "", "", cur, "",
     ...people.flatMap((p) => [money(m[p] ?? 0, cur), ""]),
   ]);
   const csv = toCsv([header, ...rows.map((r) => r.cells), ...balanceRows], sep);

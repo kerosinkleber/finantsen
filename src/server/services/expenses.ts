@@ -319,6 +319,7 @@ export async function createExpense(
   if (!opts.silent) await notifyGroup({
     type: "expense_created",
     auto: !!opts.recurringId,
+    refund: detail.isRefund,
     groupId,
     expenseId: id,
     actorId: userId,

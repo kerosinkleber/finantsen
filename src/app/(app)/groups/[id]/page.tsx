@@ -11,6 +11,7 @@ import { PayBox } from "@/components/PayBox";
 import { BudgetForm } from "@/components/BudgetForm";
 import { getBudgetStatus, type BudgetStatus } from "@/server/services/budget";
 import { RemindButton } from "@/components/RemindButton";
+import { recentlyReminded } from "@/server/services/reminders";
 import { ApiError } from "@/server/http";
 import { RestoreButton } from "@/components/RestoreButton";
 import { Money } from "@/components/Money";
@@ -203,7 +204,11 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
                 <span className="muted">{e.date} · {t(`cat.${e.category}` as MessageKey)}{e.paymentMethod && ` · ${t(`pm.${e.paymentMethod}` as MessageKey)}`}</span>
                 <span className="block truncate font-medium">{e.title}{e.isRefund && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 align-middle text-xs font-normal text-emerald-900" data-testid="refund-badge">{t("refund.badge")}</span>}{e.recurringId && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 align-middle text-xs font-normal text-sky-900" data-testid="auto-badge">{t("recurring.auto")}</span>}</span>
                 <span className="muted block">
-                  {t(e.payers.length > 1 ? "group.paidByMany" : e.payers[0]?.userId === userId ? "group.paidByYou" : "group.paidBy", {
+                  {t(
+                    e.isRefund
+                      ? e.payers.length > 1 ? "group.receivedByMany" : e.payers[0]?.userId === userId ? "group.receivedByYou" : "group.receivedBy"
+                      : e.payers.length > 1 ? "group.paidByMany" : e.payers[0]?.userId === userId ? "group.paidByYou" : "group.paidBy",
+                    {
                     name: e.payers.map((p) => names.get(p.userId) ?? "?").join(", "),
                     amount: formatMoney(e.amountMinor, e.currency, locale),
                   })}
@@ -238,6 +243,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
 async function BalancesTab({ groupId, groupName, guests, userId, names, locale, t }: { groupId: string; groupName: string; guests: Set<string>; userId: string; names: Map<string, string>; locale: string; t: TFn }) {
   const b = await getGroupBalances(userId, groupId);
   // Bezahldaten nur der Personen, denen ich laut Vorschlag Geld schulde
+  const reminded = await recentlyReminded(userId, groupId);
   const pay = await payInfoForCreditors(userId, groupId, Object.values(b.transfers).flat().filter((tr) => tr.from === userId).map((tr) => tr.to));
   const currencies = Object.keys(b.net);
   return (
@@ -268,7 +274,7 @@ async function BalancesTab({ groupId, groupName, guests, userId, names, locale, 
                       {t("group.settleUp")}
                     </Link>
                   )}
-                    {tr.to === userId && !guests.has(tr.from) && <RemindButton groupId={groupId} userId={tr.from} />}
+                    {tr.to === userId && !guests.has(tr.from) && <RemindButton groupId={groupId} userId={tr.from} done={reminded.has(tr.from)} />}
                   </div>
                   {tr.from === userId && pay.get(tr.to) && (
                     <PayBox

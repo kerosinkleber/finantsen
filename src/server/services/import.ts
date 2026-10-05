@@ -10,7 +10,7 @@ import { addGuest } from "./guests";
 import { listGroups } from "./groups";
 import { parseImport, type ImportEntry, type ParsedImport } from "@/lib/import";
 import { CATEGORIES, type Category } from "@/lib/categories";
-import { expenseSchema, paymentSchema } from "@/lib/schemas";
+import { expenseSchema, PAYMENT_METHODS, paymentSchema, type PaymentMethod } from "@/lib/schemas";
 import { translate } from "@/i18n";
 
 export const IMPORT_MAX_BYTES = 2_000_000;
@@ -54,6 +54,13 @@ export function matchCategory(raw: string | null): Category {
     [/gift|geschenk/, "gifts"],
   ];
   return hints.find(([re]) => re.test(s))?.[1] ?? "other";
+}
+
+/** Zahlungsart aus Schlüssel oder Bezeichnung (de/en), sonst keine. */
+export function matchPaymentMethod(raw: string | null): PaymentMethod | null {
+  const s = (raw ?? "").trim().toLowerCase();
+  if (!s) return null;
+  return PAYMENT_METHODS.find((m) => m === s || translate("de", `pm.${m}` as never).toLowerCase() === s || translate("en", `pm.${m}` as never).toLowerCase() === s) ?? null;
 }
 
 export async function previewImport(userId: string, groupId: string, text: string) {
@@ -140,6 +147,7 @@ async function bookExpense(userId: string, groupId: string, e: Extract<ImportEnt
     payers: merge(e.payers, idOf),
     split: { type: "exact", entries: merge(e.shares, idOf) },
     isRefund: e.isRefund,
+    paymentMethod: matchPaymentMethod(e.paymentMethod ?? null),
   });
   if (!parsed.success) throw new ApiError(400, "validation");
   await createExpense(userId, groupId, parsed.data, null, { silent: true });

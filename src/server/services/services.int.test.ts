@@ -1810,6 +1810,8 @@ d("services (PostgreSQL)", () => {
       expect(imp.failed).toEqual([]);
       const net2 = (await svc.balances.groupBalances(g2.id)).net.EUR;
       expect(Object.values(net2).sort((x, y) => x - y)).toEqual([-1400, -800, 2200]);
+      // Zahlungsart übersteht den Rundlauf
+      expect((await svc.expenses.listExpenses(a.id, g2.id, { filter: { paymentMethod: "cash" } })).map((e) => [e.title, e.isRefund])).toEqual([["Pfand", true]]);
     });
   });
 
@@ -1857,9 +1859,11 @@ d("services (PostgreSQL)", () => {
       expect(await svc.attachments.listAttachments(a.id, g.id, e.id)).toHaveLength(5);
       await svc.attachments.deleteAttachment(b.id, g.id, e.id, att.id);
       expect(await svc.attachments.listAttachments(a.id, g.id, e.id)).toHaveLength(4);
+      const keep = (await svc.attachments.listAttachments(a.id, g.id, e.id))[0];
       // gelöschte Ausgabe: Fotos bleiben (Wiederherstellen), aber keine neuen
       await svc.expenses.deleteExpense(a.id, g.id, e.id);
       await expect(svc.attachments.addAttachment(a.id, g.id, e.id, PNG)).rejects.toMatchObject({ code: "invalid_state" });
+      await expect(svc.attachments.deleteAttachment(a.id, g.id, e.id, keep.id)).rejects.toMatchObject({ code: "invalid_state" });
       await svc.groups.deleteGroup(a.id, g.id).catch(() => {});
       const [{ n }] = (await svc.getDb().execute(svc.sql`select count(*)::int as n from expense_attachments`)) as unknown as { n: number }[];
       expect(n).toBe(0);
