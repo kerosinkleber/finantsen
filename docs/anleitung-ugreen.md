@@ -8,7 +8,8 @@ Schritt für Schritt für UGREEN-NAS mit **UGOS Pro**. Allgemeine Hintergründe 
 
 ## 0. Passt mein UGREEN?
 
-- **DXP-Serie** (DXP2800, DXP4800, DXP4800 Plus, DXP6800 Pro, DXP8800 Plus, DXP480T Plus): Intel-Prozessor, passt.
+- **Deine DXP2800** passt: Intel-Prozessor (x86-64), ab Werk mit **UGOS Pro** (so heißt das Betriebssystem der DXP-Serie, das ist die Oberfläche, in der du dich am NAS anmeldest). Ist die **Docker**-App schon installiert, überspringe Schritt 2.
+- **Andere DXP-Modelle** (DXP4800, DXP4800 Plus, DXP6800 Pro, DXP8800 Plus, DXP480T Plus): ebenfalls Intel, passt.
 - **Neuere DH-Modelle mit UGOS Pro** (z. B. DH2300, DH4300 Plus): ARM 64 Bit, passt ebenfalls.
 - **Ältere Modelle mit dem alten UGOS** (ohne „Pro“) haben meist keine Docker-App, dann geht es nicht.
 - Arbeitsspeicher: Finantsen braucht im Betrieb etwa 200–400 MB (App und Datenbank zusammen). Jedes UGOS-Pro-Modell hat genug.
@@ -76,6 +77,26 @@ Erkennbar an einer Meldung wie „APP_URL … setzen“ oder „required variabl
 2. Es erscheint die **Einrichtung**: Name, Nutzername und Passwort für dich als Admin. Gleich selbst erledigen, wer zuerst kommt, wird Admin.
 
 Lädt die Seite nicht: In UGOS unter **Systemsteuerung → Sicherheit → Firewall** prüfen, ob eine Firewall aktiv ist, und den TCP-Port `3000` für das Heimnetz erlauben.
+
+### Was du ohne HTTPS siehst
+
+Über `http://<IP>:3000` sind einige Funktionen ausgegraut und haben einen Hinweis mit Schloss-Symbol: QR-Scan mit der Kamera (Link einfügen geht), Passkeys und Push-Nachrichten. In *Einstellungen* steht eine Übersicht, was fehlt. Das ist so gewollt (Fragebogen 9). Alles andere funktioniert normal. Kommt später HTTPS dazu, verschwinden die Hinweise von selbst.
+
+## 5b. Von unterwegs
+
+Finantsen ist absichtlich nicht direkt aus dem Internet erreichbar. Zwei Wege:
+
+**UGREENlink (dein Wunsch, Fragebogen 9).** UGREENlink ist der Fernzugriff von UGREEN (App „UGREEN NAS“ bzw. `ug.link`). UGREEN beschreibt, dass seit einem UGOS-Update **einige** Container-Apps darüber erreichbar sind. Ob das für Finantsen klappt, konnte ich nicht prüfen. Probier es so:
+1. UGOS und die UGREEN-App auf dem Handy aktualisieren.
+2. In der Docker-App beim Container `finantsen-app-1` nach einer Option für Fernzugriff bzw. UGREENlink suchen.
+3. Falls es eine Adresse gibt: Anmelden und eine Ausgabe anlegen klappt? Dann passt es. **Aber:** Einladungs- und Aktivierungslinks enthalten die Heimnetz-Adresse aus `APP_URL`. Unterwegs öffnen sie sich nicht. Solche Links also zu Hause weitergeben oder die Adresse im Link von Hand ersetzen.
+
+**WireGuard-VPN über deine FRITZ!Box 7490 (Plan B, empfohlen, wenn UGREENlink nicht geht).** Damit ist das Handy unterwegs so, als wäre es im WLAN. Alles funktioniert, auch die Links.
+1. FRITZ!Box-Oberfläche öffnen (`http://fritz.box`) → **System → Update**. WireGuard gibt es ab **FRITZ!OS 7.50**. Wird dort keine passende Version angeboten, geht dieser Weg mit der 7490 nicht.
+2. **Internet → Freigaben → VPN (WireGuard)** → **Verbindung hinzufügen** → „Einzelgerät verbinden“ → Namen eingeben (z. B. „Handy Anna“).
+3. Die FRITZ!Box zeigt einen **QR-Code**. Auf dem Handy die App **WireGuard** installieren → „+“ → „QR-Code scannen“.
+4. Unterwegs WireGuard einschalten und `http://<IP-des-NAS>:3000` öffnen.
+5. Für jede Person eine eigene Verbindung anlegen (eigener QR-Code). So kannst du einzelne Zugänge später wieder löschen.
 
 ## 6. Aktualisieren
 

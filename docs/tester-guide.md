@@ -199,6 +199,8 @@ For trying things out without creating many real accounts. Account → *Manage u
 - [ ] **Test users are marked "(Test)"** everywhere other people can see them.
 - [ ] **Test users can never sign in** (try their username with any password) and you cannot act as a real account.
 - [ ] **Delete** a test user. Expected: refused with an explanation if their data is in a group with real users; otherwise removed together with test-only groups.
+- [ ] **Clean-up warning:** while test features are on **or** test users exist, *Manage users* shows a yellow box "Clean up test features before real use" at the top. *Switch off test features* turns them off (the "Test features" checkbox below follows at once). *Delete all test users* asks first, then deletes every test user it can; test users with data in groups with real people stay and are listed with those groups. Nothing is deleted without clicking. With test features off and no test users left, the box disappears.
+- [ ] **Start lock for the dev admin** (only for the owner, needs editing a file): in `docker-compose.local.yml` set `APP_URL` to the computer's network address (e.g. `http://192.168.178.20:3000`) while `DEV_ADMIN: "true"` stays, then start. Expected: the app does **not** start; the log says "START ABGEBROCHEN: DEV_ADMIN=true ist nur für lokale Tests erlaubt …". Undo the change afterwards.
 
 ---
 
@@ -235,6 +237,18 @@ Needs a browser/device with a platform authenticator (fingerprint, face, device 
 - [ ] **Install as app** (browser menu → *Install app* / *Add to Home Screen*). It opens like an app with its own icon.
 - [ ] **Offline reading:** open a few pages (overview, a group), then switch off the network. Expected: the pages you already opened are still readable, with an "offline" hint; pages you never opened show an offline page. Changes cannot be saved offline.
 - [ ] **Wording:** is anything unclear, in English or in German? Tell us.
+
+## 8c. Without HTTPS (home network over http)
+
+Browsers treat `localhost` as secure, so this only shows when you open the app from **another device** via the computer's network address, e.g. `http://192.168.178.20:3000` from your phone in the same Wi-Fi (local stack: set `APP_URL` in `docker-compose.local.yml` to that address and remove `DEV_ADMIN`, see the start lock above).
+
+- [ ] **Sign-in page:** the passkey button is greyed out with a 🔒 hint "Passkeys need a secure connection (HTTPS) …". Signing in with password works.
+- [ ] **Overview:** *Scan QR code* is greyed out with a hint. Tapping it still opens the box: no camera request, a hint instead of the video, and pasting an invitation link works.
+- [ ] **Settings:** a box "Without HTTPS: some features are off" lists camera, passkeys, installing, offline and push; the install tip is gone; *Turn on push* is greyed out with a hint.
+- [ ] **Two-factor page:** *Add passkey* is greyed out with a hint; TOTP setup works.
+- [ ] **Manage users** (admin): the same box plus an explanation of how to get HTTPS.
+- [ ] Everything else (groups, expenses, balances, statistics, import, export, receipt photos) works as usual.
+- [ ] **Counter-check:** on `http://localhost:3000` (or with HTTPS) none of these hints appear.
 
 ---
 

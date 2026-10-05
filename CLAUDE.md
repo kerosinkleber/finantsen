@@ -111,6 +111,11 @@ Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-
 - `.github/workflows/image.yml`: baut bei Push auf `main`, `claude/**` und Tags `v*` nativ für amd64 (`ubuntu-24.04`) und arm64 (`ubuntu-24.04-arm`), lädt per Digest hoch und führt zu einem Multi-Plattform-Image `ghcr.io/kerosinkleber/finantsen` zusammen (Tags: Branch, `latest` nur Default-Branch, `sha-…`, SemVer). GHCR-Paket muss einmal vom Auftraggeber auf „Public“ gestellt werden (geht nicht per API).
 - `docker-compose.yml` (`app.image` = `ghcr.io/…:${FINANTSEN_TAG:-latest}` plus `build: .`), `docker-compose.nas.yml` (nur db + app, Port `APP_PORT`, `http`, kein Caddy, kein Dev-Admin), `.env.nas.example`, Anleitung `docs/anleitung-nas.md`. Origin-Prüfung ist host-basiert, `http://IP:Port` funktioniert (Cookies ohne `Secure`, weil `APP_URL` http ist).
 
+## Betrieb ohne HTTPS (Fragebogen 9)
+- Fragebogen `docs/fragen/09-release-und-betrieb.md`: Heimbetrieb über `http://IP:Port` ist erlaubt, HTTPS bleibt möglich. Erkennung **nur im Browser** über `window.isSecureContext` (`lib/use-secure.ts#useSecureContext`, `null` beim Server-Rendern; localhost gilt als sicher).
+- Ohne sicheren Kontext: `QrScanner` (Knopf ausgegraut, Kamera wird gar nicht angefragt, Einfügen bleibt), `Passkeys` und Passkey-Knopf im `LoginForm` (deaktiviert), `PushToggle` (Zustand `insecure`), je mit `InsecureNote`; Übersicht `InsecureInfo` in den Einstellungen, mit `admin` auf `/admin/users` (wie man HTTPS bekommt); `InstallHint` blendet den Installationstipp aus. Neue Funktionen, die einen sicheren Kontext brauchen, müssen das genauso behandeln.
+- E2E „without HTTPS“: eigener Chromium mit `--host-resolver-rules=MAP finantsen.test 127.0.0.1`, Anfragen dann per `fetch` im Browser (Node kennt den Namen nicht).
+
 ## Performance
 - Siehe `docs/performance.md` (Messung mit 3000 Ausgaben, vorher/nachher). Regeln: Listen von IDs als **ein** Array-Parameter (`sql\`${sql.param(ids)}::uuid[]\``, `= any(...)`), nie `inArray` mit beliebig vielen IDs; Zuordnungen per `Map`, nicht `filter` in Schleifen.
 - `balances.ts#netBalancesSql` summiert Nettosalden in SQL (vereinfachte Schulden, Übersicht in einer Abfrage); `groupBalancesFull` nur für paarweise Schulden. Ein Integrationstest prüft, dass beide Wege gleich rechnen.
