@@ -66,6 +66,9 @@ Für den lokalen Test (`docker-compose.local.yml`) läuft **Mailpit** mit: alle 
 ### Aufteilungsarten
 Gleich, **gleich mit Anpassungen** (z. B. „Anna +5 €, Ben −2 €, Rest gleich“: erst die Anpassungen abziehen, den Rest gleich teilen, dann die Anpassung je Person addieren), Prozent, feste Beträge, Anteile (ganze Zahlen), Einzelposten mit Steuer/Trinkgeld und „eine Person trägt alles“. Summe der Anteile ist immer exakt der Betrag.
 
+### Rechner und Kopieren
+Im Betragsfeld darf man rechnen, z. B. `12,50+3*4` oder `(30+15)/3`: darunter steht das Ergebnis, beim Verlassen des Felds wird es übernommen (exakt gerechnet, kaufmännisch gerundet). Auf dem Handy schaltet der Knopf „±×“ auf eine Tastatur mit Rechenzeichen. Auf der Seite einer Ausgabe legt **„Kopieren“** eine neue Ausgabe mit denselben Werten an (Datum heute, Kurs neu).
+
 ### Erinnern
 Schuldet dir jemand laut Ausgleichsvorschlag Geld, steht im Reiter *Salden* daneben **„Erinnern“**. Die Person bekommt eine Benachrichtigung „Anna erinnert dich: Du schuldest 23,50 € in WG“ (In-App, Push, E-Mail falls eingeschaltet), die zu den Salden führt. Höchstens einmal pro Tag je Person und Gruppe; Mitglieder ohne Konto können nicht erinnert werden.
 

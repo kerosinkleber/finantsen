@@ -103,6 +103,11 @@ Use at least three people in one group so the results are interesting.
 - [ ] **Equal + adjust.** New expense 30 € for two people, split *Equal + adjust*, give one person `10`.
   Expected: hint "about €10.00 per person"; saved shares are 20 € and 10 €. Try `-2.50` for someone (they pay less). Adjustments higher than the amount, or a negative share, are rejected with a clear message. Opening the expense again shows the adjustment in the field. Switching the split type clears the per-person fields.
 
+- [ ] **Calculator.** In the amount field type `12.50+3*4` (German: `12,50+3*4`).
+  Expected: below the field "= €24.50"; leaving the field replaces the text with 24.50. `(30+15)/3` → 15.00, `10/3` → 3.33, `10/0` or `abc` → "Invalid calculation" and saving is refused. On a phone the "±×" button switches the keyboard so you can type + and *.
+- [ ] **Copy an expense.** Open an expense → *Copy*.
+  Expected: page "Copy expense" with the same title, amount, payer and split, today's date, no Delete button. Saving creates a **new** expense; the original stays unchanged.
+
 ### Other currencies (needs internet)
 - [ ] Create an expense in a currency different from the group's (e.g. USD in a EUR group). Expected: the exchange rate for the expense date is shown with a preview of the converted amount.
 - [ ] **Set the rate manually** (checkbox) and watch the preview change. After saving, the list shows the converted amount, balances are in the group currency, and re-opening the expense keeps the stored rate.

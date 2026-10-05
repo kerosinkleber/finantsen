@@ -3,6 +3,7 @@
 Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt Prioritäten fest.
 
 ## Fertig
+- **Rechner im Betragsfeld und „Ausgabe kopieren“** (Fragebogen 8).
 - **Erinnern-Knopf** (Fragebogen 8): Gläubiger erinnern Schuldner (In-App, Push, E-Mail), höchstens einmal pro Tag.
 - **Gleich mit Anpassungen** (Fragebogen 8): z. B. „Anna +5 €, Rest gleich“, auch negative Anpassungen.
 - **Bezahlen beim Begleichen** (Fragebogen 8): GiroCode und PayPal.me-Link mit Betrag, Bezahldaten im Konto.

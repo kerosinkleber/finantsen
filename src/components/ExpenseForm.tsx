@@ -10,7 +10,8 @@ import { RateSection } from "./RateSection";
 import { ItemsEditor, newRow, type ItemRow } from "./ItemsEditor";
 import { ReceiptScan, type ScanResult } from "./ReceiptScan";
 import { CATEGORIES } from "@/lib/categories";
-import { formatMoney, localDecimal, normalizeRate, parseAmount, toInputString } from "@/lib/money";
+import { formatMoney, localDecimal, minorUnits, normalizeRate, parseAmount, toInputString } from "@/lib/money";
+import { evaluateAmount, isExpression } from "@/lib/money/calc";
 import type { MessageKey } from "@/i18n";
 import type { DefaultSplit } from "@/lib/schemas";
 import { dueOccurrences, UNITS, type Unit } from "@/lib/recurrence";
@@ -39,7 +40,7 @@ const SPLITS: SplitType[] = ["equal", "adjust", "percent", "exact", "shares", "i
 /** Modus „wiederkehrend“: dasselbe Formular legt eine Vorlage mit Rhythmus an (ohne Belegscan und manuellen Kurs). */
 export type RecurringInit = { id?: string; unit: Unit; every: number; endDate: string | null; paused: boolean; lastBookedDate?: string | null };
 
-export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurrency, initial, defaultSplit, recurring }: {
+export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurrency, initial, defaultSplit, recurring, copy = false }: {
   groupId: string;
   members: Member[];
   meId: string;
@@ -49,7 +50,11 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   initial?: ExpenseInitial;
   defaultSplit?: DefaultSplit | null;
   recurring?: RecurringInit;
+  /** „Ausgabe kopieren“: Werte aus `initial` übernehmen, aber als neue Ausgabe (heutiges Datum, Kurs neu) speichern */
+  copy?: boolean;
 }) {
+  // Bearbeiten nur, wenn nicht kopiert wird
+  const editing = !!initial && !copy;
   const { t, locale } = useI18n();
   const { ask, dialog } = useConfirm();
   const router = useRouter();
@@ -59,7 +64,8 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   const [title, setTitle] = useState(initial?.title ?? "");
   const [currency, setCurrency] = useState(initial?.currency ?? defaultCurrency);
   const [amount, setAmount] = useState(initial ? toInputString(initial.amountMinor, initial.currency, locale) : "");
-  const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(initial && !copy ? initial.date : new Date().toISOString().slice(0, 10));
+  const [calcMode, setCalcMode] = useState(false);
   const [category, setCategory] = useState(initial?.category ?? "other");
   const [unit, setUnit] = useState<Unit>(recurring?.unit ?? "month");
   const [every, setEvery] = useState(String(recurring?.every ?? 1));
@@ -111,7 +117,12 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   const itemsTotal =
     rows.reduce((a, r) => a + (parseAmount(r.price, currency) ?? 0), 0) + (parseAmount(tax, currency) ?? 0) + (parseAmount(tip, currency) ?? 0);
   const amountText = splitType === "items" ? toInputString(itemsTotal, currency, locale) : amount;
-  const total = useMemo(() => parseAmount(amountText, currency), [amountText, currency]);
+  // Rechner: „12,50+3*4“ wird ausgerechnet (exakt, kaufmännisch gerundet)
+  const isCalc = splitType !== "items" && isExpression(amountText);
+  const total = useMemo(
+    () => (isCalc ? evaluateAmount(amountText, minorUnits(currency)) : parseAmount(amountText, currency)),
+    [amountText, currency, isCalc],
+  );
 
   function applyScan(r: ScanResult) {
     if (r.merchant) setTitle(r.merchant);
@@ -227,7 +238,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         router.refresh();
         return;
       }
-      if (initial) await api("PUT", `/api/groups/${groupId}/expenses/${initial.id}`, body);
+      if (editing) await api("PUT", `/api/groups/${groupId}/expenses/${initial!.id}`, body);
       else await api("POST", `/api/groups/${groupId}/expenses`, body);
       router.replace(`/groups/${groupId}`);
       router.refresh();
@@ -239,7 +250,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
   }
 
   async function remove() {
-    if (!initial || !(await ask(t(recurring ? "recurring.confirmDelete" : "expense.deleteConfirm")))) return;
+    if (!initial || !editing || !(await ask(t(recurring ? "recurring.confirmDelete" : "expense.deleteConfirm")))) return;
     setBusy(true);
     try {
       await api("DELETE", recurring ? `/api/groups/${groupId}/recurring/${initial.id}` : `/api/groups/${groupId}/expenses/${initial.id}`);
@@ -268,18 +279,44 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="amount">{t("expense.amount")}</label>
-            <input
-              id="amount"
-              className="input"
-              inputMode="decimal"
-              value={amountText}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-              placeholder="0,00"
-              readOnly={splitType === "items"}
-              aria-describedby={splitType === "items" ? "amount-auto" : undefined}
-            />
+            <div className="flex gap-1">
+              <input
+                id="amount"
+                className="input"
+                inputMode={calcMode ? "text" : "decimal"}
+                value={amountText}
+                onChange={(e) => setAmount(e.target.value)}
+                onBlur={() => {
+                  // Ausdruck beim Verlassen durch das Ergebnis ersetzen
+                  if (isCalc && total !== null) setAmount(toInputString(total, currency, locale));
+                }}
+                required
+                placeholder="0,00"
+                readOnly={splitType === "items"}
+                aria-describedby={splitType === "items" ? "amount-auto" : isCalc ? "amount-calc" : undefined}
+              />
+              {splitType !== "items" && (
+                <button
+                  type="button"
+                  className={`btn-secondary !min-h-11 !px-2 text-sm ${calcMode ? "!border-brand" : ""}`}
+                  aria-pressed={calcMode}
+                  title={t("expense.calcHelp")}
+                  aria-label={t("expense.calc")}
+                  onClick={() => {
+                    setCalcMode((v) => !v);
+                    document.getElementById("amount")?.focus();
+                  }}
+                >
+                  ±×
+                </button>
+              )}
+            </div>
             {splitType === "items" && <span id="amount-auto" className="muted block">{t("items.totalAuto")}</span>}
+            {isCalc && (
+              <span id="amount-calc" className="muted block" data-testid="calc-result">
+                {total === null ? t("expense.calcInvalid") : `= ${formatMoney(total, currency, locale)}`}
+              </span>
+            )}
           </div>
           <div>
             <label className="label" htmlFor="currency">{t("expense.currency")}</label>
@@ -326,7 +363,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
         to={baseCurrency}
         date={date}
         amountMinor={total}
-        stored={initial ? { rate: initial.rate, source: initial.rateSource, currency: initial.currency, date: initial.date } : null}
+        stored={initial && editing ? { rate: initial.rate, source: initial.rateSource, currency: initial.currency, date: initial.date } : null}
         manual={manualRate}
         setManual={setManualRate}
       />}
@@ -442,7 +479,7 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
       <ErrorMessage error={error} />
       <div className="flex flex-col gap-2">
         <button className="btn" disabled={busy}>{t("common.save")}</button>
-        {initial && <button type="button" className="btn-danger" onClick={remove} disabled={busy}>{t("common.delete")}</button>}
+        {editing && <button type="button" className="btn-danger" onClick={remove} disabled={busy}>{t("common.delete")}</button>}
       </div>
     </form>
   );

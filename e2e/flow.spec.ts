@@ -1266,3 +1266,31 @@ test("remind: creditor reminds a debtor once a day; debtor gets a notification l
   await expect(ben.getByTestId("remind")).toHaveCount(0);
   await ctx.close();
 });
+
+test("calculator in the amount field and copying an expense", async ({ page }) => {
+  await login(page, "anna@example.com");
+  const groups = await (await page.request.get("/api/groups")).json();
+  const gid = groups.groups.find((g: { name: string }) => g.name === "Pay test").id;
+  await page.goto(`/groups/${gid}/expenses/new`);
+  await page.getByLabel("Title").fill("Snacks");
+  await page.getByLabel("Amount").fill("12.50+3*4");
+  await expect(page.getByTestId("calc-result")).toHaveText("= €24.50");
+  await page.getByLabel("Title").click(); // Feld verlassen: Ergebnis wird übernommen
+  await expect(page.getByLabel("Amount")).toHaveValue("24.50");
+  await page.getByLabel("Amount").fill("10/0");
+  await expect(page.getByTestId("calc-result")).toHaveText("Invalid calculation");
+  await page.getByLabel("Amount").fill("12.50+3*4");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByTestId("expense-item").filter({ hasText: "Snacks" }).click();
+  await page.getByTestId("copy-expense").click();
+  await expect(page).toHaveURL(/\/expenses\/new\?copy=/);
+  await expect(page.getByRole("heading", { name: "Copy expense" })).toBeVisible();
+  await expect(page.getByLabel("Title")).toHaveValue("Snacks");
+  await expect(page.getByLabel("Amount")).toHaveValue("24.50");
+  await expect(page.getByLabel("Date")).toHaveValue(new Date().toISOString().slice(0, 10));
+  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  await page.getByLabel("Title").fill("Snacks again");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Snacks again" })).toBeVisible();
+  await expect(page.getByTestId("expense-item").filter({ hasText: "Snacks" })).toHaveCount(2);
+});

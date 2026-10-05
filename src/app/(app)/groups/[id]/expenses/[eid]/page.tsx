@@ -7,7 +7,9 @@ import { getGroup } from "@/server/services/groups";
 import { expenseHistoryFor, getExpense } from "@/server/services/expenses";
 import { listComments } from "@/server/services/comments";
 import { Comments } from "@/components/Comments";
-import { ExpenseForm, type ExpenseInitial } from "@/components/ExpenseForm";
+import { ExpenseForm } from "@/components/ExpenseForm";
+import { expenseToInitial } from "@/components/expenseInitial";
+import Link from "next/link";
 import { ApiError } from "@/server/http";
 import { formatMoney } from "@/lib/money";
 import type { MessageKey } from "@/i18n";
@@ -29,21 +31,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     }
   };
   const { group, expense, history, comments } = await load();
-  const initial: ExpenseInitial = {
-    id: expense.id,
-    title: expense.title,
-    amountMinor: expense.amountMinor,
-    currency: expense.currency,
-    date: expense.date,
-    category: expense.category,
-    splitType: expense.splitType as ExpenseInitial["splitType"],
-    payers: expense.payers,
-    shares: expense.shares,
-    baseCurrency: expense.baseCurrency,
-    rate: expense.rate,
-    rateSource: expense.rateSource,
-    items: expense.items,
-  };
+  const initial = expenseToInitial(expense);
   // Im Verlauf können übernommene Gäste als „guest:<Name>“ stehen (siehe claimGuest)
   const name = (uid: string) => (uid.startsWith("guest:") ? `${uid.slice(6)} (${t("guest.label")})` : (group.members.find((m) => m.id === uid)?.name ?? "?"));
   type Snap = { title: string; amountMinor: number; currency: string; deleted: boolean; payers: { userId: string; amountMinor: number }[]; shares: { userId: string; amountMinor: number }[] };
@@ -58,7 +46,12 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
           <RestoreButton groupId={id} expenseId={eid} />
         </section>
       ) : (
-        <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} baseCurrency={expense.baseCurrency} initial={initial} />
+        <>
+          <ExpenseForm groupId={id} members={group.members} meId={user.id} defaultCurrency={group.defaultCurrency} baseCurrency={expense.baseCurrency} initial={initial} />
+          {!expense.recurringId && (
+            <Link href={`/groups/${id}/expenses/new?copy=${eid}`} className="btn-secondary" data-testid="copy-expense">{t("expense.copy")}</Link>
+          )}
+        </>
       )}
       <Comments
         groupId={id}
