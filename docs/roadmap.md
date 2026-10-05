@@ -5,6 +5,7 @@ Stand: laufend gepflegt. Reihenfolge von oben nach unten; der Auftraggeber legt 
 ## Fertig
 - **Fertige Images über GitHub (amd64/arm64) und NAS-Betrieb** (`docker-compose.nas.yml`, `docs/anleitung-nas.md`): kein Bauen auf Server/NAS nötig.
 - **Fragebogen 9 (Release und Betrieb)**: Betrieb ohne HTTPS mit ausgegrauten Funktionen und Hinweisen, Startsperre für `DEV_ADMIN` außerhalb von localhost, Warnhinweis bei Testfunktionen/Testnutzern mit Aufräum-Knöpfen, UGREEN-Anleitung (DXP2800, Fernzugriff über UGREENlink oder FRITZ!Box-WireGuard).
+- **Weniger Arbeitsspeicher**: Heap-Grenze 256 MB für Node, Spitzen ~40 % niedriger (397 → 226 MB bei 1000 Ausgaben, 723 → 414 MB bei 5000), ohne Geschwindigkeitsverlust.
 - **Gruppenliste mit Seiten** (50 Einträge, auf Wunsch 100; „Neuere/Ältere“): ersetzt „Ältere anzeigen“, das bei 1000 Einträgen bis 780 MB Speicher brauchte.
 - **Belegfotos an Ausgaben** (Fragebogen 8): bis 5 Fotos je Ausgabe, im Browser verkleinert, in der Datenbank (im Backup).
 - **Gruppenbudget** (Fragebogen 8): je Monat oder insgesamt, Balken über der Ausgabenliste, einmalige Benachrichtigung bei Überschreitung.

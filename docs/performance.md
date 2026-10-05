@@ -47,5 +47,25 @@ Bei normalen Gruppen (einige Dutzend bis wenige Hundert Ausgaben) war die App sc
 - **Caching** von Salden: nicht nötig, solange die SQL-Summen so schnell sind; würde Invalidierung bei jeder Änderung erfordern.
 - Datenbank-Indizes: vorhanden und ausreichend (`expenses(group_id, date)`, Primärschlüssel `(expense_id, user_id)` für Zahler/Anteile, `payments(group_id)`).
 
+## Speicher (Oktober 2026)
+
+**Ausgangslage:** Node richtet seine Heap-Grenze nach dem RAM, den es sieht. In einem Container ohne Speicherlimit auf einem NAS mit 8 GB räumt es deshalb spät auf, und die Spitzen wachsen. Der Leerlauf liegt bei rund 110 MB (Node selbst).
+
+**Maßnahme:** `NODE_OPTIONS=--max-old-space-size=256` im `Dockerfile` (Laufzeit-Stufe), in `docker-compose.yml`/`docker-compose.nas.yml` über die `.env` änderbar. Kein Code geändert.
+
+**Messung** (`next start`/standalone, VmHWM des Node-Prozesses, je 20 Anfragen pro Seite: Übersicht, Gruppe, Salden, Statistik, Seite 30 mit 100 Einträgen, Gruppen-CSV, Konto-JSON):
+
+| Daten | Gleichzeitig | ohne Grenze | mit 256 MB | Änderung |
+|---|---|---|---|---|
+| 1000 Ausgaben, 5 Personen | 1 / 5 / 20 | 328 / 378 / 397 MB | 198 / 208 / 226 MB | −40 / −45 / −43 % |
+| 5000 Ausgaben (per Import), 5 Personen | 1 / 5 / 20 | 445 / 563 / 723 MB | 268 / 336 / 414 MB | −40 / −40 / −43 % |
+
+- Alle Anfragen erfolgreich (HTTP 200), Antwortzeiten in den Messreihen mit 1000 Ausgaben unverändert.
+- **Import von 5000 Zeilen** (Höchstgrenze) unter der Grenze: in 55 s gebucht, Spitze 178 MB.
+- **Abgestürzt** („heap out of memory“) ist die App erst bei 64 MB und darunter; 96 MB hielt die Messreihe noch. 256 MB lässt also reichlich Luft.
+- Gleiches Ergebnis im echten Basis-Image `node:22-bookworm-slim` und mit einem Container-Limit von 1 GB statt Heap-Grenze. Ohne Wirkung: Alpine-Basis-Image, `MALLOC_ARENA_MAX=2`. Kleinere Junge Generation (`--max-semi-space-size`) und `--optimize-for-size` sparen etwas mehr, kosten aber 10–40 % Geschwindigkeit, deshalb nicht genommen.
+- Optional, nicht umgesetzt: 5 statt 10 Datenbankverbindungen spart in PostgreSQL rund 17 MB (52 → 35 MB).
+- Steigt der Bedarf einmal über die Grenze, beendet sich der Prozess mit „heap out of memory“; `restart: unless-stopped` startet ihn neu. Dann `NODE_OPTIONS=--max-old-space-size=512` in der `.env` setzen.
+
 ## Wiederholen
 Messskript liegt nicht im Repo (erzeugt Testdaten in einer eigenen Datenbank). Kurz: Datenbank `finantsen_perf` anlegen, per Services 3000 Ausgaben buchen, Zeiten der Services messen und die Seiten mit `next start` gegen diese Datenbank abrufen.

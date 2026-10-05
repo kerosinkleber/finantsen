@@ -14,6 +14,11 @@ RUN npm run build
 FROM node:22-bookworm-slim AS run
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+# Speicher: Node richtet sich sonst nach dem gesamten RAM des Rechners (NAS mit 8 GB → späte Aufräumarbeit, hohe
+# Spitzen). Mit 256 MB Obergrenze für den Heap sanken die Spitzen in Messungen um gut 40 % (397 → 226 MB bei 20
+# gleichzeitigen Zugriffen), ohne Geschwindigkeitsverlust; abgestürzt ist erst unter 96 MB. Siehe docs/performance.md.
+# Überschreibbar per Umgebungsvariable NODE_OPTIONS (z. B. in der .env/compose: NODE_OPTIONS=--max-old-space-size=512).
+ENV NODE_OPTIONS=--max-old-space-size=256
 RUN useradd --system --uid 1001 app
 COPY --from=build --chown=app /app/.next/standalone ./
 COPY --from=build --chown=app /app/.next/static ./.next/static

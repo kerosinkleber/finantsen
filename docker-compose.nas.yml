@@ -38,6 +38,8 @@ services:
       # Adresse, unter der du die App im Browser öffnest (für Links in Mails und Einladungen)
       APP_URL: ${APP_URL:?Bitte APP_URL in .env setzen, z. B. http://192.168.178.20:3000}
       APP_SECRET: ${APP_SECRET:?APP_SECRET fehlt in .env (mindestens 16 Zeichen, zufällig)}
+      # Speicher-Obergrenze für Node (siehe Dockerfile, docs/performance.md); in der .env änderbar
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=256}
       DEFAULT_LOCALE: ${DEFAULT_LOCALE:-de}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}

@@ -119,6 +119,7 @@ Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-
 ## Performance
 - Siehe `docs/performance.md` (Messung mit 3000 Ausgaben, vorher/nachher). Regeln: Listen von IDs als **ein** Array-Parameter (`sql\`${sql.param(ids)}::uuid[]\``, `= any(...)`), nie `inArray` mit beliebig vielen IDs; Zuordnungen per `Map`, nicht `filter` in Schleifen.
 - `balances.ts#netBalancesSql` summiert Nettosalden in SQL (vereinfachte Schulden, Übersicht in einer Abfrage); `groupBalancesFull` nur für paarweise Schulden. Ein Integrationstest prüft, dass beide Wege gleich rechnen.
+- Speicher: `NODE_OPTIONS=--max-old-space-size=256` im `Dockerfile` und in den Compose-Dateien (über `.env` änderbar); senkt die Spitzen um ~40 % (Messung in `docs/performance.md`, auch 5000-Zeilen-Import geprüft).
 - Gruppenliste blättert seitenweise: 50 Einträge (`?per=100` für 100), `?page=`; `lib/paging.ts` (rein: Mischen von Ausgaben und Zahlungen, Seite begrenzen), `expenses.ts#listExpenseKeys` (nur Schlüssel bis zur Seite + Anzahl), danach `loadExpenses(..., { ids })` nur für die sichtbaren. Nie wieder alle Einträge einer Gruppe auf einmal rendern.
 
 ## Lizenz
