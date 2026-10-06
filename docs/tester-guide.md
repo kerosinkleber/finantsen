@@ -107,7 +107,7 @@ Use at least three people in one group so the results are interesting.
 - [ ] **One person covers everything.**
 - [ ] **Several payers** for one expense, amounts must add up to the total.
 - [ ] **Itemized split:** choose *Itemized*, add several items, tick who had which item, add tax and tip. The total is computed from the items. Expected: tax and tip are distributed in proportion to what each person had.
-- [ ] **Rounding check:** split `10.00` equally between 3 people. Expected: the shares add up to exactly 10.00 (e.g. 3.34 / 3.33 / 3.33), nothing is lost.
+- [ ] **Rounding check:** split `10.00` equally between 3 people. Expected: the shares add up to exactly 10.00 and **the person who paid** carries the extra cent (payer 3.34, the others 3.33 each). Change the payer and save again: the extra cent moves to the new payer. `9.00` on 3 people: 3.00 each (no extra cent).
 - [ ] **Decimal formats:** `12,5`, `12.50`, `1.234,56` are understood. A currency without decimals (JPY) refuses `1.5`.
 - [ ] **Edit** an expense (open it from the list), **delete** it. Expected: it disappears from the list and balances; the *Change history* at the bottom of the expense still shows who created/changed/deleted it and what the values were.
 - [ ] **Deleted expenses (trash):** below the expense list a box "Deleted expenses (n)" appears. Open it and press **Restore** (or open the deleted expense and press Restore). Expected: the expense is back in the list and in the balances, the history shows "Restored", the other members get a notification.

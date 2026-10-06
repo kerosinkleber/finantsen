@@ -129,7 +129,7 @@ Antwort / Anmerkung:
 - Sobald die App über `https://` erreichbar ist, verschwinden die Hinweise von selbst, ohne Umstellung.
 - `localhost` zählt bei Browsern als sicher. Beim Ausprobieren direkt am NAS-Rechner siehst du die Hinweise also nicht, auf dem Handy im WLAN schon.
 
-**Frage 2 – Fernzugriff über UGREEN Link.** Hier bin ich unsicher und habe es nicht prüfen können: UGREENlink ist für den Zugriff auf UGOS und UGREEN-Apps gedacht. Nach UGREENs eigener Beschreibung unterstützt es seit einem UGOS-Update den Fernzugriff auf **einige** Container-Apps. Ob das für Finantsen (eigener Container, Port 3000) gilt, weiß ich nicht. Zwei Dinge sind sicher:
+**Frage 2 – Fernzugriff über UGREEN Link.** *Nachtrag: Laut UGREEN-Support erreicht UGREENlink Finantsen nicht. Es bleibt WireGuard über die FRITZ!Box (unten).* Hier war ich unsicher und habe es nicht prüfen können: UGREENlink ist für den Zugriff auf UGOS und UGREEN-Apps gedacht. Nach UGREENs eigener Beschreibung unterstützt es seit einem UGOS-Update den Fernzugriff auf **einige** Container-Apps. Ob das für Finantsen (eigener Container, Port 3000) gilt, weiß ich nicht. Zwei Dinge sind sicher:
 - Einmal-Links und Einladungslinks enthalten die Adresse aus `APP_URL` (die Heimnetz-Adresse). Von unterwegs funktionieren diese Links nur mit VPN.
 - Falls UGREENlink Finantsen nicht erreicht, ist der Plan B deine **FRITZ!Box 7490**: Sie kann WireGuard-VPN, wenn FRITZ!OS 7.50 oder neuer installiert ist. Dann funktioniert von unterwegs alles genau wie zu Hause, auch die Links. Die Schritte stehen in `docs/anleitung-ugreen.md`, Abschnitt „Von unterwegs“.
 

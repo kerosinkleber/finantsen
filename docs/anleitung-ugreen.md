@@ -86,17 +86,16 @@ Lädt die Seite nicht: In UGOS unter **Systemsteuerung → Sicherheit → Firewa
 
 Finantsen ist absichtlich nicht direkt aus dem Internet erreichbar. Zwei Wege:
 
-**UGREENlink (dein Wunsch, Fragebogen 9).** UGREENlink ist der Fernzugriff von UGREEN (App „UGREEN NAS“ bzw. `ug.link`). UGREEN beschreibt, dass seit einem UGOS-Update **einige** Container-Apps darüber erreichbar sind. Ob das für Finantsen klappt, konnte ich nicht prüfen. Probier es so:
-1. UGOS und die UGREEN-App auf dem Handy aktualisieren.
-2. In der Docker-App beim Container `finantsen-app-1` nach einer Option für Fernzugriff bzw. UGREENlink suchen.
-3. Falls es eine Adresse gibt: Anmelden und eine Ausgabe anlegen klappt? Dann passt es. **Aber:** Einladungs- und Aktivierungslinks enthalten die Heimnetz-Adresse aus `APP_URL`. Unterwegs öffnen sie sich nicht. Solche Links also zu Hause weitergeben oder die Adresse im Link von Hand ersetzen.
+**UGREENlink geht nicht.** Der UGREEN-Support hat bestätigt, dass UGREENlink Finantsen (eigener Container) nicht erreichen kann. Von unterwegs deshalb über WireGuard:
 
-**WireGuard-VPN über deine FRITZ!Box 7490 (Plan B, empfohlen, wenn UGREENlink nicht geht).** Damit ist das Handy unterwegs so, als wäre es im WLAN. Alles funktioniert, auch die Links.
+**WireGuard-VPN über deine FRITZ!Box 7490.** Damit ist das Handy unterwegs so, als wäre es im WLAN. Alles funktioniert, auch die Links.
 1. FRITZ!Box-Oberfläche öffnen (`http://fritz.box`) → **System → Update**. WireGuard gibt es ab **FRITZ!OS 7.50**. Wird dort keine passende Version angeboten, geht dieser Weg mit der 7490 nicht.
 2. **Internet → Freigaben → VPN (WireGuard)** → **Verbindung hinzufügen** → „Einzelgerät verbinden“ → Namen eingeben (z. B. „Handy Anna“).
 3. Die FRITZ!Box zeigt einen **QR-Code**. Auf dem Handy die App **WireGuard** installieren → „+“ → „QR-Code scannen“.
 4. Unterwegs WireGuard einschalten und `http://<IP-des-NAS>:3000` öffnen.
 5. Für jede Person eine eigene Verbindung anlegen (eigener QR-Code). So kannst du einzelne Zugänge später wieder löschen.
+
+**Falls deine 7490 kein WireGuard anbietet:** Dann richte ich WireGuard stattdessen als Container auf der NAS ein (wg-easy, mit Weboberfläche und QR-Codes je Person). Dafür muss in der FRITZ!Box einmal ein UDP-Port zur NAS freigegeben werden. Sag mir in dem Fall Bescheid.
 
 ## 6. Aktualisieren
 

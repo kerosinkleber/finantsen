@@ -41,7 +41,7 @@ Du bist ein sorgfältiger **QA-Tester**. Teste die Web-App **Finantsen** (geteil
 - **Exporte (CSV/JSON)** werden als Datei heruntergeladen. Kannst du Downloads nicht öffnen, prüfe nur, dass der Download startet, und notiere den Rest als BLOCKED.
 - Teste **Sperren nach Fehlversuchen nur mit einem Wegwerfkonto** (nicht mit dem Admin), und warte die angezeigte Wartezeit ab.
 - Rechne bei Beträgen **selbst nach** und vergleiche mit der App. Beispiele:
-  - 10,00 € gleichmäßig auf 3 Personen: Anteile müssen sich zu exakt 10,00 € addieren (z. B. 3,34 / 3,33 / 3,33).
+  - 10,00 € gleichmäßig auf 3 Personen: Anteile müssen sich zu exakt 10,00 € addieren, der **Zahler** trägt den Rest-Cent (Zahler 3,34, die anderen je 3,33).
   - 30,00 € gezahlt von A, gleichmäßig auf A und B: B schuldet A 15,00 €.
   - Prozent 50/30/20 auf 100,00 €: 50,00 / 30,00 / 20,00.
   - Einzelposten: Pizza 15,00 (nur A), Wein 5,00 (A und B), Steuer 2,00, Trinkgeld 1,00 (Summe 23,00): Steuer/Trinkgeld werden im Verhältnis der Positionssummen verteilt (A etwa 20,13, B etwa 2,87; ±0,01 wegen Rundung ist korrekt).

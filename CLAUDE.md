@@ -131,7 +131,7 @@ Offene Fragen an den Auftraggeber werden als **Markdown-Fragebogen** unter `docs
 
 ## Konventionen / Regeln
 - Geld IMMER als Ganzzahl in Minor-Units (`bigint` mode number), Währung je Ausgabe/Zahlung. Nie Float.
-- Summe der Anteile == Gesamtbetrag (Rundung deterministisch: Rest nach größtem Nachkommarest, Gleichstand nach `id`-Reihenfolge).
+- Summe der Anteile == Gesamtbetrag (Rundung deterministisch: Rest-Cents **zuerst an den Zahler** (`mainPayer`: größter Zahlbetrag, Gleichstand kleinere ID; nur wenn sein exakter Anteil nicht glatt ist, Wunsch des Auftraggebers), dann nach größtem Nachkommarest, Gleichstand nach `id`-Reihenfolge; jede Person < 1 Cent neben exakt). `computeShares(total, input, favor)` – neue Aufrufer übergeben `mainPayer(payers)`.
 - Rechteprüfung ausschließlich serverseitig in den Services (`requireMember` → 404 bei Nicht-Mitgliedern). Neue Services müssen sie aufrufen.
 - Freunde = Gruppe mit `kind='direct'` (genau 2 Personen); gleiche Logik wie Gruppen.
 - Löschen von Ausgaben/Zahlungen ist Soft Delete (`deletedAt`); Ausgaben haben `expense_history` (Snapshot je Änderung: create/update/delete/restore). `restoreExpense` (jedes Mitglied) holt gelöschte Ausgaben zurück; Papierkorb in `groups/[id]` (`listExpenses(..., {onlyDeleted})`), Benachrichtigung `expense_restored`.
