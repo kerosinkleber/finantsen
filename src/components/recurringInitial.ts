@@ -1,4 +1,4 @@
-import { computeShares, type SplitInput } from "@/lib/money";
+import { computeShares, mainPayer, type SplitInput } from "@/lib/money";
 import type { ExpenseInitial } from "./ExpenseForm";
 
 type Template = {
@@ -42,7 +42,7 @@ export function templateToInitial(id: string, startDate: string, t: Template): E
     category: t.category,
     splitType: s.type,
     payers: t.payers,
-    shares: computeShares(t.amountMinor, input).map((a) => ({ userId: a.id, amountMinor: a.amount, input: raw.get(a.id) ?? null })),
+    shares: computeShares(t.amountMinor, input, mainPayer(t.payers.map((p) => ({ id: p.userId, amount: p.amountMinor })))).map((a) => ({ userId: a.id, amountMinor: a.amount, input: raw.get(a.id) ?? null })),
     baseCurrency: t.currency,
     rate: "1",
     rateSource: "same",

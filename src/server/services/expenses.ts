@@ -3,7 +3,7 @@ import { and, desc, eq, exists, gte, ilike, isNotNull, isNull, lte, or, sql, typ
 import { getDb, type Tx } from "../db";
 import { expenseHistory, expensePayers, expenseShares, expenses, users } from "../schema";
 import { ApiError, notFound } from "../http";
-import { computeShares, convertMinor, normalizeRate, rescale, validatePayers, type SplitInput } from "@/lib/money";
+import { computeShares, convertMinor, mainPayer, normalizeRate, rescale, validatePayers, type SplitInput } from "@/lib/money";
 import { getRate } from "../rates";
 import type { ExpenseBody } from "@/lib/schemas";
 import { memberIds, requireMember } from "./access";
@@ -242,7 +242,7 @@ export async function validateTemplate(groupId: string, body: Omit<ExpenseBody, 
   const members = new Set(await memberIds(groupId));
   const payerList = body.payers.map((p) => ({ id: p.userId, amount: p.amountMinor })).sort((a, b) => (a.id < b.id ? -1 : 1));
   validatePayers(body.amountMinor, payerList);
-  const shares = computeShares(body.amountMinor, toSplitInput(body.split));
+  const shares = computeShares(body.amountMinor, toSplitInput(body.split), mainPayer(payerList));
   const involved = [...payerList.map((p) => p.id), ...shares.map((s) => s.id)];
   if (involved.some((u) => !members.has(u))) throw new ApiError(400, "not_a_member");
   return { involved: [...new Set(involved)] };
@@ -253,7 +253,7 @@ async function prepare(groupId: string, body: ExpenseBody, baseCurrency: string,
   const members = new Set(await memberIds(groupId));
   const payerList = body.payers.map((p) => ({ id: p.userId, amount: p.amountMinor })).sort((a, b) => (a.id < b.id ? -1 : 1));
   validatePayers(body.amountMinor, payerList);
-  const shares = computeShares(body.amountMinor, toSplitInput(body.split));
+  const shares = computeShares(body.amountMinor, toSplitInput(body.split), mainPayer(payerList));
   const involved = [...payerList.map((p) => p.id), ...shares.map((s) => s.id)];
   if (involved.some((u) => !members.has(u))) throw new ApiError(400, "not_a_member");
   const { rate, source } = await resolveRate(body, baseCurrency, reuse);

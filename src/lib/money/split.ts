@@ -39,20 +39,21 @@ export const PERCENT_TOTAL_BP = 10000;
 
 /**
  * Largest-Remainder-Verfahren: verteilt `total` proportional zu `weights`.
- * Restcents gehen an die größten Nachkommareste; bei Gleichstand an den kleineren Index.
+ * Restcents gehen zuerst an `favor` (Index des Zahlers, sofern sein Anteil nicht glatt aufgeht), dann an die größten
+ * Nachkommareste; bei Gleichstand an den kleineren Index. Jede Position bleibt < 1 Cent neben dem exakten Wert.
  * Deterministisch, Summe == total. Unterstützt negative Totale.
  */
-export function allocate(total: number, weights: number[]): number[] {
+export function allocate(total: number, weights: number[], favor?: number): number[] {
   if (!Number.isSafeInteger(total)) throw new SplitError("invalid_amount");
   if (weights.length === 0) throw new SplitError("no_participants");
   for (const w of weights) {
     if (!Number.isSafeInteger(w) || w < 0) throw new SplitError("invalid_weight");
   }
-  return allocateExact(total, weights.map((w) => BigInt(w)));
+  return allocateExact(total, weights.map((w) => BigInt(w)), favor);
 }
 
 /** Wie `allocate`, aber mit beliebig großen (exakten) BigInt-Gewichten. */
-function allocateExact(total: number, weights: bigint[]): number[] {
+function allocateExact(total: number, weights: bigint[], favor?: number): number[] {
   const sumW = weights.reduce((a, b) => a + b, 0n);
   if (sumW === 0n) throw new SplitError("invalid_weight", "weights sum to zero");
 
@@ -72,9 +73,21 @@ function allocateExact(total: number, weights: bigint[]): number[] {
   const order = weights
     .map((_, i) => i)
     .filter((i) => weights[i] > 0n)
-    .sort((a, b) => (rem[a] === rem[b] ? a - b : rem[a] > rem[b] ? -1 : 1));
+    .sort((a, b) => {
+      // Der Zahler trägt einen nicht glatt aufteilbaren Cent selbst (nur wenn sein exakter Anteil einen Rest hat)
+      const fa = a === favor && rem[a] > 0n ? 0 : 1;
+      const fb = b === favor && rem[b] > 0n ? 0 : 1;
+      if (fa !== fb) return fa - fb;
+      return rem[a] === rem[b] ? a - b : rem[a] > rem[b] ? -1 : 1;
+    });
   for (let k = 0; k < left; k++) base[order[k % order.length]] += 1n;
   return base.map((x) => Number(x * sign));
+}
+
+/** Index von `id` in `ids` oder undefined (nicht beteiligt). */
+function at(ids: string[], id: string | undefined): number | undefined {
+  const i = id === undefined ? -1 : ids.indexOf(id);
+  return i >= 0 ? i : undefined;
 }
 
 function assertUnique(ids: string[]) {
@@ -82,8 +95,20 @@ function assertUnique(ids: string[]) {
   if (new Set(ids).size !== ids.length) throw new SplitError("duplicate_participant");
 }
 
-/** Berechnet die Anteile; Ergebnis ist nach id sortiert (unabhängig von der Eingabereihenfolge). */
-export function computeShares(total: number, input: SplitInput): Allocation[] {
+/**
+ * Wer bei mehreren Zahlern „die Ausgabe gemacht hat“: der mit dem größten Betrag, bei Gleichstand die kleinere ID.
+ * Bekommt nicht glatt aufteilbare Rest-Cents (siehe `computeShares`).
+ */
+export function mainPayer(payers: { id: string; amount: number }[]): string | undefined {
+  return [...payers].sort((a, b) => (a.amount !== b.amount ? b.amount - a.amount : a.id < b.id ? -1 : 1))[0]?.id;
+}
+
+/**
+ * Berechnet die Anteile; Ergebnis ist nach id sortiert (unabhängig von der Eingabereihenfolge).
+ * `favor` (meist der Zahler, `mainPayer`): bekommt bei nicht glatt teilbaren Beträgen den Rest-Cent zuerst, sofern er
+ * beteiligt ist. Sonst gilt der größte Rest, Gleichstand nach ID.
+ */
+export function computeShares(total: number, input: SplitInput, favor?: string): Allocation[] {
   if (!Number.isSafeInteger(total) || total < 0) throw new SplitError("invalid_amount");
   let out: Allocation[];
   switch (input.type) {
@@ -92,13 +117,13 @@ export function computeShares(total: number, input: SplitInput): Allocation[] {
       break;
     }
     case "items": {
-      out = computeItemized(total, input.items, input.tax, input.tip);
+      out = computeItemized(total, input.items, input.tax, input.tip, favor);
       break;
     }
     case "equal": {
       assertUnique(input.participants);
       const ids = [...input.participants].sort();
-      const parts = allocate(total, ids.map(() => 1));
+      const parts = allocate(total, ids.map(() => 1), at(ids, favor));
       out = ids.map((id, i) => ({ id, amount: parts[i] }));
       break;
     }
@@ -109,7 +134,7 @@ export function computeShares(total: number, input: SplitInput): Allocation[] {
       const es = [...input.entries].sort((a, b) => (a.id < b.id ? -1 : 1));
       const rest = total - es.reduce((a, e) => a + e.adjust, 0);
       if (rest < 0) throw new SplitError("adjust_sum", `rest=${rest}`);
-      const parts = allocate(rest, es.map(() => 1));
+      const parts = allocate(rest, es.map(() => 1), at(es.map((e) => e.id), favor));
       out = es.map((e, i) => ({ id: e.id, amount: parts[i] + e.adjust }));
       if (out.some((o) => o.amount < 0)) throw new SplitError("adjust_sum", "negative share");
       break;
@@ -117,7 +142,7 @@ export function computeShares(total: number, input: SplitInput): Allocation[] {
     case "shares": {
       assertUnique(input.entries.map((e) => e.id));
       const es = [...input.entries].sort((a, b) => (a.id < b.id ? -1 : 1));
-      const parts = allocate(total, es.map((e) => e.shares));
+      const parts = allocate(total, es.map((e) => e.shares), at(es.map((e) => e.id), favor));
       out = es.map((e, i) => ({ id: e.id, amount: parts[i] }));
       break;
     }
@@ -126,7 +151,7 @@ export function computeShares(total: number, input: SplitInput): Allocation[] {
       const sum = input.entries.reduce((a, e) => a + e.bp, 0);
       if (sum !== PERCENT_TOTAL_BP) throw new SplitError("percent_sum", `sum=${sum}`);
       const es = [...input.entries].sort((a, b) => (a.id < b.id ? -1 : 1));
-      const parts = allocate(total, es.map((e) => e.bp));
+      const parts = allocate(total, es.map((e) => e.bp), at(es.map((e) => e.id), favor));
       out = es.map((e, i) => ({ id: e.id, amount: parts[i] }));
       break;
     }
@@ -155,12 +180,12 @@ export function validatePayers(total: number, payers: { id: string; amount: numb
 }
 
 /**
- * Itemisierte Aufteilung: Jede Position wird gleichmäßig auf ihre Personen verteilt (Rest-Cent
- * rotiert je Position deterministisch, damit nicht immer dieselbe Person ihn trägt). Steuer und
+ * Itemisierte Aufteilung: Jede Position wird gleichmäßig auf ihre Personen verteilt (exakt, gerundet wird einmal am
+ * Ende; ein Rest-Cent geht zuerst an den Zahler, siehe `computeShares`). Steuer und
  * Trinkgeld werden getrennt proportional zu den Positionssummen der Personen verteilt.
  * Die Summe aus Positionen + Steuer + Trinkgeld muss dem Gesamtbetrag entsprechen.
  */
-export function computeItemized(total: number, items: ItemInput[], tax: number, tip: number): Allocation[] {
+export function computeItemized(total: number, items: ItemInput[], tax: number, tip: number, favor?: string): Allocation[] {
   if (items.length === 0) throw new SplitError("no_participants");
   for (const v of [tax, tip]) if (!Number.isSafeInteger(v) || v < 0) throw new SplitError("invalid_amount");
   let itemSum = 0;
@@ -178,7 +203,7 @@ export function computeItemized(total: number, items: ItemInput[], tax: number, 
     throw new SplitError("items_sum", `sum=${itemSum + tax + tip} total=${total}`);
   // Exakter Anteil je Person (in 1/L Cent): Summe ihrer Positionsanteile. Steuer und Trinkgeld verteilen sich
   // proportional dazu, also ist der exakte Gesamtanteil proportional zu diesem Gewicht. Gerundet wird nur EINMAL
-  // am Ende (größter Rest, Gleichstand nach ID): jede Person liegt weniger als 1 Cent neben dem exakten Wert.
+  // am Ende (Zahler zuerst, dann größter Rest, Gleichstand nach ID): jede Person liegt weniger als 1 Cent neben dem exakten Wert.
   const weight = new Map<string, bigint>();
   for (const it of items) {
     const per = BigInt(it.amount) * (L / BigInt(it.participants.length));
@@ -190,6 +215,6 @@ export function computeItemized(total: number, items: ItemInput[], tax: number, 
     if (total === 0) return ids.map((id) => ({ id, amount: 0 }));
     throw new SplitError("invalid_weight", "tax/tip without item amounts");
   }
-  const parts = allocateExact(total, weights);
+  const parts = allocateExact(total, weights, at(ids, favor));
   return ids.map((id, i) => ({ id, amount: parts[i] }));
 }
