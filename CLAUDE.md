@@ -115,6 +115,8 @@ Next.js 16 (App Router, Turbopack-Build, UI + API in einem Projekt; ESLint-Flat-
 ## Betrieb ohne HTTPS (Fragebogen 9)
 - Fragebogen `docs/fragen/09-release-und-betrieb.md`: Heimbetrieb über `http://IP:Port` ist erlaubt, HTTPS bleibt möglich. Erkennung **nur im Browser** über `window.isSecureContext` (`lib/use-secure.ts#useSecureContext`, `null` beim Server-Rendern; localhost gilt als sicher).
 - Ohne sicheren Kontext: `QrScanner` (Knopf ausgegraut, Kamera wird gar nicht angefragt, Einfügen bleibt), `Passkeys` und Passkey-Knopf im `LoginForm` (deaktiviert), `PushToggle` (Zustand `insecure`), je mit `InsecureNote`; Übersicht `InsecureInfo` in den Einstellungen, mit `admin` auf `/admin/users` (wie man HTTPS bekommt); `InstallHint` blendet den Installationstipp aus. Neue Funktionen, die einen sicheren Kontext brauchen, müssen das genauso behandeln.
+- **Kopieren** nur über `components/CopyButton` (`lib/copy.ts#copyText`: Clipboard-API nur im sicheren Kontext, sonst `execCommand("copy")`; „Kopiert“ nur bei echtem Erfolg, sonst Hinweis `common.copyManual` und Feld `selectId` markieren). Nie `navigator.clipboard?.writeText` direkt.
+- **Handy/WebView** (Android-Wrapper-Test): `Nav` blendet die feste Unten-Leiste aus, solange ein Eingabefeld den Fokus hat (sofort aus, verzögert 400 ms wieder an, sonst fängt sie Klicks auf Knöpfe am unteren Rand ab). `useConfirm` legt beim Öffnen einen Verlaufseintrag an (Next-Zustand kopiert): Zurück-Taste = Abbrechen.
 - E2E „without HTTPS“: eigener Chromium mit `--host-resolver-rules=MAP finantsen.test 127.0.0.1`, Anfragen dann per `fetch` im Browser (Node kennt den Namen nicht).
 
 ## Performance

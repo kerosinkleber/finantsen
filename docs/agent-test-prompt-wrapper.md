@@ -160,12 +160,12 @@ Erwartet: Die Ausgabe ist wieder in der Liste.
 #### Weitere Abläufe
 
 **T14 Statistik und Blättern**
-- `?tab=stats`: `[data-testid="stats-total"]` zeigt die Summe aller Ausgaben der Gruppe.
+- `?tab=stats`: `[data-testid="stats-total"]` zeigt die Summe aller Ausgaben der Gruppe. Bei weniger als 50 Einträgen gibt es **kein** Element `[data-testid="pager"]` (ab Stand `0d934ef`).
 - Zurück zur Liste. Hat sie mehr als 50 Einträge, gibt es `[data-testid="pager"]`. In der Testgruppe sind es weniger, dann ist kein Pager da: OK.
 
 **T15 Kommentar mit Tastatur**
 - Auf der Detailseite einer Ausgabe in `[data-testid="comments"]` einen Kommentar „WT-Kommentar“ schreiben und absenden.
-- Erwartet: `[data-testid="comment"]` erscheint. Die Tastatur verdeckt das Eingabefeld nicht. Nach dem Absenden zeigt die Seite nicht falsch verschoben an.
+- Erwartet: `[data-testid="comment"]` erscheint. Die Tastatur verdeckt das Eingabefeld nicht; solange die Tastatur offen ist, ist die Unten-Leiste ausgeblendet (`[data-testid="bottom-nav"][data-keyboard="open"]`), ab Stand `0d934ef`. „Senden“ klappt beim ersten Tippen.
 
 **T16 Einladungslink und Zwischenablage**
 1. Mitglieder-Reiter → „Mitglied einladen“.
@@ -174,7 +174,7 @@ Erwartet: Die Ausgabe ist wieder in der Liste.
 3. Prüfe, ob die Zwischenablage wirklich den Link enthält: in ein Textfeld der App einfügen, oder per adb.
 4. Dokumentiere `typeof navigator.clipboard` aus T0.
 
-Wenn „Kopiert“ erscheint, die Zwischenablage aber leer bleibt: als **Bug in der Web-App** melden. Die Seite meldet dann Erfolg, obwohl über HTTP nichts kopiert wurde. Das Feld selbst ist markierbar, manuelles Kopieren per langem Druck ist der Umweg; prüfe, ob das geht.
+Erwartet ab Stand `0d934ef`: Entweder steht in der Zwischenablage wirklich der Link (dann „Kopiert“), oder es erscheint `[data-testid="copy-manual"]` („Kopieren ist hier nicht möglich …“) und das Feld ist markiert. „Kopiert“ bei leerer Zwischenablage ist ein **Bug in der Web-App**.
 
 **T17 Sprache**
 - `/settings` → Sprachauswahl `#lang` auf English.
@@ -188,7 +188,7 @@ Wenn „Kopiert“ erscheint, die Zwischenablage aber leer bleibt: als **Bug in 
    - Erwartet: Seite lädt neu.
 3. Mitten in einer gescrollten Liste nach unten ziehen.
    - Erwartet: **kein** Neuladen, nur Scrollen.
-4. Ist ein Bestätigungsfenster offen (Löschen-Rückfrage)? Zurück-Taste drücken und dokumentieren, ob das Fenster schließt oder die Seite verlassen wird.
+4. Bestätigungsfenster öffnen (Löschen-Rückfrage), Zurück-Taste drücken. Erwartet ab Stand `0d934ef`: Das Fenster schließt wie „Abbrechen“, die Seite bleibt, nichts gelöscht.
 
 #### Randfälle
 

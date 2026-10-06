@@ -250,6 +250,13 @@ Browsers treat `localhost` as secure, so this only shows when you open the app f
 - [ ] **Manage users** (admin): the same box plus an explanation of how to get HTTPS.
 - [ ] Everything else (groups, expenses, balances, statistics, import, export, receipt photos) works as usual.
 - [ ] **Counter-check:** on `http://localhost:3000` (or with HTTPS) none of these hints appear.
+- [ ] **Copy buttons** (invite link, activation link, IBAN, recovery codes): over http the button either really copies (then "Copied") or shows "Copying is not possible here. Long-press the text …" and selects the field. It must never say "Copied" while the clipboard stays empty (paste somewhere to check).
+
+## 8d. Phone details (also in the Android wrapper app)
+
+- [ ] **Keyboard:** tap into any text field (new group, expense, comment). The bottom bar (Overview/Friends/Account) disappears while typing and comes back shortly after leaving the field; tapping *Send*/*Save* at the bottom works on the first tap.
+- [ ] **Back button with an open confirmation box** (e.g. *Delete* on an expense): Android back closes the box like *Cancel*, the page stays, nothing is deleted. After *Cancel* one back goes to the previous page.
+- [ ] **No empty pager:** a group with fewer than 50 entries has no paging bar.
 
 ---
 
