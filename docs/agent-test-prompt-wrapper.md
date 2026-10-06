@@ -201,7 +201,7 @@ Erwartet ab Stand `0d934ef`: Entweder steht in der Zwischenablage wirklich der L
 1. Auf der Gruppenseite das Netz trennen (WLAN und Mobilfunk aus, oder per adb `svc wifi disable` und `svc data disable`).
    - Dokumentiere: `navigator.onLine`, ob die Web-App oben „Du bist offline …“ zeigt, und was logcat zum Tunnel meldet.
 2. Offline eine Ausgabe speichern.
-   - Erwartet: Fehlermeldung in der Seite (Offline/Netzwerkfehler), **keine** halb gespeicherte Ausgabe.
+   - Erwartet ab Stand `7c3ab1f`: Meldung „Keine Verbindung zum Server. Deine Eingaben sind noch da …“ (`[data-testid="error"]`), die Seite scrollt dorthin; oben erscheint `[data-testid="offline-banner"]` (auch wenn `navigator.onLine` true bleibt); **keine** halb gespeicherte Ausgabe.
 3. Offline zu einer noch nicht besuchten Seite navigieren.
    - Dokumentiere, was erscheint: Fehlerseite des Wrappers, Chromium-Fehlerseite oder `offline.html` der Web-App. Ohne Service Worker erscheint `offline.html` nicht.
 4. Netz wieder an.
@@ -221,7 +221,7 @@ Erwartet ab Stand `0d934ef`: Entweder steht in der Zwischenablage wirklich der L
 
 **T23 Darstellung**
 - Hochformat und Querformat, große Systemschrift (Einstellungen → Anzeige → Schriftgröße), Dunkelmodus.
-- Erwartet: kein waagerechtes Scrollen (`document.documentElement.scrollWidth <= innerWidth`), Knöpfe tippbar, Texte lesbar.
+- Erwartet: kein waagerechtes Scrollen (`document.documentElement.scrollWidth <= document.documentElement.clientWidth`; `innerWidth` erkennt es nicht), Knöpfe tippbar, Texte lesbar. Die Reiterleiste der Gruppe darf sich waagerecht wischen lassen.
 
 **T24 Abmelden (manueller Schritt am Ende)**
 1. `/settings` → `[data-testid="logout"]`.
