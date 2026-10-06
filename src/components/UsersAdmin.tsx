@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client-api";
 import { useConfirm } from "./useConfirm";
+import { CopyButton } from "./CopyButton";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { QrCode } from "./QrCode";
@@ -27,7 +28,6 @@ type LinkInfo = { url: string; expiresAt: string; for: string; mailedTo?: string
 
 function LinkBox({ link }: { link: LinkInfo }) {
   const { t, locale } = useI18n();
-  const [copied, setCopied] = useState(false);
   // Die aktuelle Origin bevorzugen, falls APP_URL nicht gesetzt ist
   const token = link.url.split("/activate/")[1];
   const url = `${typeof window !== "undefined" ? window.location.origin : ""}/activate/${token}`;
@@ -35,19 +35,9 @@ function LinkBox({ link }: { link: LinkInfo }) {
     <div className="flex flex-col gap-1 rounded-lg bg-slate-100 p-3 dark:bg-slate-800" data-testid="link-box">
       <p className="text-sm font-medium">{t("admin.linkTitle")}</p>
       <p className="muted">{t("admin.linkHelp", { name: link.for, until: new Date(link.expiresAt).toLocaleString(locale) })}</p>
-      <div className="flex gap-2">
-        <input readOnly className="input" value={url} data-testid="activation-link" onFocus={(e) => e.currentTarget.select()} />
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={async () => {
-            await navigator.clipboard?.writeText(url).catch(() => {});
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
-        >
-          {copied ? t("common.copied") : t("common.copy")}
-        </button>
+      <div className="flex flex-wrap gap-2 [&>input]:min-w-0 [&>input]:flex-1">
+        <input id="activation-link" readOnly className="input" value={url} data-testid="activation-link" onFocus={(e) => e.currentTarget.select()} />
+        <CopyButton text={url} selectId="activation-link" />
       </div>
       {link.mailedTo && <p className="pos text-sm" data-testid="link-mailed">{t("admin.linkMailed", { email: link.mailedTo })}</p>}
       {link.mailFailed && <p className="text-sm text-red-700 dark:text-red-300" data-testid="link-mail-failed">{t("admin.linkMailFailed")}</p>}

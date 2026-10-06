@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
+import { CopyButton } from "./CopyButton";
 import { ErrorMessage } from "./ErrorMessage";
 
 type Status = { enabled: boolean; required: boolean; recoveryRemaining: number };
@@ -21,7 +22,9 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
           <li key={c} data-testid="recovery-code">{c}</li>
         ))}
       </ul>
-      <button type="button" className="btn-secondary" onClick={() => navigator.clipboard?.writeText(codes.join("\n"))}>{t("totp.copy")}</button>
+      <div className="flex flex-wrap gap-2">
+        <CopyButton text={codes.join("\n")} label={t("totp.copy")} />
+      </div>
     </div>
   );
 }

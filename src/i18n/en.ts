@@ -18,6 +18,7 @@ const en: Record<MessageKey, string> = {
   "common.offline": "You are offline – showing the last loaded data.",
   "common.you": "You",
   "common.copy": "Copy",
+  "common.copyManual": "Copying is not possible here. Long-press the text and choose “Copy”.",
   "common.copied": "Copied",
   "common.confirmDelete": "Really delete?",
   "auth.login": "Sign in",

@@ -4,13 +4,13 @@ import { api } from "@/lib/client-api";
 import { useI18n } from "@/i18n/client";
 import { ErrorMessage } from "./ErrorMessage";
 import { QrCode } from "./QrCode";
+import { CopyButton } from "./CopyButton";
 
 /** Erzeugt einen Einladungslink. `createUrl` ist der API-Endpunkt (Gruppe oder Freunde). */
 export function InviteBox({ createUrl, label }: { createUrl: string; label: string }) {
   const { t } = useI18n();
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [copied, setCopied] = useState(false);
 
   async function create() {
     setError(null);
@@ -23,12 +23,6 @@ export function InviteBox({ createUrl, label }: { createUrl: string; label: stri
       setError(e);
     }
   }
-  async function copy() {
-    if (!link) return;
-    await navigator.clipboard?.writeText(link).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
   return (
     <div className="flex flex-col gap-2">
       <button className="btn-secondary" onClick={create}>{label}</button>
@@ -36,9 +30,9 @@ export function InviteBox({ createUrl, label }: { createUrl: string; label: stri
       {link && (
         <div className="flex flex-col gap-1">
           <p className="muted">{t("group.inviteLink")}</p>
-          <div className="flex gap-2">
-            <input readOnly className="input" value={link} data-testid="invite-link" onFocus={(e) => e.currentTarget.select()} />
-            <button className="btn-secondary" onClick={copy}>{copied ? t("common.copied") : t("common.copy")}</button>
+          <div className="flex flex-wrap gap-2 [&>input]:min-w-0 [&>input]:flex-1">
+            <input id="invite-link" readOnly className="input" value={link} data-testid="invite-link" onFocus={(e) => e.currentTarget.select()} />
+            <CopyButton text={link} selectId="invite-link" />
           </div>
           <p className="muted mt-2">{t("invite.qrHelp")}</p>
           <QrCode text={link} label={t("invite.qrAlt")} />

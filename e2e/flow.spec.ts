@@ -1505,3 +1505,70 @@ test("without HTTPS (plain http on a LAN name): camera, passkeys and push are gr
   await page.goto("/settings");
   await expect(page.getByTestId("insecure-info")).toHaveCount(0);
 });
+
+test("wrapper findings: no empty pager, bottom bar hides while typing, back closes the confirm box, copy never fakes success", async ({ page, browser, baseURL }) => {
+  await login(page, "anna");
+  // Kleine Gruppe: kein (leerer) Pager
+  await page.goto(groupUrl);
+  await expect(page.getByTestId("expense-item").first()).toBeVisible();
+  await expect(page.getByTestId("pager")).toHaveCount(0);
+
+  // Unten-Leiste verschwindet, solange ein Eingabefeld den Fokus hat (Tastatur), und kommt danach wieder
+  await page.goto("/groups/new");
+  const nav = page.getByTestId("bottom-nav").last(); // die untere Leiste (Handy); die obere ist nur am Desktop sichtbar
+  await expect(nav).toBeVisible();
+  await page.locator("#name").focus();
+  await expect(nav).toBeHidden();
+  await page.locator("#name").blur();
+  await expect(nav).toBeVisible();
+
+  // Zurück-Taste bei offenem Bestätigungsfenster: Fenster zu, Seite bleibt, nichts gelöscht
+  await page.goto(groupUrl);
+  await page.getByTestId("expense-item").first().click();
+  await expect(page).toHaveURL(/\/expenses\//);
+  const url = page.url();
+  await page.getByRole("button", { name: "Delete", exact: true }).first().click();
+  await expect(page.getByTestId("confirm-dialog")).toBeVisible();
+  await page.goBack();
+  await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
+  expect(page.url()).toBe(url);
+  await expect(page.getByRole("heading", { name: "Edit expense" })).toBeVisible();
+  // Abbrechen räumt den eigenen Verlaufseintrag wieder ab: ein Zurück führt danach zur Gruppe
+  await page.getByRole("button", { name: "Delete", exact: true }).first().click();
+  await page.getByTestId("confirm-no").click();
+  await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`${groupUrl}$`));
+
+  // Kopieren über http ohne Zwischenablage: kein falsches „Kopiert“, sondern Hinweis + markiertes Feld
+  const insecure = await browser.browserType().launch({
+    args: ["--host-resolver-rules=MAP finantsen.test 127.0.0.1"],
+    ...(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {}),
+  });
+  try {
+    const ctx = await insecure.newContext({ baseURL: `http://finantsen.test:${new URL(baseURL!).port}`, locale: "en-US" });
+    const p = await ctx.newPage();
+    await p.goto("/login");
+    await p.getByLabel("Username or email").fill("anna");
+    await p.getByLabel("Password").fill(PASSWORD);
+    await p.getByRole("button", { name: "Sign in" }).click();
+    await expect(p).toHaveURL(/\/$/);
+    expect(await p.evaluate(() => typeof navigator.clipboard)).toBe("undefined");
+    await p.goto(`${groupUrl}?tab=members`);
+    await p.evaluate(() => { document.execCommand = () => false; }); // auch der Rückfall scheitert
+    await p.getByRole("button", { name: "Invite a member" }).click();
+    await expect(p.getByTestId("invite-link")).toBeVisible();
+    await p.getByTestId("copy-button").first().click();
+    await expect(p.getByTestId("copy-manual")).toContainText("Long-press");
+    await expect(p.getByTestId("copy-button").first()).toHaveText("Copy");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("invite-link");
+    // Mit funktionierendem Rückfall (execCommand) meldet der Knopf Erfolg
+    await p.reload();
+    await p.getByRole("button", { name: "Invite a member" }).click();
+    await p.getByTestId("copy-button").first().click();
+    await expect(p.getByTestId("copy-button").first()).toHaveText("Copied");
+    await ctx.close();
+  } finally {
+    await insecure.close();
+  }
+});

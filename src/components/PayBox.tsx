@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
 import { useI18n } from "@/i18n/client";
 import { epcPayload, formatIban, paypalMeUrl } from "@/lib/payment";
 import { QrCode } from "./QrCode";
+import { CopyButton } from "./CopyButton";
 
 /**
  * „Bezahlen“ bei einem eigenen Ausgleichsvorschlag: GiroCode (nur Euro) und/oder PayPal.me-Link mit Betrag.
@@ -18,7 +18,6 @@ export function PayBox({ to, amountMinor, currency, text, holder, iban, paypal }
   paypal: string | null;
 }) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
   const fraction = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
   const epc = iban && holder ? epcPayload({ name: holder, iban, amountMinor, currency, text }) : null;
   const pp = paypal ? paypalMeUrl(paypal, amountMinor, currency, fraction) : null;
@@ -36,19 +35,9 @@ export function PayBox({ to, amountMinor, currency, text, holder, iban, paypal }
         {iban && (
           <div>
             <p className="muted">{t("pay.ibanOf", { name: holder ?? to })}</p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <code className="break-all" data-testid="pay-iban">{formatIban(iban)}</code>
-              <button
-                type="button"
-                className="btn-secondary !min-h-9 !px-3"
-                onClick={async () => {
-                  await navigator.clipboard?.writeText(iban).catch(() => {});
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-              >
-                {copied ? t("common.copied") : t("common.copy")}
-              </button>
+              <CopyButton text={iban} className="btn-secondary !min-h-9 !px-3" />
             </div>
             {!epc && currency !== "EUR" && <p className="muted mt-1">{t("pay.qrEuroOnly")}</p>}
           </div>

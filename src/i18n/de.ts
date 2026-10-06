@@ -16,6 +16,7 @@ const de = {
   "common.offline": "Du bist offline – es werden zuletzt geladene Daten angezeigt.",
   "common.you": "Du",
   "common.copy": "Kopieren",
+  "common.copyManual": "Kopieren ist hier nicht möglich. Text lange drücken und „Kopieren“ wählen.",
   "common.copied": "Kopiert",
   "common.confirmDelete": "Wirklich löschen?",
   "auth.login": "Anmelden",

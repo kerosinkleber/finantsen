@@ -243,6 +243,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
         );
       })}
     </ul>
+    {(pages > 1 || size === 100) && (
     <nav className="flex flex-col gap-2" data-testid="pager">
       {pages > 1 && (
         <div className="flex items-center justify-between gap-2">
@@ -261,6 +262,7 @@ async function ExpensesTab({ groupId, userId, names, locale, t, group, sp }: {
         </Link>
       )}
     </nav>
+    )}
     {trashBox}
     </>
   );
