@@ -22,9 +22,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <p className="-mx-4 mb-4 bg-red-600 px-4 py-1 text-center text-xs font-semibold text-white" data-testid="dev-banner">{t("dev.banner")}</p>
       )}
       {user.impersonating && <ActingBanner testUserId={user.id} name={user.name} />}
-      <header className="mb-4 flex items-center justify-between gap-4">
-        <Link href="/" className="text-xl font-bold text-brand">Finantsen</Link>
-        <div className="flex items-center gap-2">
+      <header className="mb-4 flex items-center justify-between gap-2">
+        <Link href="/" className="min-w-0 truncate text-xl font-bold text-brand">Finantsen</Link>
+        <div className="flex shrink-0 items-center gap-2">
           <div className="hidden md:block"><Nav /></div>
           <Link href="/notifications" aria-label={t("notif.title")} data-testid="bell" className="relative flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-600 dark:text-slate-300">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

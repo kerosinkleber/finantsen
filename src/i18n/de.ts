@@ -31,6 +31,7 @@ const de = {
   "auth.firstUser": "Du bist der erste Nutzer und wirst Administrator.",
   "auth.invitedBy": "{inviter} hat dich eingeladen.",
   "auth.registrationDisabled": "Die Registrierung ist deaktiviert. Du brauchst einen Einladungslink.",
+  "err.offline": "Keine Verbindung zum Server. Deine Eingaben sind noch da – bitte gleich erneut versuchen.",
   "err.invalid_credentials": "Nutzername/E-Mail oder Passwort falsch.",
   "err.rate_limited": "Zu viele Versuche. Bitte später erneut versuchen.",
   "err.email_taken": "Diese E-Mail ist bereits registriert.",

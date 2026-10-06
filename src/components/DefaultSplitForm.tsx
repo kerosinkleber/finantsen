@@ -61,8 +61,8 @@ export function DefaultSplitForm({ groupId, members, initial }: { groupId: strin
         <>
           <p className="muted">{t("defaults.members")}</p>
           {members.map((m) => (
-            <div key={m.id} className="flex items-center gap-3">
-              <label className="flex flex-1 items-center gap-3">
+            <div key={m.id} className="flex flex-wrap items-center gap-3">
+              <label className="flex min-w-0 flex-1 items-center gap-3 break-words">
                 <input
                   type="checkbox"
                   className="h-5 w-5"

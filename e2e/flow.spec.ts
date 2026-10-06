@@ -1572,3 +1572,40 @@ test("wrapper findings: no empty pager, bottom bar hides while typing, back clos
     await insecure.close();
   }
 });
+
+test("large system font (200 %) on a narrow phone: no page scrolls sideways; offline shows a clear message", async ({ page }) => {
+  await login(page, "anna");
+  await page.setViewportSize({ width: 360, height: 740 });
+  const gid = groupUrl.split("/").pop();
+  const paths = ["/", groupUrl, `${groupUrl}?tab=balances`, `${groupUrl}?tab=stats`, `${groupUrl}?tab=members`, `${groupUrl}?tab=recurring`, `/groups/${gid}/expenses/new`, `/groups/${gid}/settle`, "/settings", "/friends", "/notifications", "/groups/new", "/two-factor"];
+  const overflow: string[] = [];
+  for (const p of paths) {
+    await page.goto(p);
+    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    const r = await page.evaluate(() => {
+      const de = document.documentElement;
+      const all = [...document.querySelectorAll("body *")].filter((el) => el.getBoundingClientRect().right > de.clientWidth + 1 && !el.closest("[role=tablist]"));
+      // die innersten Übeltäter zeigen (deren Kinder nicht selbst überstehen)
+      const wide = all
+        .filter((el) => !all.some((o) => o !== el && el.contains(o)))
+        .slice(0, 4)
+        .map((el) => `${el.tagName.toLowerCase()}${el.getAttribute("data-testid") ? `[${el.getAttribute("data-testid")}]` : ""}.${(el.getAttribute("class") ?? "").split(" ").slice(0, 3).join(".")}`);
+      return { sw: de.scrollWidth, cw: de.clientWidth, wide };
+    });
+    if (r.sw > r.cw) overflow.push(`${p}: ${r.sw}>${r.cw} ${r.wide.join(" | ")}`);
+  }
+  expect(overflow).toEqual([]);
+
+  // Offline (Verbindung weg, Antwort kommt nicht von Finantsen): klare Meldung, sichtbar, Eingaben bleiben
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto(`/groups/${gid}/expenses/new`);
+  await page.locator("#title").fill("Offline-Test");
+  await page.locator("#amount").fill("5");
+  await page.route("**/api/groups/*/expenses", (route) => route.fulfill({ status: 502, contentType: "text/html", body: "<h1>Bad Gateway</h1>" }));
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("error")).toContainText("No connection to the server");
+  await expect(page.getByTestId("error")).toBeInViewport();
+  await expect(page.getByTestId("offline-banner")).toBeVisible();
+  await expect(page.locator("#title")).toHaveValue("Offline-Test");
+  await page.unroute("**/api/groups/*/expenses");
+});

@@ -51,11 +51,11 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">{title}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="min-w-0 break-words text-xl font-semibold">{title}</h1>
         <Link href={`/groups/${id}/expenses/new`} className="btn">{t("group.addExpense")}</Link>
       </div>
-      <div role="tablist" className="flex gap-1 rounded-lg bg-slate-200 p-1 dark:bg-slate-800">
+      <div role="tablist" className="flex gap-1 overflow-x-auto rounded-lg bg-slate-200 p-1 dark:bg-slate-800">
         {(["expenses", "balances", "stats", "members"] as Tab[]).map((k) => (
           <Link
             key={k}
@@ -63,7 +63,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
             aria-selected={tab === k}
             href={`/groups/${id}?tab=${k}`}
             replace
-            className={`flex-1 rounded-md py-2 text-center text-sm font-medium ${tab === k ? "bg-white shadow dark:bg-slate-950" : "text-slate-600 dark:text-slate-400"}`}
+            className={`flex-1 shrink-0 whitespace-nowrap rounded-md px-2 py-2 text-center text-sm font-medium ${tab === k ? "bg-white shadow dark:bg-slate-950" : "text-slate-600 dark:text-slate-400"}`}
           >
             {t(`group.tab.${k}` as MessageKey)}
           </Link>
@@ -286,8 +286,8 @@ async function BalancesTab({ groupId, groupName, guests, userId, names, locale, 
             <ul className="flex flex-col gap-2" data-testid={`transfers-${cur}`}>
               {(b.transfers[cur] ?? []).map((tr, i) => (
                 <li key={i} className="flex flex-col gap-2 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                  <span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0">
                     {t(tr.from === userId ? "balances.youOwe" : tr.to === userId ? "balances.owesYou" : "balances.owes", {
                       from: names.get(tr.from) ?? "?",
                       to: names.get(tr.to) ?? "?",

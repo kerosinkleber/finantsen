@@ -33,6 +33,7 @@ const en: Record<MessageKey, string> = {
   "auth.firstUser": "You are the first user and will become administrator.",
   "auth.invitedBy": "{inviter} invited you.",
   "auth.registrationDisabled": "Registration is disabled. You need an invite link.",
+  "err.offline": "No connection to the server. Your input is still here – please try again shortly.",
   "err.invalid_credentials": "Wrong username/email or password.",
   "err.rate_limited": "Too many attempts. Please try again later.",
   "err.email_taken": "This email is already registered.",

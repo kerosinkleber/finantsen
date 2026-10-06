@@ -462,9 +462,9 @@ export function ExpenseForm({ groupId, members, meId, defaultCurrency, baseCurre
           <>
             <p className="muted">{t("expense.splitBetween")}</p>
             {members.map((m) => (
-              <div key={m.id} className="flex items-center gap-3">
+              <div key={m.id} className="flex flex-wrap items-center gap-3">
                 {/* ganze Zeile antippbar, mindestens 44 px hoch (Daumen) */}
-                <label className="flex min-h-11 flex-1 items-center gap-3">
+                <label className="flex min-h-11 min-w-0 flex-1 items-center gap-3 break-words">
                   <input type="checkbox" className="h-6 w-6" checked={included.has(m.id)} onChange={() => toggle(m.id)} aria-label={m.name} />
                   <span>{nameOf(m.id)}</span>
                 </label>
