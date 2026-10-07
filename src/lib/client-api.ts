@@ -16,10 +16,38 @@ export class ApiClientError extends Error {
  */
 let unreachable = false;
 const listeners = new Set<() => void>();
+let probe: ReturnType<typeof setTimeout> | undefined;
 function setUnreachable(v: boolean) {
   if (unreachable === v) return;
   unreachable = v;
   listeners.forEach((l) => l());
+  if (v) scheduleProbe();
+}
+
+/**
+ * Solange der Server als unerreichbar gilt, alle 5 s `/api/health` fragen. Sonst bliebe der Offline-Hinweis nach der
+ * Rückkehr des Netzes stehen, bis der Nutzer selbst wieder etwas speichert (kein `online`-Ereignis, siehe oben).
+ */
+function scheduleProbe(delay = 5000) {
+  clearTimeout(probe);
+  probe = setTimeout(async () => {
+    if (!unreachable) return;
+    try {
+      const res = await fetch("/api/health", { cache: "no-store" });
+      // 503 mit Finantsen-Antwort heißt: Server erreichbar (nur die Datenbank nicht) – Hinweis trotzdem weg
+      const data = await res.json().catch(() => null);
+      if (res.ok || (data && typeof data === "object" && "status" in data)) return setUnreachable(false);
+    } catch {
+      // weiterhin nicht erreichbar
+    }
+    scheduleProbe();
+  }, delay);
+}
+if (typeof window !== "undefined") {
+  // Netz wieder da oder App wieder im Vordergrund: sofort nachsehen statt bis zu 5 s zu warten
+  const now = () => unreachable && scheduleProbe(0);
+  window.addEventListener("online", now);
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && now());
 }
 export const connection = {
   unreachable: () => unreachable,

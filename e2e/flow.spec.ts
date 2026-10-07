@@ -1581,7 +1581,11 @@ test("large system font (200 %) on a narrow phone: no page scrolls sideways; off
   const overflow: string[] = [];
   for (const p of paths) {
     await page.goto(p);
-    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+      // aufklappbare Bereiche (z. B. „Suchen & filtern“) mitprüfen
+      document.querySelectorAll("details").forEach((d) => { d.open = true; });
+    });
     const r = await page.evaluate(() => {
       const de = document.documentElement;
       const all = [...document.querySelectorAll("body *")].filter((el) => el.getBoundingClientRect().right > de.clientWidth + 1 && !el.closest("[role=tablist]"));
@@ -1608,4 +1612,6 @@ test("large system font (200 %) on a narrow phone: no page scrolls sideways; off
   await expect(page.getByTestId("offline-banner")).toBeVisible();
   await expect(page.locator("#title")).toHaveValue("Offline-Test");
   await page.unroute("**/api/groups/*/expenses");
+  // Verbindung wieder da: Hinweis verschwindet von selbst (ohne erneutes Speichern, auch ohne „online“-Ereignis)
+  await expect(page.getByTestId("offline-banner")).toBeHidden({ timeout: 10_000 });
 });

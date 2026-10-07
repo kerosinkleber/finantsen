@@ -17,7 +17,7 @@ export function FilterForm({ groupId, members, currency, values, active, t }: {
 }) {
   return (
     <details className="card" open={active}>
-      <summary className="cursor-pointer font-medium">{t("filter.title")}</summary>
+      <summary className="cursor-pointer break-words font-medium">{t("filter.title")}</summary>
       <form method="get" action={`/groups/${groupId}`} className="mt-3 flex flex-col gap-3">
         <input type="hidden" name="tab" value="expenses" />
         <input type="hidden" name="currency" value={currency} />
@@ -25,29 +25,29 @@ export function FilterForm({ groupId, members, currency, values, active, t }: {
           <label className="label" htmlFor="f-q">{t("filter.q")}</label>
           <input id="f-q" name="q" className="input" defaultValue={val(values.q)} maxLength={100} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-0 max-w-full flex-[1_1_8rem]">
             <label className="label" htmlFor="f-min">{t("filter.min")}</label>
             <input id="f-min" name="min" inputMode="decimal" className="input" defaultValue={val(values.min)} />
           </div>
-          <div>
+          <div className="min-w-0 max-w-full flex-[1_1_8rem]">
             <label className="label" htmlFor="f-max">{t("filter.max")}</label>
             <input id="f-max" name="max" inputMode="decimal" className="input" defaultValue={val(values.max)} />
           </div>
         </div>
         <p className="muted -mt-2">{t("filter.currencyHint", { currency })}</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-0 max-w-full flex-[1_1_8rem]">
             <label className="label" htmlFor="f-from">{t("filter.from")}</label>
             <input id="f-from" name="from" type="date" className="input" defaultValue={val(values.from)} />
           </div>
-          <div>
+          <div className="min-w-0 max-w-full flex-[1_1_8rem]">
             <label className="label" htmlFor="f-to">{t("filter.to")}</label>
             <input id="f-to" name="to" type="date" className="input" defaultValue={val(values.to)} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-0 max-w-full flex-[1_1_8rem]">
             <label className="label" htmlFor="f-cat">{t("filter.category")}</label>
             <select id="f-cat" name="category" className="input" defaultValue={val(values.category)}>
               <option value="">{t("filter.any")}</option>
@@ -56,7 +56,7 @@ export function FilterForm({ groupId, members, currency, values, active, t }: {
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0 max-w-full flex-[1_1_8rem]">
             <label className="label" htmlFor="f-method">{t("pm.label").replace(/ \(.*\)$/, "")}</label>
             <select id="f-method" name="method" className="input" defaultValue={val(values.method)}>
               <option value="">{t("pm.any")}</option>
@@ -65,7 +65,7 @@ export function FilterForm({ groupId, members, currency, values, active, t }: {
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0 max-w-full flex-[1_1_8rem]">
             <label className="label" htmlFor="f-person">{t("filter.person")}</label>
             <select id="f-person" name="person" className="input" defaultValue={val(values.person)}>
               <option value="">{t("filter.any")}</option>
@@ -75,7 +75,7 @@ export function FilterForm({ groupId, members, currency, values, active, t }: {
             </select>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="btn flex-1">{t("filter.apply")}</button>
           <Link className="btn-secondary" href={`/groups/${groupId}?tab=expenses`}>{t("filter.reset")}</Link>
         </div>

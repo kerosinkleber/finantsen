@@ -257,8 +257,8 @@ Browsers treat `localhost` as secure, so this only shows when you open the app f
 - [ ] **Keyboard:** tap into any text field (new group, expense, comment). The bottom bar (Overview/Friends/Account) disappears while typing and comes back shortly after leaving the field; tapping *Send*/*Save* at the bottom works on the first tap.
 - [ ] **Back button with an open confirmation box** (e.g. *Delete* on an expense): Android back closes the box like *Cancel*, the page stays, nothing is deleted. After *Cancel* one back goes to the previous page.
 - [ ] **No empty pager:** a group with fewer than 50 entries has no paging bar.
-- [ ] **Very large text** (phone settings → font size at maximum, or browser zoom 200 %): no page can be scrolled sideways; the group tabs can be swiped sideways if they don't fit; buttons and long names wrap instead of being cut off.
-- [ ] **Connection lost while saving** (Wi-Fi and mobile data off, or VPN/tunnel down): saving shows "No connection to the server. Your input is still here …" right where you are (the page scrolls to it), the yellow "offline" bar appears at the top, the form keeps your input. With the connection back, saving again creates the entry exactly once.
+- [ ] **Very large text** (phone settings → font size at maximum, or browser zoom 200 %): no page can be scrolled sideways; the group tabs can be swiped sideways if they don't fit; buttons and long names wrap instead of being cut off. This includes the opened *Search & filter* box: its fields stack one below the other, nothing is cut off ("Payment method" readable).
+- [ ] **Connection lost while saving** (Wi-Fi and mobile data off, or VPN/tunnel down): saving shows "No connection to the server. Your input is still here …" right where you are (the page scrolls to it), the yellow "offline" bar appears at the top, the form keeps your input. With the connection back, the yellow bar disappears by itself within about 5 seconds (no need to save again first), and saving again creates the entry exactly once.
 
 ---
 
