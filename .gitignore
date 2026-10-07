@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.env
+.env.local
+*.tsbuildinfo
+test-results
+playwright-report
+.DS_Store
+.e2e-mails
+.claude/worktrees/

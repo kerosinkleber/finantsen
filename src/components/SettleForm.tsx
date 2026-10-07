@@ -1,0 +1,95 @@
+"use client";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { api, ApiClientError } from "@/lib/client-api";
+import { useI18n } from "@/i18n/client";
+import { ErrorMessage } from "./ErrorMessage";
+import { CurrencySelect } from "./CurrencySelect";
+import { parseAmount, toInputString } from "@/lib/money";
+import { localToday } from "@/lib/local-date";
+
+export function SettleForm({ groupId, members, meId, initial }: {
+  groupId: string;
+  members: { id: string; name: string }[];
+  meId: string;
+  initial: { from?: string; to?: string; amountMinor?: number; currency: string };
+}) {
+  const { t, locale } = useI18n();
+  const router = useRouter();
+  const other = members.find((m) => m.id !== meId)?.id ?? meId;
+  const [from, setFrom] = useState(initial.from ?? meId);
+  const [to, setTo] = useState(initial.to ?? other);
+  const [currency, setCurrency] = useState(initial.currency);
+  const [amount, setAmount] = useState(initial.amountMinor ? toInputString(initial.amountMinor, initial.currency, locale) : "");
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(localToday);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+
+  const inFlight = useRef(false); // gegen Mehrfach-Absenden (greift vor dem nächsten Rendern)
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const amountMinor = parseAmount(amount, currency);
+      if (!amountMinor || amountMinor <= 0) throw new ApiClientError(400, "invalid_amount");
+      await api("POST", `/api/groups/${groupId}/payments`, {
+        fromUser: from,
+        toUser: to,
+        amountMinor,
+        currency,
+        date,
+        note: note || undefined,
+      });
+      router.replace(`/groups/${groupId}?tab=balances`);
+      router.refresh();
+    } catch (err) {
+      inFlight.current = false;
+      setError(err);
+      setBusy(false);
+    }
+  }
+
+  const select = (id: string, value: string, set: (v: string) => void) => (
+    <select id={id} className="input" value={value} onChange={(e) => set(e.target.value)}>
+      {members.map((m) => (
+        <option key={m.id} value={m.id}>{m.id === meId ? `${m.name} (${t("common.you")})` : m.name}</option>
+      ))}
+    </select>
+  );
+  return (
+    <form onSubmit={submit} className="card flex flex-col gap-4">
+      <div>
+        <label className="label" htmlFor="from">{t("settle.from")}</label>
+        {select("from", from, setFrom)}
+      </div>
+      <div>
+        <label className="label" htmlFor="to">{t("settle.to")}</label>
+        {select("to", to, setTo)}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label" htmlFor="amount">{t("expense.amount")}</label>
+          <input id="amount" className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+        </div>
+        <div>
+          <label className="label" htmlFor="cur">{t("expense.currency")}</label>
+          <CurrencySelect id="cur" value={currency} onChange={setCurrency} />
+        </div>
+      </div>
+      <div>
+        <label className="label" htmlFor="pay-date">{t("expense.date")}</label>
+        <input id="pay-date" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} required />
+      </div>
+      <div>
+        <label className="label" htmlFor="note">{t("settle.note")}</label>
+        <input id="note" className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+      </div>
+      <ErrorMessage error={error} />
+      <button className="btn" disabled={busy}>{t("settle.save")}</button>
+    </form>
+  );
+}

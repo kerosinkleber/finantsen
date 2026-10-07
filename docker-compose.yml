@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: finantsen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Bitte POSTGRES_PASSWORD in .env setzen}
+      POSTGRES_DB: finantsen
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finantsen -d finantsen"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    # Fertiges Image von GitHub (docker compose pull); "build" bleibt als Alternative (docker compose up -d --build)
+    image: ghcr.io/kerosinkleber/finantsen:${FINANTSEN_TAG:-latest}
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://finantsen:${POSTGRES_PASSWORD}@db:5432/finantsen
+      APP_URL: ${APP_URL:-https://${DOMAIN:-localhost}}
+      APP_SECRET: ${APP_SECRET:?APP_SECRET fehlt in .env (openssl rand -hex 32)}
+      # Speicher-Obergrenze für Node (siehe Dockerfile, docs/performance.md); in der .env änderbar
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=256}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-de}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      EXCHANGE_RATE_PROVIDER: ${EXCHANGE_RATE_PROVIDER:-fawazahmed0}
+      EXCHANGE_RATES_STATIC: ${EXCHANGE_RATES_STATIC:-}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RECEIPT_SCAN_MODEL: ${RECEIPT_SCAN_MODEL:-}
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
